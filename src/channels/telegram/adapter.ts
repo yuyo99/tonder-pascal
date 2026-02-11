@@ -246,6 +246,19 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         return;
       }
 
+      // CHECK: Is this a command? (ticket, bug, feature, escalate)
+      const channelCmdMatch = cleanText.match(/^(ticket|bug|feature|escalate)\s*(.*)/i);
+      if (channelCmdMatch) {
+        const cmdType = channelCmdMatch[1].toLowerCase() as CommandType;
+        const description = channelCmdMatch[2].trim();
+        await this.handleTicketCommand(
+          { chat: ctx.chat, message: post as unknown as Record<string, unknown>, reply: (t: string) => ctx.reply(t) },
+          description,
+          cmdType
+        );
+        return;
+      }
+
       logger.info(
         { chatId, platform: "telegram" },
         "Processing Telegram channel post"
