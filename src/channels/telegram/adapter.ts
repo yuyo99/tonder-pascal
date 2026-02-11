@@ -105,6 +105,21 @@ export class TelegramChannelAdapter implements ChannelAdapter {
     }
     const handler = this.messageHandler;
 
+    // Catch-all middleware: logs EVERY raw update for debugging
+    this.bot.use(async (ctx, next) => {
+      logger.info(
+        {
+          updateType: ctx.updateType,
+          chatId: ctx.chat?.id,
+          chatType: ctx.chat?.type,
+          hasMessage: "message" in ctx.update,
+          hasChannelPost: "channel_post" in ctx.update,
+        },
+        "RAW Telegram update received"
+      );
+      return next();
+    });
+
     // Handle text messages
     this.bot.on("text", async (ctx) => {
       const chatId = String(ctx.chat.id);
@@ -292,7 +307,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
     // Use polling (not webhooks) for simplicity
     // Launch in background — don't await so a polling conflict doesn't crash the app
     this.bot
-      .launch()
+      .launch({ allowedUpdates: ["message", "channel_post"] })
       .then(() => logger.info("Telegram polling CONFIRMED active"))
       .catch((err) => {
         logger.error({ err }, "Telegram bot launch failed — will continue without Telegram");
