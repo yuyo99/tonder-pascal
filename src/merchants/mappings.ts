@@ -71,8 +71,9 @@ export const MERCHANT_CHANNEL_MAP: MerchantMapping[] = [
     { username: "bcgame_ticket_bot", label: "BcgameTicketBot" },
   ]),
 
-  // ── Tonder Production 2 (Telegram) — includes bcgame_ticket_bot for testing ──
+  // ── Tonder Production 2 (Telegram) — includes bcgame_ticket_bot + tonder_operator for testing ──
   singleWithBots("-1003575792934", "telegram", 91, [
     { username: "bcgame_ticket_bot", label: "BcgameTicketBot" },
+    { username: "tonder_operator", label: "Tonder Operator (test)" },
   ]),
 ];
