@@ -67,6 +67,6 @@ export function buildTicketLookupPrompt(ticket: ParsedDepositTicket): string {
     `Use the lookup_by_id tool with the Order ID "${ticket.orderId}" to find the transaction.`,
     `If not found by Order ID, try again with the TXID "${ticket.txid}" (which is the payment_id).`,
     `If found: reply with the transaction status, amount, and date. Keep it to 2-3 lines max.`,
-    `If NOT found: reply ONLY with "Order ID ${ticket.orderId} not found." — nothing else.`,
+    `If NOT found: reply ONLY with "Order ID ${ticket.orderId} not found." — nothing else. No next steps, no suggestions, no explanations. Just that one line.`,
   ].join("\n");
 }
