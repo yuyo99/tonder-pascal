@@ -290,6 +290,53 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         "Telegram channel_post event received"
       );
 
+      // ── Partner bot auto-response (channel posts) ──
+      // Channel posts may carry the sender identity in sender_chat or from
+      const postSenderChat = (post as unknown as Record<string, unknown>).sender_chat as Record<string, unknown> | undefined;
+      const postFromField = (post as unknown as Record<string, unknown>).from as Record<string, unknown> | undefined;
+      const postFromUsername = (postSenderChat?.username as string) || (postFromField?.username as string) || "";
+      if (postFromUsername && isPartnerBot(chatId, "telegram", postFromUsername)) {
+        logger.info(
+          { chatId, fromUsername: postFromUsername, text: text.slice(0, 80) },
+          "Partner bot channel_post detected — processing automatically"
+        );
+
+        const ticket = parseDepositTicket(text);
+        if (!ticket) {
+          logger.debug({ chatId, fromUsername: postFromUsername }, "Partner bot channel_post did not match deposit ticket format — ignoring");
+          return;
+        }
+
+        if (!isValidTxid(ticket.txid)) {
+          logger.info(
+            { chatId, fromUsername: postFromUsername, txid: ticket.txid, orderId: ticket.orderId },
+            "Partner bot channel_post has invalid/empty txid — rejecting"
+          );
+          await ctx.reply(`Invalid txid: "${ticket.txid}". Must be alphanumeric and non-empty.`);
+          return;
+        }
+
+        const lookupPrompt = buildTicketLookupPrompt(ticket);
+        try {
+          const answer = await handler({
+            channelId: chatId,
+            platform: "telegram",
+            userId: "channel",
+            userName: postFromUsername,
+            text: lookupPrompt,
+            rawEvent: post,
+          });
+          await ctx.reply(answer);
+        } catch (err) {
+          logger.error(
+            { err, chatId, fromUsername: postFromUsername, orderId: ticket.orderId },
+            "Failed to process partner bot deposit ticket (channel_post)"
+          );
+          await ctx.reply("Sorry, I encountered an error looking up this deposit ticket.");
+        }
+        return;
+      }
+
       // In channels, respond to ALL text posts (no mention required — channels are broadcast)
       const botUsername = this.botInfo?.username || "";
       const cleanText = botUsername
