@@ -41,8 +41,22 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<strin
   try {
     answer = await runToolLoop(msg.text, systemPrompt, merchantCtx);
   } catch (err) {
-    logger.error({ err, merchant: merchantCtx.businessName }, "Orchestrator error");
-    answer = "I'm sorry, I encountered an error processing your request. Please try again or contact Tonder support.";
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const errType = err instanceof Error ? err.constructor.name : typeof err;
+    logger.error({ err, errType, errMsg, merchant: merchantCtx.businessName }, "Orchestrator error");
+
+    // Surface a hint about the error type (safe — no secrets leaked)
+    if (errMsg.includes("authentication") || errMsg.includes("api_key") || errMsg.includes("401")) {
+      answer = "I'm experiencing an authentication issue. Please contact Tonder support.";
+    } else if (errMsg.includes("rate_limit") || errMsg.includes("429")) {
+      answer = "I'm receiving too many requests right now. Please try again in a moment.";
+    } else if (errMsg.includes("MongoDB") || errMsg.includes("not connected")) {
+      answer = "I'm having trouble accessing the database. Please try again in a moment.";
+    } else if (errMsg.includes("model") || errMsg.includes("not_found")) {
+      answer = "I'm experiencing a configuration issue. Please contact Tonder support.";
+    } else {
+      answer = `I'm sorry, I encountered an error processing your request. (${errType}: ${errMsg.slice(0, 100)}). Please try again or contact Tonder support.`;
+    }
   }
 
   // Step 4: Final audit — catch any leaked provider names
@@ -66,6 +80,33 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<strin
   return answer;
 }
 
+// ── Retry wrapper for transient Claude API errors ──
+
+function isRetryable(err: unknown): boolean {
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    return msg.includes("rate_limit") || msg.includes("429") || msg.includes("500") ||
+           msg.includes("overloaded") || msg.includes("timeout") || msg.includes("ECONNRESET");
+  }
+  return false;
+}
+
+async function callClaude(
+  params: Anthropic.MessageCreateParamsNonStreaming,
+  retries = 1
+): Promise<Anthropic.Message> {
+  try {
+    return await client.messages.create(params);
+  } catch (err) {
+    if (retries > 0 && isRetryable(err)) {
+      logger.warn({ err }, "Claude API transient error — retrying in 2s");
+      await new Promise((r) => setTimeout(r, 2000));
+      return callClaude(params, retries - 1);
+    }
+    throw err;
+  }
+}
+
 async function runToolLoop(
   question: string,
   systemPrompt: string,
@@ -80,7 +121,7 @@ async function runToolLoop(
   while (rounds < MAX_TOOL_ROUNDS) {
     rounds++;
 
-    const response = await client.messages.create({
+    const response = await callClaude({
       model: config.claude.model,
       max_tokens: 2048,
       system: systemPrompt,
