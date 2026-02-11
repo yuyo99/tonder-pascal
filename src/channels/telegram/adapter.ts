@@ -1,6 +1,6 @@
 import { Telegraf } from "telegraf";
 import { ChannelAdapter, IncomingMessage, OutgoingMessage } from "../types";
-import { createSupportTicket } from "../../linear/client";
+import { createSupportTicket, CommandType } from "../../linear/client";
 import { resolveMerchantContext } from "../../merchants/context";
 import { trackInteraction } from "../../scheduler/daily-report";
 import { logger } from "../../utils/logger";
@@ -39,7 +39,8 @@ export class TelegramChannelAdapter implements ChannelAdapter {
 
   private async handleTicketCommand(
     ctx: { chat: { id: number }; message: Record<string, unknown>; reply: (text: string) => Promise<unknown> },
-    description: string
+    description: string,
+    commandType: CommandType
   ): Promise<void> {
     const chatId = String(ctx.chat.id);
     const merchantCtx = await resolveMerchantContext(chatId, "telegram");
@@ -72,7 +73,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       const ticket = await createSupportTicket({
         title: ticketTitle,
         description: ticketDescription,
-        priority: "medium",
+        commandType,
         merchantCtx,
         createdBy: `${userName} (via Telegram)`,
       });
@@ -81,15 +82,15 @@ export class TelegramChannelAdapter implements ChannelAdapter {
 
       trackInteraction({
         merchantName: merchantCtx.businessName,
-        question: `[TICKET] ${description}`,
+        question: `[${commandType.toUpperCase()}] ${description}`,
         answered: false,
         ticketId: ticket.identifier,
         timestamp: new Date(),
       });
 
       logger.info(
-        { ticket: ticket.identifier, merchant: merchantCtx.businessName, user: userName },
-        "Ticket created via Telegram ticket command"
+        { ticket: ticket.identifier, merchant: merchantCtx.businessName, user: userName, commandType },
+        "Ticket created via Telegram command"
       );
     } catch (err) {
       logger.error({ err, chatId }, "Failed to create Linear ticket from Telegram");
@@ -158,10 +159,12 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         return;
       }
 
-      // CHECK: Is this a ticket command?
-      if (cleanText.toLowerCase().startsWith("ticket")) {
-        const description = cleanText.replace(/^ticket\s*/i, "").trim();
-        await this.handleTicketCommand(ctx as unknown as Parameters<typeof this.handleTicketCommand>[0], description);
+      // CHECK: Is this a command? (ticket, bug, feature, escalate)
+      const commandMatch = cleanText.match(/^(ticket|bug|feature|escalate)\s*(.*)/i);
+      if (commandMatch) {
+        const cmdType = commandMatch[1].toLowerCase() as CommandType;
+        const description = commandMatch[2].trim();
+        await this.handleTicketCommand(ctx as unknown as Parameters<typeof this.handleTicketCommand>[0], description, cmdType);
         return;
       }
 

@@ -1,7 +1,7 @@
 import { App } from "@slack/bolt";
 import { ChannelAdapter, IncomingMessage, OutgoingMessage } from "../types";
 import { formatResponse, formatError, formatThinking } from "./formatter";
-import { createSupportTicket } from "../../linear/client";
+import { createSupportTicket, CommandType } from "../../linear/client";
 import { resolveMerchantContext } from "../../merchants/context";
 import { trackInteraction } from "../../scheduler/daily-report";
 import { logger } from "../../utils/logger";
@@ -70,6 +70,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
     eventTs: string,
     userId: string,
     description: string,
+    commandType: CommandType,
     threadTs?: string
   ): Promise<void> {
     const merchantCtx = await resolveMerchantContext(channelId, "slack");
@@ -104,7 +105,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
       const ticket = await createSupportTicket({
         title: ticketTitle,
         description: ticketDescription,
-        priority: "medium",
+        commandType,
         merchantCtx,
         createdBy: `Slack operator <@${userId}>`,
       });
@@ -126,15 +127,15 @@ export class SlackChannelAdapter implements ChannelAdapter {
 
       trackInteraction({
         merchantName: merchantCtx.businessName,
-        question: `[TICKET] ${description}`,
+        question: `[${commandType.toUpperCase()}] ${description}`,
         answered: false,
         ticketId: ticket.identifier,
         timestamp: new Date(),
       });
 
       logger.info(
-        { ticket: ticket.identifier, merchant: merchantCtx.businessName, user: userId },
-        "Ticket created via @Pascal ticket command"
+        { ticket: ticket.identifier, merchant: merchantCtx.businessName, user: userId, commandType },
+        "Ticket created via @Pascal command"
       );
     } catch (err) {
       logger.error({ err, channelId }, "Failed to create Linear ticket");
@@ -176,14 +177,17 @@ export class SlackChannelAdapter implements ChannelAdapter {
         return;
       }
 
-      // CHECK: Is this a ticket command?
-      if (question.toLowerCase().startsWith("ticket")) {
-        const description = question.replace(/^ticket\s*/i, "").trim();
+      // CHECK: Is this a command? (ticket, bug, feature, escalate)
+      const commandMatch = question.match(/^(ticket|bug|feature|escalate)\s*(.*)/i);
+      if (commandMatch) {
+        const cmdType = commandMatch[1].toLowerCase() as CommandType;
+        const description = commandMatch[2].trim();
         await this.handleTicketCommand(
           event.channel,
           event.ts,
           event.user || "",
           description,
+          cmdType,
           event.thread_ts
         );
         return;

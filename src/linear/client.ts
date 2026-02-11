@@ -20,17 +20,19 @@ function getLinearClient(): LinearClient {
   return linear;
 }
 
-const PRIORITY_MAP: Record<string, number> = {
-  critical: 1,
-  high: 2,
-  medium: 3,
-  low: 4,
+export type CommandType = "ticket" | "bug" | "feature" | "escalate";
+
+const COMMAND_CONFIG: Record<CommandType, { priority: number; prefix: string }> = {
+  ticket:   { priority: 3, prefix: "" },
+  bug:      { priority: 2, prefix: "[Bug] " },
+  feature:  { priority: 4, prefix: "[Feature] " },
+  escalate: { priority: 1, prefix: "[Escalation] " },
 };
 
 export interface TicketParams {
   title: string;
   description: string;
-  priority: "critical" | "high" | "medium" | "low";
+  commandType: CommandType;
   merchantCtx: MerchantContext;
   createdBy?: string;
 }
@@ -116,9 +118,9 @@ export async function createSupportTicket(
 
   const issuePayload = await client.createIssue({
     teamId: cachedTeamId!,
-    title: `[${params.merchantCtx.businessName}] ${params.title}`,
+    title: `[${params.merchantCtx.businessName}] ${COMMAND_CONFIG[params.commandType].prefix}${params.title}`,
     description: fullDescription,
-    priority: PRIORITY_MAP[params.priority] || 3,
+    priority: COMMAND_CONFIG[params.commandType].priority,
     stateId: cachedTriageStateId || undefined,
     assigneeId: cachedAssigneeId || undefined,
   });
