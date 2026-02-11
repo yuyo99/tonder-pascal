@@ -8,31 +8,31 @@ const SPEI_COLLECTION = "usrv-deposits-spei";
 const BIZ_COLLECTION = "business_business";
 
 // Acquirers for card payments (merged into one "Cards" rate)
-const CARD_ACQUIRERS = ["kushki", "unlimit", "guardian"];
+const CARD_ACQUIRERS = ["kushki", "unlimit", "guardian", "tonder"];
 const APM_ACQUIRERS = ["bitso", "stp", "oxxopay", "mercadopago", "safetypay"];
 const ALL_RATE_ACQUIRERS = ["kushki", "unlimit", ...APM_ACQUIRERS];
 const RATE_STATUSES_LOWER = ["success", "declined", "expired", "pending", "failed"];
 
-// ── Match builders (businessId is ALWAYS required) ──────────────────
+// ── Match builders (support single or multi business IDs via $in) ────
 
-function buildTxMatch(dateRange: DateRange, businessId: number): Record<string, unknown> {
+function buildTxMatch(dateRange: DateRange, businessIds: number[]): Record<string, unknown> {
   return {
     created: { $gte: dateRange.start, $lte: dateRange.end },
-    business_id: businessId,
+    business_id: businessIds.length === 1 ? businessIds[0] : { $in: businessIds },
   };
 }
 
-function buildWdMatch(dateRange: DateRange, businessIdStr: string): Record<string, unknown> {
+function buildWdMatch(dateRange: DateRange, businessIdStrs: string[]): Record<string, unknown> {
   return {
     created_at: { $gte: dateRange.start, $lte: dateRange.end },
-    business_id: businessIdStr,
+    business_id: businessIdStrs.length === 1 ? businessIdStrs[0] : { $in: businessIdStrs },
   };
 }
 
-function buildSpeiMatch(dateRange: DateRange, businessIdStr: string): Record<string, unknown> {
+function buildSpeiMatch(dateRange: DateRange, businessIdStrs: string[]): Record<string, unknown> {
   return {
     created_at: { $gte: dateRange.start, $lte: dateRange.end },
-    business_id: businessIdStr,
+    business_id: businessIdStrs.length === 1 ? businessIdStrs[0] : { $in: businessIdStrs },
   };
 }
 
@@ -56,7 +56,7 @@ export interface AcceptanceRates {
 
 export async function getAcceptanceRates(
   dateRange: DateRange,
-  businessId: number
+  businessIds: number[]
 ): Promise<AcceptanceRates> {
   const col = getCollection(TX_COLLECTION);
 
@@ -65,7 +65,7 @@ export async function getAcceptanceRates(
       {
         $match: {
           created: { $gte: dateRange.start, $lte: dateRange.end },
-          business_id: businessId,
+          business_id: businessIds.length === 1 ? businessIds[0] : { $in: businessIds },
           transaction_type: "PAYMENT",
           $or: [
             { acq: { $in: ALL_RATE_ACQUIRERS } },
@@ -159,7 +159,7 @@ export async function getAcceptanceRates(
 
 export async function getTransactionVolume(
   dateRange: DateRange,
-  businessId: number
+  businessIds: number[]
 ): Promise<{
   totalVolume: number;
   successVolume: number;
@@ -169,7 +169,7 @@ export async function getTransactionVolume(
   currency: string;
 }> {
   const col = getCollection(TX_COLLECTION);
-  const match = buildTxMatch(dateRange, businessId);
+  const match = buildTxMatch(dateRange, businessIds);
 
   const result = await col
     .aggregate([
@@ -209,12 +209,12 @@ export async function getTransactionVolume(
 
 export async function getTopDeclines(
   dateRange: DateRange,
-  businessId: number,
+  businessIds: number[],
   limit: number = 10
 ): Promise<{ code: string; description: string; count: number }[]> {
   const col = getCollection(TX_COLLECTION);
   const match: Record<string, unknown> = {
-    ...buildTxMatch(dateRange, businessId),
+    ...buildTxMatch(dateRange, businessIds),
     status: "Declined",
   };
 
@@ -250,10 +250,10 @@ export async function getTopDeclines(
 
 export async function getTransactionsByStatus(
   dateRange: DateRange,
-  businessId: number
+  businessIds: number[]
 ): Promise<{ status: string; count: number; volume: number }[]> {
   const col = getCollection(TX_COLLECTION);
-  const match = buildTxMatch(dateRange, businessId);
+  const match = buildTxMatch(dateRange, businessIds);
 
   const result = await col
     .aggregate([
@@ -277,14 +277,14 @@ export async function getTransactionsByStatus(
 
 export async function getWithdrawalStatus(
   dateRange: DateRange,
-  businessIdStr: string
+  businessIdStrs: string[]
 ): Promise<{
   total: number;
   totalAmount: number;
   byStatus: { status: string; count: number; amount: number }[];
 }> {
   const col = getCollection(WD_COLLECTION);
-  const match = buildWdMatch(dateRange, businessIdStr);
+  const match = buildWdMatch(dateRange, businessIdStrs);
 
   const result = await col
     .aggregate([
@@ -326,16 +326,16 @@ export interface LookupResult {
  */
 export async function lookupById(
   id: string,
-  businessId: number,
-  businessIdStr: string
+  businessIds: number[],
+  businessIdStrs: string[]
 ): Promise<LookupResult[]> {
   const idAsNumber = parseInt(id, 10);
   const numericId = !isNaN(idAsNumber) ? idAsNumber : null;
 
   const [txResults, wdResults, speiResults] = await Promise.all([
-    findInTransactions(id, numericId, businessId),
-    findInWithdrawals(id, businessIdStr),
-    findInSpeiDeposits(id, numericId, businessIdStr),
+    findInTransactions(id, numericId, businessIds),
+    findInWithdrawals(id, businessIdStrs),
+    findInSpeiDeposits(id, numericId, businessIdStrs),
   ]);
 
   const results: LookupResult[] = [];
@@ -348,6 +348,7 @@ export async function lookupById(
         payment_id: tx.payment_id,
         order_id: tx.order_id,
         transaction_reference: tx.transaction_reference,
+        tracking_key: tx.tracking_key,
         status: tx.status,
         amount: tx.amount,
         paymentMethod: getMerchantDisplayName(acq),
@@ -362,6 +363,7 @@ export async function lookupById(
 
   for (const wd of wdResults) {
     const monetaryAmount = wd.monetary_amount as Record<string, unknown> | undefined;
+    const action = wd.action as Record<string, unknown> | undefined;
     results.push({
       source: "withdrawal",
       data: {
@@ -372,6 +374,7 @@ export async function lookupById(
         currency: (monetaryAmount?.currency as string) || "MXN",
         created_at: wd.created_at,
         paid_at: wd.paid_at,
+        failure_reason: action?.reason || null,
       },
     });
   }
@@ -384,6 +387,7 @@ export async function lookupById(
         order_id: spei.order_id,
         checkout_id: spei.checkout_id,
         reference: spei.reference,
+        tracking_key: spei.tracking_key,
         status: spei.status,
         amount: parseFloat(String(spei.amount)) || 0,
         created_at: spei.created_at,
@@ -398,7 +402,7 @@ export async function lookupById(
 async function findInTransactions(
   id: string,
   numericId: number | null,
-  businessId: number
+  businessIds: number[]
 ): Promise<Record<string, unknown>[]> {
   const col = getCollection(TX_COLLECTION);
   const orConditions: Record<string, unknown>[] = [
@@ -412,13 +416,15 @@ async function findInTransactions(
   // Also try string match for payment_id/order_id
   orConditions.push({ payment_id: id });
   orConditions.push({ order_id: id });
+  orConditions.push({ tracking_key: id });
 
+  const bizFilter = businessIds.length === 1 ? businessIds[0] : { $in: businessIds };
   const results = await col
     .find(
-      { business_id: businessId, $or: orConditions },
+      { business_id: bizFilter, $or: orConditions },
       {
         projection: {
-          payment_id: 1, order_id: 1, transaction_reference: 1,
+          payment_id: 1, order_id: 1, transaction_reference: 1, tracking_key: 1,
           status: 1, amount: 1, acq: 1, provider: 1,
           created: 1, customer_email: 1, business_name: 1,
           decline_code: 1, decline_description: 1, _id: 0,
@@ -434,13 +440,14 @@ async function findInTransactions(
 
 async function findInWithdrawals(
   id: string,
-  businessIdStr: string
+  businessIdStrs: string[]
 ): Promise<Record<string, unknown>[]> {
   const col = getCollection(WD_COLLECTION);
+  const bizFilter = businessIdStrs.length === 1 ? businessIdStrs[0] : { $in: businessIdStrs };
   const results = await col
     .find(
       {
-        business_id: businessIdStr,
+        business_id: bizFilter,
         $or: [
           { id: id },
           { orderId: id },
@@ -450,7 +457,8 @@ async function findInWithdrawals(
       {
         projection: {
           id: 1, tracking_key: 1, status: 1,
-          monetary_amount: 1, created_at: 1, paid_at: 1, _id: 0,
+          monetary_amount: 1, created_at: 1, paid_at: 1,
+          "action.reason": 1, "action.action": 1, _id: 0,
         },
         sort: { created_at: -1 },
         limit: 5,
@@ -464,7 +472,7 @@ async function findInWithdrawals(
 async function findInSpeiDeposits(
   id: string,
   numericId: number | null,
-  businessIdStr: string
+  businessIdStrs: string[]
 ): Promise<Record<string, unknown>[]> {
   const col = getCollection(SPEI_COLLECTION);
   const orConditions: Record<string, unknown>[] = [
@@ -478,14 +486,16 @@ async function findInSpeiDeposits(
     orConditions.push({ order_id: numericId });
   }
   orConditions.push({ order_id: id });
+  orConditions.push({ tracking_key: id });
 
+  const bizFilter = businessIdStrs.length === 1 ? businessIdStrs[0] : { $in: businessIdStrs };
   const results = await col
     .find(
-      { business_id: businessIdStr, $or: orConditions },
+      { business_id: bizFilter, $or: orConditions },
       {
         projection: {
           deposit_id: 1, order_id: 1, checkout_id: 1,
-          reference: 1, status: 1, amount: 1,
+          reference: 1, tracking_key: 1, status: 1, amount: 1,
           created_at: 1, _id: 0,
         },
         sort: { created_at: -1 },
@@ -501,12 +511,12 @@ async function findInSpeiDeposits(
 
 export async function listRecentTransactions(
   dateRange: DateRange,
-  businessId: number,
+  businessIds: number[],
   status?: string,
   limit: number = 10
 ): Promise<Record<string, unknown>[]> {
   const col = getCollection(TX_COLLECTION);
-  const match: Record<string, unknown> = buildTxMatch(dateRange, businessId);
+  const match: Record<string, unknown> = buildTxMatch(dateRange, businessIds);
   if (status) {
     match.status = { $regex: new RegExp(`^${status}$`, "i") };
   }
@@ -534,12 +544,12 @@ export async function listRecentTransactions(
 
 export async function listRecentWithdrawals(
   dateRange: DateRange,
-  businessIdStr: string,
+  businessIdStrs: string[],
   status?: string,
   limit: number = 10
 ): Promise<Record<string, unknown>[]> {
   const col = getCollection(WD_COLLECTION);
-  const match: Record<string, unknown> = buildWdMatch(dateRange, businessIdStr);
+  const match: Record<string, unknown> = buildWdMatch(dateRange, businessIdStrs);
   if (status) {
     match.status = { $regex: new RegExp(status, "i") };
   }
@@ -570,14 +580,14 @@ export async function listRecentWithdrawals(
 
 export async function lookupSpeiDeposits(
   dateRange: DateRange,
-  businessIdStr: string,
+  businessIdStrs: string[],
   amount?: number,
   status?: string,
   reference?: string,
   limit: number = 10
 ): Promise<Record<string, unknown>[]> {
   const col = getCollection(SPEI_COLLECTION);
-  const match: Record<string, unknown> = buildSpeiMatch(dateRange, businessIdStr);
+  const match: Record<string, unknown> = buildSpeiMatch(dateRange, businessIdStrs);
   if (amount) match.amount = amount;
   if (status) match.status = { $regex: new RegExp(status, "i") };
   if (reference) match.reference = { $regex: new RegExp(reference, "i") };

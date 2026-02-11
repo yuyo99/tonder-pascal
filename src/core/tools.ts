@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { parseDateRange, buildDateRange, DateRange } from "../utils/dates";
 import { MerchantContext } from "../merchants/types";
 import * as queries from "../mongodb/queries";
-import { createSupportTicket } from "../linear/client";
+
 import { logger } from "../utils/logger";
 
 // Shared date parameter definitions
@@ -138,24 +138,6 @@ export const toolDefinitions: Anthropic.Tool[] = [
       required: [] as string[],
     },
   },
-  {
-    name: "create_support_ticket",
-    description:
-      "Create a support ticket for the merchant when their question cannot be answered with transaction data. Use this for bug reports, feature requests, integration questions, pricing inquiries, or technical support needs.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        title: { type: "string" as const, description: "Short title for the ticket." },
-        description: { type: "string" as const, description: "Full description including merchant context and details." },
-        priority: {
-          type: "string" as const,
-          enum: ["critical", "high", "medium", "low"],
-          description: "Ticket priority level.",
-        },
-      },
-      required: ["title", "description"],
-    },
-  },
 ];
 
 // Tool input types
@@ -168,9 +150,6 @@ interface ToolInput {
   status?: string;
   amount?: number;
   reference?: string;
-  title?: string;
-  description?: string;
-  priority?: "critical" | "high" | "medium" | "low";
 }
 
 function resolveDateRange(input: ToolInput): DateRange {
@@ -190,7 +169,7 @@ export async function executeTool(
 
     switch (toolName) {
       case "get_acceptance_rate": {
-        const result = await queries.getAcceptanceRates(dateRange, merchantCtx.businessId);
+        const result = await queries.getAcceptanceRates(dateRange, merchantCtx.businessIds);
         return JSON.stringify({
           cards: result.cards
             ? {
@@ -218,7 +197,7 @@ export async function executeTool(
       }
 
       case "get_transaction_volume": {
-        const result = await queries.getTransactionVolume(dateRange, merchantCtx.businessId);
+        const result = await queries.getTransactionVolume(dateRange, merchantCtx.businessIds);
         return JSON.stringify({
           ...result,
           totalVolume: Math.round(result.totalVolume * 100) / 100,
@@ -232,7 +211,7 @@ export async function executeTool(
       case "get_top_declines": {
         const result = await queries.getTopDeclines(
           dateRange,
-          merchantCtx.businessId,
+          merchantCtx.businessIds,
           input.limit || 10
         );
         return JSON.stringify({
@@ -243,7 +222,7 @@ export async function executeTool(
       }
 
       case "get_transactions_by_status": {
-        const result = await queries.getTransactionsByStatus(dateRange, merchantCtx.businessId);
+        const result = await queries.getTransactionsByStatus(dateRange, merchantCtx.businessIds);
         return JSON.stringify({
           statuses: result,
           dateRange: dateRange.label,
@@ -252,7 +231,7 @@ export async function executeTool(
       }
 
       case "get_withdrawal_status": {
-        const result = await queries.getWithdrawalStatus(dateRange, merchantCtx.businessIdStr);
+        const result = await queries.getWithdrawalStatus(dateRange, merchantCtx.businessIdStrs);
         return JSON.stringify({
           ...result,
           totalAmount: Math.round(result.totalAmount * 100) / 100,
@@ -265,8 +244,8 @@ export async function executeTool(
         if (!input.id) return "Error: id is required";
         const results = await queries.lookupById(
           input.id,
-          merchantCtx.businessId,
-          merchantCtx.businessIdStr
+          merchantCtx.businessIds,
+          merchantCtx.businessIdStrs
         );
         if (results.length === 0) {
           return JSON.stringify({
@@ -280,7 +259,7 @@ export async function executeTool(
       case "lookup_spei_deposits": {
         const result = await queries.lookupSpeiDeposits(
           dateRange,
-          merchantCtx.businessIdStr,
+          merchantCtx.businessIdStrs,
           input.amount,
           input.status,
           input.reference,
@@ -297,7 +276,7 @@ export async function executeTool(
       case "list_recent_transactions": {
         const result = await queries.listRecentTransactions(
           dateRange,
-          merchantCtx.businessId,
+          merchantCtx.businessIds,
           input.status,
           input.limit || 10
         );
@@ -312,7 +291,7 @@ export async function executeTool(
       case "list_recent_withdrawals": {
         const result = await queries.listRecentWithdrawals(
           dateRange,
-          merchantCtx.businessIdStr,
+          merchantCtx.businessIdStrs,
           input.status,
           input.limit || 10
         );
@@ -321,24 +300,6 @@ export async function executeTool(
           count: result.length,
           dateRange: dateRange.label,
           merchant: merchantCtx.businessName,
-        });
-      }
-
-      case "create_support_ticket": {
-        if (!input.title || !input.description) {
-          return "Error: title and description are required";
-        }
-        const ticket = await createSupportTicket({
-          title: input.title,
-          description: input.description,
-          priority: input.priority || "medium",
-          merchantCtx,
-        });
-        return JSON.stringify({
-          created: true,
-          ticketId: ticket.identifier,
-          url: ticket.url,
-          message: `Support ticket ${ticket.identifier} created. The Tonder team will follow up.`,
         });
       }
 

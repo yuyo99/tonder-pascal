@@ -46,6 +46,11 @@ async function main() {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 }
 
+// Prevent unhandled rejections from crashing the process
+process.on("unhandledRejection", (reason) => {
+  logger.error({ err: reason }, "Unhandled rejection — not crashing");
+});
+
 main().catch((err) => {
   logger.fatal({ err }, "Failed to start Pascal");
   process.exit(1);

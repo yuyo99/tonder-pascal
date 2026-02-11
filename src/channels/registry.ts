@@ -25,12 +25,16 @@ export async function bootChannels(
   }
 
   if (config.telegram.enabled) {
-    const telegram = new TelegramChannelAdapter({
-      botToken: config.telegram.botToken,
-    });
-    telegram.onMessage(messageHandler);
-    await telegram.start();
-    adapters.push(telegram);
+    try {
+      const telegram = new TelegramChannelAdapter({
+        botToken: config.telegram.botToken,
+      });
+      telegram.onMessage(messageHandler);
+      await telegram.start();
+      adapters.push(telegram);
+    } catch (err) {
+      logger.error({ err }, "Telegram adapter failed to start — continuing without Telegram");
+    }
   }
 
   if (adapters.length === 0) {

@@ -32,6 +32,7 @@ export interface TicketParams {
   description: string;
   priority: "critical" | "high" | "medium" | "low";
   merchantCtx: MerchantContext;
+  createdBy?: string;
 }
 
 export interface TicketResult {
@@ -45,9 +46,17 @@ async function resolveTeamAndState(): Promise<void> {
 
   const client = getLinearClient();
 
-  // Find SOS team
-  const teams = await client.teams();
-  const sosTeam = teams.nodes.find(
+  // Linear SDK v25 client.teams() includes 'membership' field requiring userId
+  // Use raw GraphQL with only the fields we need
+  const teamsResult = await client.client.rawRequest(
+    `query { teams { nodes { id key name } } }`
+  );
+  const teamNodes = (teamsResult as any).data.teams.nodes as Array<{
+    id: string;
+    key: string;
+    name: string;
+  }>;
+  const sosTeam = teamNodes.find(
     (t) => t.key === "SOS" || t.name.toLowerCase().includes("support")
   );
   if (!sosTeam) {
@@ -55,22 +64,35 @@ async function resolveTeamAndState(): Promise<void> {
   }
   cachedTeamId = sosTeam.id;
 
-  // Find Triage state
-  const states = await sosTeam.states();
-  const triageState = states.nodes.find((s) => s.name === "Triage");
+  // Get workflow states for the team
+  const statesResult = await client.client.rawRequest(
+    `query($teamId: String!) { team(id: $teamId) { states { nodes { id name } } } }`,
+    { teamId: cachedTeamId }
+  );
+  const stateNodes = (statesResult as any).data.team.states.nodes as Array<{
+    id: string;
+    name: string;
+  }>;
+  const triageState = stateNodes.find((s) => s.name === "Triage");
   cachedTriageStateId = triageState?.id || null;
 
-  // Find default assignee
+  // Resolve default assignee
   if (config.linear.defaultAssignee) {
-    const users = await client.users();
-    const assignee = users.nodes.find(
+    const usersResult = await client.client.rawRequest(
+      `query { users { nodes { id email } } }`
+    );
+    const userNodes = (usersResult as any).data.users.nodes as Array<{
+      id: string;
+      email: string;
+    }>;
+    const assignee = userNodes.find(
       (u) => u.email === config.linear.defaultAssignee
     );
     cachedAssigneeId = assignee?.id || null;
   }
 
   logger.info(
-    { teamId: cachedTeamId, triageStateId: cachedTriageStateId },
+    { teamId: cachedTeamId, triageStateId: cachedTriageStateId, assigneeId: cachedAssigneeId },
     "Linear team/state resolved"
   );
 }
@@ -85,7 +107,7 @@ export async function createSupportTicket(
     `**Merchant:** ${params.merchantCtx.businessName} (ID: ${params.merchantCtx.businessId})`,
     `**Platform:** ${params.merchantCtx.platform}`,
     `**Channel:** ${params.merchantCtx.channelId}`,
-    `**Created by:** Pascal (AI Assistant)`,
+    `**Created by:** ${params.createdBy || "Operator (via Pascal)"}`,
     "",
     "---",
     "",

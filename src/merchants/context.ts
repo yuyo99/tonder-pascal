@@ -20,7 +20,7 @@ export function buildChannelIndex(): void {
     channelIndex.set(key, mapping);
   }
   logger.info(
-    { count: channelIndex.size },
+    { count: channelIndex.size, keys: Array.from(channelIndex.keys()) },
     "Merchant channel index built"
   );
 }
@@ -51,6 +51,7 @@ async function ensureFreshCache(): Promise<void> {
 /**
  * Resolve a channel message to a MerchantContext.
  * Returns null if the channel is not mapped to any merchant.
+ * Supports multi-business-ID channels (e.g. Stadiobet + Stadiobet VIP).
  */
 export async function resolveMerchantContext(
   channelId: string,
@@ -62,13 +63,19 @@ export async function resolveMerchantContext(
 
   await ensureFreshCache();
 
-  const businessName =
-    businessNameCache.get(mapping.businessId) ||
-    `Business ${mapping.businessId}`;
+  // Build combined business name from all IDs
+  const names = mapping.businessIds.map(
+    (id) => businessNameCache.get(id) || `Business ${id}`
+  );
+  // Deduplicate names (in case both IDs map to same root name)
+  const uniqueNames = [...new Set(names)];
+  const businessName = uniqueNames.join(" + ");
 
   return {
     businessId: mapping.businessId,
     businessIdStr: mapping.businessIdStr,
+    businessIds: mapping.businessIds,
+    businessIdStrs: mapping.businessIdStrs,
     businessName,
     platform,
     channelId,

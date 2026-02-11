@@ -7,7 +7,14 @@
  * Layer 3: Final response audit (this file — auditResponse)
  */
 
-/** Map from internal acquirer name → merchant-facing display name */
+/**
+ * Map from internal acquirer/provider name → merchant-facing display name.
+ * Used by getMerchantDisplayName() for translating acq values in tool output.
+ *
+ * NOTE: "tonder" is included here so getMerchantDisplayName("tonder") → "Cards",
+ * but it is NOT in FORBIDDEN_NAMES, so the sanitizer won't blindly replace
+ * "Tonder" (the company name) in Claude's prose with "Cards".
+ */
 export const MERCHANT_DISPLAY_NAMES: Record<string, string> = {
   // Card acquirers → merged under "Cards"
   kushki: "Cards",
@@ -23,7 +30,12 @@ export const MERCHANT_DISPLAY_NAMES: Record<string, string> = {
   mercadopago: "MercadoPago",
 };
 
-/** Internal acquirer names that must never appear in merchant-facing output */
+/**
+ * Internal acquirer names that must never appear in merchant-facing output.
+ * NOTE: "tonder" is intentionally excluded — it's the company name and appears
+ * legitimately in prompts ("powered by Tonder"). The provider "tonder" is handled
+ * at the query level where it's merged with guardian into Cards.
+ */
 export const FORBIDDEN_NAMES = [
   "kushki",
   "unlimit",
@@ -31,7 +43,6 @@ export const FORBIDDEN_NAMES = [
   "bitso",
   "stp",
   "safetypay",
-  "tonder",
 ];
 
 /** Get the merchant-facing display name for an acquirer */
@@ -41,12 +52,21 @@ export function getMerchantDisplayName(acq: string): string {
 }
 
 /**
+ * Names safe to replace via regex in any text (tool output OR final response).
+ * "tonder" is excluded because it's the company name — replacing it blindly
+ * would turn "powered by Tonder" into "powered by Cards".
+ */
+const SANITIZE_SAFE_NAMES = Object.entries(MERCHANT_DISPLAY_NAMES).filter(
+  ([key]) => key !== "tonder"
+);
+
+/**
  * Sanitize tool output before Claude sees it.
  * Replaces any raw provider/acquirer names with merchant-facing names.
  */
 export function sanitizeToolOutput(output: string): string {
   let sanitized = output;
-  for (const [internal, display] of Object.entries(MERCHANT_DISPLAY_NAMES)) {
+  for (const [internal, display] of SANITIZE_SAFE_NAMES) {
     const regex = new RegExp(`\\b${internal}\\b`, "gi");
     sanitized = sanitized.replace(regex, display);
   }

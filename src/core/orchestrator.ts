@@ -4,8 +4,8 @@ import { buildSystemPrompt } from "./prompts";
 import { toolDefinitions, executeTool } from "./tools";
 import { sanitizeToolOutput, auditResponse } from "./provider-mask";
 import { resolveMerchantContext } from "../merchants/context";
-import { MerchantContext } from "../merchants/types";
 import { IncomingMessage } from "../channels/types";
+import { MerchantContext } from "../merchants/types";
 import { trackInteraction } from "../scheduler/daily-report";
 import { logger } from "../utils/logger";
 
@@ -37,14 +37,9 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<strin
 
   // Step 3: Run Claude tool-use loop
   let answer: string;
-  let ticketCreated = false;
-  let ticketId: string | undefined;
 
   try {
-    const result = await runToolLoop(msg.text, systemPrompt, merchantCtx);
-    answer = result.answer;
-    ticketCreated = result.ticketCreated;
-    ticketId = result.ticketId;
+    answer = await runToolLoop(msg.text, systemPrompt, merchantCtx);
   } catch (err) {
     logger.error({ err, merchant: merchantCtx.businessName }, "Orchestrator error");
     answer = "I'm sorry, I encountered an error processing your request. Please try again or contact Tonder support.";
@@ -64,32 +59,23 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<strin
   trackInteraction({
     merchantName: merchantCtx.businessName,
     question: msg.text,
-    answered: !ticketCreated,
-    ticketId,
+    answered: true,
     timestamp: new Date(),
   });
 
   return answer;
 }
 
-interface ToolLoopResult {
-  answer: string;
-  ticketCreated: boolean;
-  ticketId?: string;
-}
-
 async function runToolLoop(
   question: string,
   systemPrompt: string,
   merchantCtx: MerchantContext
-): Promise<ToolLoopResult> {
+): Promise<string> {
   const messages: Anthropic.MessageParam[] = [
     { role: "user", content: question },
   ];
 
   let rounds = 0;
-  let ticketCreated = false;
-  let ticketId: string | undefined;
 
   while (rounds < MAX_TOOL_ROUNDS) {
     rounds++;
@@ -110,11 +96,7 @@ async function runToolLoop(
     );
 
     if (toolBlocks.length === 0) {
-      return {
-        answer: textBlocks.map((b) => b.text).join("\n") || "I couldn't generate a response.",
-        ticketCreated,
-        ticketId,
-      };
+      return textBlocks.map((b) => b.text).join("\n") || "I couldn't generate a response.";
     }
 
     logger.info(
@@ -132,19 +114,6 @@ async function runToolLoop(
         merchantCtx
       );
 
-      // Track if a support ticket was created
-      if (toolBlock.name === "create_support_ticket") {
-        try {
-          const parsed = JSON.parse(rawResult);
-          if (parsed.created) {
-            ticketCreated = true;
-            ticketId = parsed.ticketId;
-          }
-        } catch {
-          // ignore parse errors
-        }
-      }
-
       // Sanitize provider names before Claude sees tool output
       const sanitized = sanitizeToolOutput(rawResult);
 
@@ -158,17 +127,9 @@ async function runToolLoop(
     messages.push({ role: "user", content: toolResults });
 
     if (response.stop_reason === "end_turn") {
-      return {
-        answer: textBlocks.map((b) => b.text).join("\n") || "I couldn't generate a response.",
-        ticketCreated,
-        ticketId,
-      };
+      return textBlocks.map((b) => b.text).join("\n") || "I couldn't generate a response.";
     }
   }
 
-  return {
-    answer: "I needed too many steps to answer that. Please try a more specific question.",
-    ticketCreated,
-    ticketId,
-  };
+  return "I needed too many steps to answer that. Please try a more specific question.";
 }

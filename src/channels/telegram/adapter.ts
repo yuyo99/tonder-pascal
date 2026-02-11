@@ -1,5 +1,8 @@
 import { Telegraf } from "telegraf";
 import { ChannelAdapter, IncomingMessage, OutgoingMessage } from "../types";
+import { createSupportTicket } from "../../linear/client";
+import { resolveMerchantContext } from "../../merchants/context";
+import { trackInteraction } from "../../scheduler/daily-report";
 import { logger } from "../../utils/logger";
 
 interface TelegramConfig {
@@ -10,6 +13,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
   platform = "telegram" as const;
   private bot: Telegraf;
   private messageHandler?: (msg: IncomingMessage) => Promise<string>;
+  private botInfo: { username: string; id: number } | null = null;
 
   constructor(telegramConfig: TelegramConfig) {
     this.bot = new Telegraf(telegramConfig.botToken);
@@ -18,6 +22,82 @@ export class TelegramChannelAdapter implements ChannelAdapter {
   onMessage(handler: (msg: IncomingMessage) => Promise<string>): void {
     this.messageHandler = handler;
   }
+
+  // ── Ticket command helpers ──
+
+  private getReplyContext(message: Record<string, unknown>): string {
+    const replyMsg = message.reply_to_message as Record<string, unknown> | undefined;
+    if (replyMsg?.text) {
+      const from = replyMsg.from as Record<string, unknown> | undefined;
+      const name = from
+        ? `${from.first_name || ""}${from.last_name ? " " + from.last_name : ""}`
+        : "unknown";
+      return `[${name}]: ${replyMsg.text}`;
+    }
+    return "(No thread context available — Telegram limitation)";
+  }
+
+  private async handleTicketCommand(
+    ctx: { chat: { id: number }; message: Record<string, unknown>; reply: (text: string) => Promise<unknown> },
+    description: string
+  ): Promise<void> {
+    const chatId = String(ctx.chat.id);
+    const merchantCtx = await resolveMerchantContext(chatId, "telegram");
+
+    if (!merchantCtx) {
+      await ctx.reply("This chat is not configured for Pascal. Cannot create a ticket.");
+      return;
+    }
+
+    const conversationContext = this.getReplyContext(ctx.message);
+    const from = ctx.message.from as Record<string, unknown> | undefined;
+    const userName = from
+      ? `${from.first_name || ""}${from.last_name ? " " + from.last_name : ""}`
+      : "unknown";
+
+    const ticketDescription = [
+      `**Conversation context:**`,
+      "```",
+      conversationContext,
+      "```",
+      "",
+      `**Operator note:** ${description || "(no additional description)"}`,
+    ].join("\n");
+
+    const ticketTitle = description
+      ? description.slice(0, 80)
+      : "Support request from Telegram";
+
+    try {
+      const ticket = await createSupportTicket({
+        title: ticketTitle,
+        description: ticketDescription,
+        priority: "medium",
+        merchantCtx,
+        createdBy: `${userName} (via Telegram)`,
+      });
+
+      await ctx.reply(`✅ Ticket created: ${ticket.identifier}\n${ticket.url}\n> ${ticketTitle}`);
+
+      trackInteraction({
+        merchantName: merchantCtx.businessName,
+        question: `[TICKET] ${description}`,
+        answered: false,
+        ticketId: ticket.identifier,
+        timestamp: new Date(),
+      });
+
+      logger.info(
+        { ticket: ticket.identifier, merchant: merchantCtx.businessName, user: userName },
+        "Ticket created via Telegram ticket command"
+      );
+    } catch (err) {
+      logger.error({ err, chatId }, "Failed to create Linear ticket from Telegram");
+      await ctx.reply("Sorry, I could not create the ticket. Please try again.");
+    }
+  }
+
+  // ── Main start ──
 
   async start(): Promise<void> {
     if (!this.messageHandler) {
@@ -30,26 +110,43 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       const chatId = String(ctx.chat.id);
       const text = ctx.message.text.trim();
 
-      // In groups, only respond when bot is mentioned or replied to
-      if (ctx.chat.type !== "private") {
-        const botInfo = await this.bot.telegram.getMe();
-        const botUsername = botInfo.username;
-        const isMentioned = text.includes(`@${botUsername}`);
-        const isReply = ctx.message.reply_to_message?.from?.id === botInfo.id;
+      logger.info(
+        { chatId, chatType: ctx.chat.type, from: ctx.message.from.username, text: text.slice(0, 80) },
+        "Telegram text event received"
+      );
 
-        if (!isMentioned && !isReply) return;
+      // In groups/supergroups, only respond when bot is mentioned or replied to
+      if (ctx.chat.type !== "private") {
+        if (!this.botInfo) {
+          logger.error({ chatId }, "Bot identity not resolved — cannot check mentions");
+          return;
+        }
+        const isMentioned = text.includes(`@${this.botInfo.username}`);
+        const isReply = ctx.message.reply_to_message?.from?.id === this.botInfo.id;
+
+        if (!isMentioned && !isReply) {
+          logger.debug({ chatId, isMentioned, isReply, botUsername: this.botInfo.username }, "Ignored Telegram group message (not mentioned/replied)");
+          return;
+        }
       }
 
       // Strip bot mention from text
-      const botInfo = await this.bot.telegram.getMe();
-      const cleanText = text
-        .replace(new RegExp(`@${botInfo.username}`, "gi"), "")
-        .trim();
+      const botUsername = this.botInfo?.username || "";
+      const cleanText = botUsername
+        ? text.replace(new RegExp(`@${botUsername}`, "gi"), "").trim()
+        : text;
 
       if (!cleanText) {
         await ctx.reply(
           "Hi! I'm Pascal, your payment assistant. Ask me about your transactions, withdrawals, or anything payment-related."
         );
+        return;
+      }
+
+      // CHECK: Is this a ticket command?
+      if (cleanText.toLowerCase().startsWith("ticket")) {
+        const description = cleanText.replace(/^ticket\s*/i, "").trim();
+        await this.handleTicketCommand(ctx as unknown as Parameters<typeof this.handleTicketCommand>[0], description);
         return;
       }
 
@@ -105,13 +202,101 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       }
     });
 
-    // Error handling
+    // Handle channel posts (Telegram channels are broadcast-only, different from groups)
+    this.bot.on("channel_post", async (ctx) => {
+      const post = ctx.channelPost;
+      if (!("text" in post) || !post.text) return;
+
+      const chatId = String(ctx.chat.id);
+      const text = post.text.trim();
+
+      logger.info(
+        { chatId, chatType: ctx.chat.type, text: text.slice(0, 80) },
+        "Telegram channel_post event received"
+      );
+
+      // In channels, respond to ALL text posts (no mention required — channels are broadcast)
+      const botUsername = this.botInfo?.username || "";
+      const cleanText = botUsername
+        ? text.replace(new RegExp(`@${botUsername}`, "gi"), "").trim()
+        : text;
+
+      if (!cleanText) {
+        await ctx.reply(
+          "Hi! I'm Pascal, your payment assistant. Ask me about your transactions, withdrawals, or anything payment-related."
+        );
+        return;
+      }
+
+      logger.info(
+        { chatId, platform: "telegram" },
+        "Processing Telegram channel post"
+      );
+
+      // Send "thinking" message
+      const thinkingMsg = await ctx.reply("Let me look into that... ⏳");
+
+      try {
+        const answer = await handler({
+          channelId: chatId,
+          platform: "telegram",
+          userId: "channel",
+          userName: "Channel Post",
+          text: cleanText,
+          rawEvent: post,
+        });
+
+        try {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            thinkingMsg.message_id,
+            undefined,
+            answer,
+            { parse_mode: undefined }
+          );
+        } catch {
+          await ctx.reply(answer);
+        }
+      } catch (err) {
+        logger.error({ err }, "Failed to answer Telegram channel post");
+        try {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            thinkingMsg.message_id,
+            undefined,
+            "Sorry, I encountered an error processing your request. Please try again or contact Tonder support."
+          );
+        } catch {
+          await ctx.reply("Sorry, I encountered an error. Please try again.");
+        }
+      }
+    });
+
+    // Error handling — catch errors so they don't crash the process
     this.bot.catch((err) => {
       logger.error({ err }, "Telegram bot error");
     });
 
+    // Resolve bot identity once (cached for mention detection)
+    try {
+      const me = await this.bot.telegram.getMe();
+      this.botInfo = { username: me.username || "", id: me.id };
+      logger.info(
+        { botUsername: this.botInfo.username, botId: this.botInfo.id },
+        "Telegram bot identity resolved"
+      );
+    } catch (err) {
+      logger.error({ err }, "Failed to resolve Telegram bot identity — mentions won't work");
+    }
+
     // Use polling (not webhooks) for simplicity
-    this.bot.launch();
+    // Launch in background — don't await so a polling conflict doesn't crash the app
+    this.bot
+      .launch()
+      .then(() => logger.info("Telegram polling CONFIRMED active"))
+      .catch((err) => {
+        logger.error({ err }, "Telegram bot launch failed — will continue without Telegram");
+      });
     logger.info("Telegram adapter started (polling)");
   }
 
