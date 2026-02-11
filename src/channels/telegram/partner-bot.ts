@@ -20,10 +20,10 @@ export interface ParsedDepositTicket {
  * Returns null if orderId or txid lines are missing.
  */
 export function parseDepositTicket(text: string): ParsedDepositTicket | null {
-  const orderIdMatch = text.match(/orderId:\s*(.+)/i);
-  const txidMatch = text.match(/txid:\s*(.+)/i);
-  const currencyMatch = text.match(/currency:\s*(.+)/i);
-  const amountMatch = text.match(/amount:\s*(.+)/i);
+  const orderIdMatch = text.match(/orderId:[^\S\n]*([^\n]+)/i);
+  const txidMatch = text.match(/txid:[^\S\n]*([^\n]+)/i);
+  const currencyMatch = text.match(/currency:[^\S\n]*([^\n]+)/i);
+  const amountMatch = text.match(/amount:[^\S\n]*([^\n]+)/i);
 
   if (!orderIdMatch || !txidMatch) {
     logger.debug(
