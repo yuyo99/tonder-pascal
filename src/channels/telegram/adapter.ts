@@ -151,8 +151,11 @@ export class TelegramChannelAdapter implements ChannelAdapter {
           if (!isValidTxid(ticket.txid)) {
             logger.info(
               { chatId, fromUsername, txid: ticket.txid, orderId: ticket.orderId },
-              "Partner bot ticket has invalid/empty txid — silently ignoring"
+              "Partner bot ticket has invalid/empty txid — rejecting"
             );
+            await ctx.reply(`Invalid txid: "${ticket.txid}". Must be alphanumeric and non-empty.`, {
+              reply_parameters: { message_id: ctx.message.message_id },
+            });
             return;
           }
 
