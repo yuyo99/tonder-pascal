@@ -387,7 +387,7 @@ export async function lookupById(
         order_id: spei.order_id,
         checkout_id: spei.checkout_id,
         reference: spei.reference,
-        tracking_key: spei.tracking_key,
+        clave_rastreo: extractClaveRastreo(spei),
         status: spei.status,
         amount: parseFloat(String(spei.amount)) || 0,
         created_at: spei.created_at,
@@ -469,6 +469,19 @@ async function findInWithdrawals(
   return results as Record<string, unknown>[];
 }
 
+/** Extract clave_rastreo from deeply nested SPEI webhook response */
+function extractClaveRastreo(doc: Record<string, unknown>): string | null {
+  try {
+    const resp = doc.response as Record<string, unknown> | undefined;
+    const webhook = resp?.webhook as Record<string, unknown> | undefined;
+    const payload = webhook?.payload as Record<string, unknown> | undefined;
+    const details = payload?.details as Record<string, unknown> | undefined;
+    return (details?.clave_rastreo as string) || null;
+  } catch {
+    return null;
+  }
+}
+
 async function findInSpeiDeposits(
   id: string,
   numericId: number | null,
@@ -486,7 +499,7 @@ async function findInSpeiDeposits(
     orConditions.push({ order_id: numericId });
   }
   orConditions.push({ order_id: id });
-  orConditions.push({ tracking_key: id });
+  orConditions.push({ "response.webhook.payload.details.clave_rastreo": id });
 
   const bizFilter = businessIdStrs.length === 1 ? businessIdStrs[0] : { $in: businessIdStrs };
   const results = await col
@@ -495,7 +508,8 @@ async function findInSpeiDeposits(
       {
         projection: {
           deposit_id: 1, order_id: 1, checkout_id: 1,
-          reference: 1, tracking_key: 1, status: 1, amount: 1,
+          reference: 1, "response.webhook.payload.details.clave_rastreo": 1,
+          status: 1, amount: 1,
           created_at: 1, _id: 0,
         },
         sort: { created_at: -1 },
@@ -596,7 +610,8 @@ export async function lookupSpeiDeposits(
     .find(match, {
       projection: {
         deposit_id: 1, order_id: 1, checkout_id: 1,
-        reference: 1, status: 1, amount: 1,
+        reference: 1, "response.webhook.payload.details.clave_rastreo": 1,
+        status: 1, amount: 1,
         created_at: 1, _id: 0,
       },
       sort: { created_at: -1 },
@@ -605,8 +620,14 @@ export async function lookupSpeiDeposits(
     .toArray();
 
   return results.map((r) => ({
-    ...r,
+    deposit_id: r.deposit_id,
+    order_id: r.order_id,
+    checkout_id: r.checkout_id,
+    reference: r.reference,
+    clave_rastreo: extractClaveRastreo(r as Record<string, unknown>),
+    status: r.status,
     amount: parseFloat(String(r.amount)) || 0,
+    created_at: r.created_at,
     paymentMethod: "SPEI",
   }));
 }

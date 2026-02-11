@@ -61,7 +61,7 @@ Example: "look up WD 12345" → use lookup_by_id with id "12345", then frame the
 
 ### Common ID Formats
 All of these are valid and searchable via lookup_by_id:
-- **tracking_key** — Bank tracking key (present in transactions, withdrawals, and SPEI deposits)
+- **clave de rastreo / clave_rastreo** — SPEI bank tracking key (in SPEI deposits). Merchants may say "clave de rastreo", "tracking key", or just "clave"
 - **transaction_reference** — Reference from the payment processor (common format merchants copy from dashboards)
 - **payment_id** / **order_id** — Numeric or string identifiers
 - **UUID** — 36-character identifiers (e.g. deposit or checkout session IDs)
