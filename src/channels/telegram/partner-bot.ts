@@ -43,11 +43,11 @@ export function parseDepositTicket(text: string): ParsedDepositTicket | null {
 
 /**
  * Validate the txid field from a parsed deposit ticket.
- * Returns true only if txid is non-empty and numeric.
+ * Returns true only if txid is non-empty and alphanumeric.
  */
 export function isValidTxid(txid: string): boolean {
   if (!txid || txid.trim() === "") return false;
-  return /^\d+$/.test(txid.trim());
+  return /^[a-zA-Z0-9]+$/.test(txid.trim());
 }
 
 /**
