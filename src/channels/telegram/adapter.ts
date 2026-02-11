@@ -1,8 +1,9 @@
 import { Telegraf } from "telegraf";
 import { ChannelAdapter, IncomingMessage, OutgoingMessage } from "../types";
 import { createSupportTicket, CommandType } from "../../linear/client";
-import { resolveMerchantContext } from "../../merchants/context";
+import { resolveMerchantContext, isPartnerBot } from "../../merchants/context";
 import { trackInteraction } from "../../scheduler/daily-report";
+import { parseDepositTicket, isValidTxid, buildTicketLookupPrompt } from "./partner-bot";
 import { logger } from "../../utils/logger";
 
 interface TelegramConfig {
@@ -130,6 +131,59 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         { chatId, chatType: ctx.chat.type, from: ctx.message.from.username, text: text.slice(0, 80) },
         "Telegram text event received"
       );
+
+      // ── Partner bot auto-response (before mention check) ──
+      if (ctx.chat.type !== "private") {
+        const fromUsername = ctx.message.from.username || "";
+
+        if (fromUsername && isPartnerBot(chatId, "telegram", fromUsername)) {
+          logger.info(
+            { chatId, fromUsername, text: text.slice(0, 80) },
+            "Partner bot message detected — processing automatically"
+          );
+
+          const ticket = parseDepositTicket(text);
+          if (!ticket) {
+            logger.debug({ chatId, fromUsername }, "Partner bot message did not match deposit ticket format — ignoring");
+            return;
+          }
+
+          if (!isValidTxid(ticket.txid)) {
+            logger.info(
+              { chatId, fromUsername, txid: ticket.txid, orderId: ticket.orderId },
+              "Partner bot ticket has invalid/empty txid — silently ignoring"
+            );
+            return;
+          }
+
+          // Valid deposit ticket — look up via orchestrator
+          const lookupPrompt = buildTicketLookupPrompt(ticket);
+          try {
+            const answer = await handler({
+              channelId: chatId,
+              platform: "telegram",
+              userId: String(ctx.message.from.id),
+              userName: fromUsername,
+              text: lookupPrompt,
+              rawEvent: ctx.message,
+            });
+
+            // Reply directly to the partner bot's message
+            await ctx.reply(answer, {
+              reply_parameters: { message_id: ctx.message.message_id },
+            });
+          } catch (err) {
+            logger.error(
+              { err, chatId, fromUsername, orderId: ticket.orderId },
+              "Failed to process partner bot deposit ticket"
+            );
+            await ctx.reply("Sorry, I encountered an error looking up this deposit ticket.", {
+              reply_parameters: { message_id: ctx.message.message_id },
+            });
+          }
+          return;
+        }
+      }
 
       // In groups/supergroups, only respond when bot is mentioned or replied to
       if (ctx.chat.type !== "private") {

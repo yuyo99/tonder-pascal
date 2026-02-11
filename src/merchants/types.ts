@@ -1,3 +1,10 @@
+export interface PartnerBotConfig {
+  /** Telegram username of the partner bot (without @) */
+  username: string;
+  /** Human-readable label for logging */
+  label: string;
+}
+
 export interface MerchantMapping {
   channelId: string;
   platform: "slack" | "telegram" | "whatsapp";
@@ -7,6 +14,8 @@ export interface MerchantMapping {
   /** All business IDs for this channel (for merchants with multiple accounts) */
   businessIds: number[];
   businessIdStrs: string[];
+  /** Optional: partner bots whose messages Pascal auto-processes (no @mention required) */
+  partnerBots?: PartnerBotConfig[];
 }
 
 export interface MerchantContext {

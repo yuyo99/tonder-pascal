@@ -1,0 +1,71 @@
+import { logger } from "../../utils/logger";
+
+export interface ParsedDepositTicket {
+  orderId: string;
+  txid: string;
+  currency: string;
+  amount: string;
+}
+
+/**
+ * Parse a structured deposit ticket message from a partner bot.
+ * Expected format:
+ *   orderId: <value>
+ *   txid: <value>
+ *   currency: <value>
+ *   amount: <value>
+ *
+ *   We have a new deposit ticket...
+ *
+ * Returns null if orderId or txid lines are missing.
+ */
+export function parseDepositTicket(text: string): ParsedDepositTicket | null {
+  const orderIdMatch = text.match(/orderId:\s*(.+)/i);
+  const txidMatch = text.match(/txid:\s*(.+)/i);
+  const currencyMatch = text.match(/currency:\s*(.+)/i);
+  const amountMatch = text.match(/amount:\s*(.+)/i);
+
+  if (!orderIdMatch || !txidMatch) {
+    logger.debug(
+      { text: text.slice(0, 100) },
+      "Partner bot message does not match deposit ticket format"
+    );
+    return null;
+  }
+
+  return {
+    orderId: orderIdMatch[1].trim(),
+    txid: txidMatch[1].trim(),
+    currency: currencyMatch ? currencyMatch[1].trim() : "unknown",
+    amount: amountMatch ? amountMatch[1].trim() : "unknown",
+  };
+}
+
+/**
+ * Validate the txid field from a parsed deposit ticket.
+ * Returns true only if txid is non-empty and numeric.
+ */
+export function isValidTxid(txid: string): boolean {
+  if (!txid || txid.trim() === "") return false;
+  return /^\d+$/.test(txid.trim());
+}
+
+/**
+ * Build a tightly scoped message for the orchestrator to look up a deposit ticket.
+ * Claude will use lookup_by_id with the orderId and respond concisely.
+ */
+export function buildTicketLookupPrompt(ticket: ParsedDepositTicket): string {
+  return [
+    `[AUTOMATED DEPOSIT TICKET LOOKUP]`,
+    `A partner bot has reported a new deposit ticket. Look up the order using the orderId below.`,
+    ``,
+    `Order ID: ${ticket.orderId}`,
+    `TXID: ${ticket.txid}`,
+    `Currency: ${ticket.currency}`,
+    `Amount: ${ticket.amount}`,
+    ``,
+    `Use the lookup_by_id tool with the Order ID "${ticket.orderId}" to find the transaction status.`,
+    `Reply with the transaction details if found, or state that the order was not found.`,
+    `Keep the response concise — this is an automated check, not a conversation.`,
+  ].join("\n");
+}

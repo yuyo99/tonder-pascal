@@ -82,6 +82,23 @@ export async function resolveMerchantContext(
   };
 }
 
+/**
+ * Check if a given username is a configured partner bot for this channel.
+ * Used by the Telegram adapter to auto-respond without @mention.
+ */
+export function isPartnerBot(
+  channelId: string,
+  platform: "slack" | "telegram" | "whatsapp",
+  username: string
+): boolean {
+  const key = `${platform}:${channelId}`;
+  const mapping = channelIndex.get(key);
+  if (!mapping?.partnerBots) return false;
+  return mapping.partnerBots.some(
+    (pb) => pb.username.toLowerCase() === username.toLowerCase()
+  );
+}
+
 /** Load merchant mappings and business names on startup */
 export async function initMerchantContext(): Promise<void> {
   buildChannelIndex();

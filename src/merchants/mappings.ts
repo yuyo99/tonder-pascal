@@ -1,4 +1,4 @@
-import { MerchantMapping } from "./types";
+import { MerchantMapping, PartnerBotConfig } from "./types";
 
 /**
  * Helper: create a single-business-ID mapping (most common case).
@@ -37,6 +37,18 @@ function multi(
 }
 
 /**
+ * Helper: create a single-business-ID mapping with partner bots.
+ */
+function singleWithBots(
+  channelId: string,
+  platform: MerchantMapping["platform"],
+  businessId: number,
+  partnerBots: PartnerBotConfig[]
+): MerchantMapping {
+  return { ...single(channelId, platform, businessId), partnerBots };
+}
+
+/**
  * Static channel → merchant mapping.
  * Updated via code commits. Each merchant can have multiple entries
  * (one per channel per platform).
@@ -54,6 +66,13 @@ export const MERCHANT_CHANNEL_MAP: MerchantMapping[] = [
   // ── Campobet ──
   single("C0A1Z7V3S1E", "slack", 120),
 
-  // ── Tonder Production 2 (Telegram) ──
-  single("-1003575792934", "telegram", 91),
+  // ── BCGAME (Telegram) ──
+  singleWithBots("-1002589749469", "telegram", 121, [
+    { username: "bcgame_ticket_bot", label: "BcgameTicketBot" },
+  ]),
+
+  // ── Tonder Production 2 (Telegram) — includes bcgame_ticket_bot for testing ──
+  singleWithBots("-1003575792934", "telegram", 91, [
+    { username: "bcgame_ticket_bot", label: "BcgameTicketBot" },
+  ]),
 ];
