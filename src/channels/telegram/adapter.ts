@@ -127,30 +127,42 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       const chatId = String(ctx.chat.id);
       const text = ctx.message.text.trim();
 
+      // Extract all possible sender identities (bots may use from, sender_chat, or via_bot)
+      const fromUsername = ctx.message.from.username || "";
+      const senderChatUsername = (ctx.message as unknown as Record<string, Record<string, string>>).sender_chat?.username || "";
+      const viaBotUsername = (ctx.message as unknown as Record<string, Record<string, string>>).via_bot?.username || "";
+
       logger.info(
-        { chatId, chatType: ctx.chat.type, from: ctx.message.from.username, text: text.slice(0, 80) },
+        {
+          chatId, chatType: ctx.chat.type,
+          from: fromUsername, fromIsBot: ctx.message.from.is_bot,
+          senderChat: senderChatUsername || undefined,
+          viaBot: viaBotUsername || undefined,
+          text: text.slice(0, 80),
+        },
         "Telegram text event received"
       );
 
       // ── Partner bot auto-response (before mention check) ──
       if (ctx.chat.type !== "private") {
-        const fromUsername = ctx.message.from.username || "";
+        const partnerUsername = [fromUsername, senderChatUsername, viaBotUsername]
+          .find(u => u && isPartnerBot(chatId, "telegram", u)) || "";
 
-        if (fromUsername && isPartnerBot(chatId, "telegram", fromUsername)) {
+        if (partnerUsername) {
           logger.info(
-            { chatId, fromUsername, text: text.slice(0, 80) },
+            { chatId, partnerUsername, text: text.slice(0, 80) },
             "Partner bot message detected — processing automatically"
           );
 
           const ticket = parseDepositTicket(text);
           if (!ticket) {
-            logger.debug({ chatId, fromUsername }, "Partner bot message did not match deposit ticket format — ignoring");
+            logger.debug({ chatId, partnerUsername }, "Partner bot message did not match deposit ticket format — ignoring");
             return;
           }
 
           if (!isValidTxid(ticket.txid)) {
             logger.info(
-              { chatId, fromUsername, txid: ticket.txid, orderId: ticket.orderId },
+              { chatId, partnerUsername, txid: ticket.txid, orderId: ticket.orderId },
               "Partner bot ticket has invalid/empty txid — rejecting"
             );
             await ctx.reply(`Invalid txid: "${ticket.txid}". Must be alphanumeric and non-empty.`, {
@@ -166,7 +178,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
               channelId: chatId,
               platform: "telegram",
               userId: String(ctx.message.from.id),
-              userName: fromUsername,
+              userName: partnerUsername,
               text: lookupPrompt,
               rawEvent: ctx.message,
             });
@@ -177,7 +189,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
             });
           } catch (err) {
             logger.error(
-              { err, chatId, fromUsername, orderId: ticket.orderId },
+              { err, chatId, partnerUsername, orderId: ticket.orderId },
               "Failed to process partner bot deposit ticket"
             );
             await ctx.reply("Sorry, I encountered an error looking up this deposit ticket.", {
