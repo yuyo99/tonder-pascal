@@ -347,6 +347,7 @@ export async function lookupById(
       data: {
         payment_id: tx.payment_id,
         order_id: tx.order_id,
+        payment_customer_order_reference: tx.payment_customer_order_reference,
         transaction_reference: tx.transaction_reference,
         tracking_key: tx.tracking_key,
         status: tx.status,
@@ -410,6 +411,7 @@ async function findInTransactions(
   const orConditions: Record<string, unknown>[] = [
     { transaction_reference: id },
     { metadata_order_id: id },
+    { payment_customer_order_reference: id },
   ];
   if (numericId !== null) {
     orConditions.push({ payment_id: numericId });
@@ -427,6 +429,7 @@ async function findInTransactions(
       {
         projection: {
           payment_id: 1, order_id: 1, transaction_reference: 1, tracking_key: 1,
+          payment_customer_order_reference: 1,
           status: 1, amount: 1, acq: 1, provider: 1,
           created: 1, customer_email: 1, business_name: 1,
           decline_code: 1, decline_description: 1, _id: 0,
