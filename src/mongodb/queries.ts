@@ -385,6 +385,8 @@ export async function lookupById(
       data: {
         deposit_id: spei.deposit_id,
         order_id: spei.order_id,
+        payment_id: spei.payment_id,
+        metadata_order_id: (spei.metadata as Record<string, unknown>)?.orderId || null,
         checkout_id: spei.checkout_id,
         reference: spei.reference,
         clave_rastreo: extractClaveRastreo(spei),
@@ -494,11 +496,14 @@ async function findInSpeiDeposits(
     { reference: id },
     { transaction_reference: id },
     { provider_reference: id },
+    { "metadata.orderId": id },
   ];
   if (numericId !== null) {
     orConditions.push({ order_id: numericId });
+    orConditions.push({ payment_id: numericId });
   }
   orConditions.push({ order_id: id });
+  orConditions.push({ payment_id: id });
   orConditions.push({ "response.webhook.payload.details.clave_rastreo": id });
 
   const bizFilter = businessIdStrs.length === 1 ? businessIdStrs[0] : { $in: businessIdStrs };
@@ -507,8 +512,9 @@ async function findInSpeiDeposits(
       { business_id: bizFilter, $or: orConditions },
       {
         projection: {
-          deposit_id: 1, order_id: 1, checkout_id: 1,
-          reference: 1, "response.webhook.payload.details.clave_rastreo": 1,
+          deposit_id: 1, order_id: 1, payment_id: 1, checkout_id: 1,
+          reference: 1, "metadata.orderId": 1,
+          "response.webhook.payload.details.clave_rastreo": 1,
           status: 1, amount: 1,
           created_at: 1, _id: 0,
         },
