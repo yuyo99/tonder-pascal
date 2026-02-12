@@ -427,7 +427,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
     // Use polling (not webhooks) for simplicity
     // Launch in background — don't await so a polling conflict doesn't crash the app
     this.bot
-      .launch({ allowedUpdates: ["message", "channel_post"] })
+      .launch({ dropPendingUpdates: true, allowedUpdates: ["message", "channel_post"] })
       .then(() => logger.info("Telegram polling CONFIRMED active"))
       .catch((err) => {
         logger.error({ err }, "Telegram bot launch failed — will continue without Telegram");
