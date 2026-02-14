@@ -99,6 +99,19 @@ export function isPartnerBot(
   );
 }
 
+/**
+ * Check if a channel has any partner bots configured.
+ * Used for content-based fallback detection when username matching fails.
+ */
+export function hasPartnerBots(
+  channelId: string,
+  platform: "slack" | "telegram" | "whatsapp"
+): boolean {
+  const key = `${platform}:${channelId}`;
+  const mapping = channelIndex.get(key);
+  return !!(mapping?.partnerBots && mapping.partnerBots.length > 0);
+}
+
 /** Load merchant mappings and business names on startup */
 export async function initMerchantContext(): Promise<void> {
   buildChannelIndex();

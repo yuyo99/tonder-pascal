@@ -1,13 +1,60 @@
 import { Telegraf } from "telegraf";
 import { ChannelAdapter, IncomingMessage, OutgoingMessage } from "../types";
 import { createSupportTicket, CommandType } from "../../linear/client";
-import { resolveMerchantContext, isPartnerBot } from "../../merchants/context";
+import { resolveMerchantContext, isPartnerBot, hasPartnerBots } from "../../merchants/context";
 import { trackInteraction } from "../../scheduler/daily-report";
 import { parseDepositTicket, isValidTxid, buildTicketLookupPrompt } from "./partner-bot";
 import { logger } from "../../utils/logger";
 
 interface TelegramConfig {
   botToken: string;
+}
+
+/**
+ * Shared handler for partner bot deposit ticket messages.
+ * Returns true if the message was handled (ticket parsed), false otherwise.
+ */
+async function tryHandleDepositTicket(
+  text: string,
+  chatId: string,
+  userId: string,
+  userName: string,
+  handler: (msg: IncomingMessage) => Promise<string>,
+  replyFn: (answer: string) => Promise<void>,
+  rawEvent: unknown,
+  logLabel: string
+): Promise<boolean> {
+  const ticket = parseDepositTicket(text);
+  if (!ticket) return false;
+
+  if (!isValidTxid(ticket.txid)) {
+    logger.info(
+      { chatId, userName, txid: ticket.txid, orderId: ticket.orderId },
+      `${logLabel}: invalid/empty txid — rejecting`
+    );
+    await replyFn(`Invalid txid: "${ticket.txid}". Must be alphanumeric and non-empty.`);
+    return true;
+  }
+
+  const lookupPrompt = buildTicketLookupPrompt(ticket);
+  try {
+    const answer = await handler({
+      channelId: chatId,
+      platform: "telegram",
+      userId,
+      userName,
+      text: lookupPrompt,
+      rawEvent,
+    });
+    await replyFn(answer);
+  } catch (err) {
+    logger.error(
+      { err, chatId, userName, orderId: ticket.orderId },
+      `${logLabel}: failed to process deposit ticket`
+    );
+    await replyFn("Sorry, I encountered an error looking up this deposit ticket.");
+  }
+  return true;
 }
 
 export class TelegramChannelAdapter implements ChannelAdapter {
@@ -145,58 +192,39 @@ export class TelegramChannelAdapter implements ChannelAdapter {
 
       // ── Partner bot auto-response (before mention check) ──
       if (ctx.chat.type !== "private") {
+        // Method 1: Username-based detection
         const partnerUsername = [fromUsername, senderChatUsername, viaBotUsername]
           .find(u => u && isPartnerBot(chatId, "telegram", u)) || "";
 
-        if (partnerUsername) {
+        // Method 2: Content-based fallback — if channel has partner bots configured,
+        // try matching the deposit ticket format (covers cases where Telegram hides
+        // the bot identity behind the channel's sender_chat)
+        const isPartnerChannel = !partnerUsername && hasPartnerBots(chatId, "telegram");
+
+        if (partnerUsername || isPartnerChannel) {
+          const label = partnerUsername || "content-match";
           logger.info(
-            { chatId, partnerUsername, text: text.slice(0, 80) },
-            "Partner bot message detected — processing automatically"
+            { chatId, detectedBy: partnerUsername ? "username" : "content", label, text: text.slice(0, 80) },
+            "Partner bot message candidate — checking deposit ticket format"
           );
 
-          const ticket = parseDepositTicket(text);
-          if (!ticket) {
-            logger.debug({ chatId, partnerUsername }, "Partner bot message did not match deposit ticket format — ignoring");
+          const replyToMsg = async (answer: string) => {
+            await ctx.reply(answer, { reply_parameters: { message_id: ctx.message.message_id } });
+          };
+
+          const handled = await tryHandleDepositTicket(
+            text, chatId, String(ctx.message.from.id), label,
+            handler, replyToMsg, ctx.message, "text-handler partner bot"
+          );
+
+          if (handled) return;
+
+          // If username matched but content didn't parse, ignore silently
+          if (partnerUsername) {
+            logger.debug({ chatId, label }, "Partner bot message did not match deposit ticket format — ignoring");
             return;
           }
-
-          if (!isValidTxid(ticket.txid)) {
-            logger.info(
-              { chatId, partnerUsername, txid: ticket.txid, orderId: ticket.orderId },
-              "Partner bot ticket has invalid/empty txid — rejecting"
-            );
-            await ctx.reply(`Invalid txid: "${ticket.txid}". Must be alphanumeric and non-empty.`, {
-              reply_parameters: { message_id: ctx.message.message_id },
-            });
-            return;
-          }
-
-          // Valid deposit ticket — look up via orchestrator
-          const lookupPrompt = buildTicketLookupPrompt(ticket);
-          try {
-            const answer = await handler({
-              channelId: chatId,
-              platform: "telegram",
-              userId: String(ctx.message.from.id),
-              userName: partnerUsername,
-              text: lookupPrompt,
-              rawEvent: ctx.message,
-            });
-
-            // Reply directly to the partner bot's message
-            await ctx.reply(answer, {
-              reply_parameters: { message_id: ctx.message.message_id },
-            });
-          } catch (err) {
-            logger.error(
-              { err, chatId, partnerUsername, orderId: ticket.orderId },
-              "Failed to process partner bot deposit ticket"
-            );
-            await ctx.reply("Sorry, I encountered an error looking up this deposit ticket.", {
-              reply_parameters: { message_id: ctx.message.message_id },
-            });
-          }
-          return;
+          // If only content-based, fall through to normal mention check
         }
       }
 
@@ -303,50 +331,37 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       );
 
       // ── Partner bot auto-response (channel posts) ──
-      // Channel posts may carry the sender identity in sender_chat or from
       const postSenderChat = (post as unknown as Record<string, unknown>).sender_chat as Record<string, unknown> | undefined;
       const postFromField = (post as unknown as Record<string, unknown>).from as Record<string, unknown> | undefined;
       const postFromUsername = (postSenderChat?.username as string) || (postFromField?.username as string) || "";
-      if (postFromUsername && isPartnerBot(chatId, "telegram", postFromUsername)) {
+
+      // Method 1: Username-based detection
+      const isPostPartnerUsername = postFromUsername && isPartnerBot(chatId, "telegram", postFromUsername);
+      // Method 2: Content-based fallback for partner bot channels
+      const isPostPartnerChannel = !isPostPartnerUsername && hasPartnerBots(chatId, "telegram");
+
+      if (isPostPartnerUsername || isPostPartnerChannel) {
+        const label = isPostPartnerUsername ? postFromUsername : "content-match";
         logger.info(
-          { chatId, fromUsername: postFromUsername, text: text.slice(0, 80) },
-          "Partner bot channel_post detected — processing automatically"
+          { chatId, detectedBy: isPostPartnerUsername ? "username" : "content", label, text: text.slice(0, 80) },
+          "Partner bot channel_post candidate — checking deposit ticket format"
         );
 
-        const ticket = parseDepositTicket(text);
-        if (!ticket) {
-          logger.debug({ chatId, fromUsername: postFromUsername }, "Partner bot channel_post did not match deposit ticket format — ignoring");
+        const replyFn = async (answer: string) => { await ctx.reply(answer); };
+
+        const handled = await tryHandleDepositTicket(
+          text, chatId, "channel", label,
+          handler, replyFn, post, "channel_post partner bot"
+        );
+
+        if (handled) return;
+
+        // Username matched but content didn't parse — ignore silently
+        if (isPostPartnerUsername) {
+          logger.debug({ chatId, label }, "Partner bot channel_post did not match deposit ticket format — ignoring");
           return;
         }
-
-        if (!isValidTxid(ticket.txid)) {
-          logger.info(
-            { chatId, fromUsername: postFromUsername, txid: ticket.txid, orderId: ticket.orderId },
-            "Partner bot channel_post has invalid/empty txid — rejecting"
-          );
-          await ctx.reply(`Invalid txid: "${ticket.txid}". Must be alphanumeric and non-empty.`);
-          return;
-        }
-
-        const lookupPrompt = buildTicketLookupPrompt(ticket);
-        try {
-          const answer = await handler({
-            channelId: chatId,
-            platform: "telegram",
-            userId: "channel",
-            userName: postFromUsername,
-            text: lookupPrompt,
-            rawEvent: post,
-          });
-          await ctx.reply(answer);
-        } catch (err) {
-          logger.error(
-            { err, chatId, fromUsername: postFromUsername, orderId: ticket.orderId },
-            "Failed to process partner bot deposit ticket (channel_post)"
-          );
-          await ctx.reply("Sorry, I encountered an error looking up this deposit ticket.");
-        }
-        return;
+        // Content-based fallback didn't match — fall through to normal channel handling
       }
 
       // In channels, respond to ALL text posts (no mention required — channels are broadcast)
