@@ -35,6 +35,23 @@ function IconChart({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
+function IconBrain({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="6" cy="6" r="2" />
+      <circle cx="18" cy="8" r="2" />
+      <circle cx="12" cy="18" r="2" />
+      <circle cx="6" cy="14" r="2" />
+      <circle cx="18" cy="16" r="2" />
+      <line x1="8" y1="6" x2="16" y2="8" />
+      <line x1="6" y1="8" x2="6" y2="12" />
+      <line x1="7.5" y1="15" x2="10.5" y2="17.5" />
+      <line x1="13.5" y1="17.5" x2="16.5" y2="16" />
+      <line x1="17.5" y1="10" x2="17.5" y2="14" />
+    </svg>
+  );
+}
+
 function IconCollapseLeft({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -125,6 +142,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: "Overview", href: "/", icon: IconGrid },
   { label: "Analytics", href: "/analytics", icon: IconChart },
+  { label: "Brain", href: "/brain", icon: IconBrain },
   { label: "Merchants", href: "/merchants", icon: IconStore },
 ];
 
