@@ -225,7 +225,7 @@ export default function Sidebar() {
         <div className="px-4 py-3 border-t border-white/[0.06]">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <p className="text-[11px] text-gray-500">Tonder Payment Assistant</p>
+            <p className="text-[11px] text-gray-500">Tonder AI Agent</p>
           </div>
         </div>
       )}
