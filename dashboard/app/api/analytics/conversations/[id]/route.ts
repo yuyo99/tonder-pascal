@@ -33,6 +33,7 @@ export async function GET(
       latencyMs: r.latency_ms,
       ticketId: r.ticket_id,
       error: r.error,
+      knowledgeUsed: r.knowledge_used || [],
       createdAt: r.created_at,
     });
   } catch (err) {

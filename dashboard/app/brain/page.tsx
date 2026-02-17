@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { CATEGORY_COLORS, topicCategory } from "@/lib/brain-topics";
+import { CATEGORY_COLORS, KNOWLEDGE_CATEGORIES, topicCategory } from "@/lib/brain-topics";
 
 // Force graph MUST be loaded client-side only (Canvas)
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
@@ -48,6 +48,7 @@ interface BrainData {
     topMerchants: { merchant: string; questionCount: number }[];
     complexTopics: { topic: string; avgRounds: number; count: number }[];
     weeklyTrend: { week: string; topic: string; count: number }[];
+    knowledgeCoverage: { category: string; entryCount: number; totalHits: number }[];
   };
   recentQuestions: Record<
     string,
@@ -464,6 +465,82 @@ export default function BrainPage() {
           <InsightCard title="Weekly Trend">
             <WeeklyTrendChart data={data.insights.weeklyTrend} />
           </InsightCard>
+
+          {/* Knowledge Coverage */}
+          <InsightCard
+            title="Knowledge Coverage"
+            subtitle="Memory entries by category"
+          >
+            {data.insights.knowledgeCoverage.length > 0 ? (
+              <>
+                {data.insights.knowledgeCoverage.map((k) => (
+                  <div
+                    key={k.category}
+                    className="flex items-center justify-between py-1.5"
+                  >
+                    <p className="text-sm text-gray-700">
+                      {KNOWLEDGE_CATEGORIES[k.category] || k.category}
+                    </p>
+                    <div className="text-right shrink-0 ml-2">
+                      <span className="text-sm font-medium text-violet-600">
+                        {k.entryCount}
+                      </span>
+                      <span className="text-xs text-gray-400 ml-1">
+                        ({k.totalHits} hits)
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                <Link
+                  href="/memory"
+                  className="block text-xs text-violet-600 hover:text-violet-800 mt-2"
+                >
+                  Manage memory →
+                </Link>
+              </>
+            ) : (
+              <div>
+                <p className="text-sm text-gray-400 mb-2">
+                  No knowledge entries yet
+                </p>
+                <Link
+                  href="/memory"
+                  className="text-xs text-violet-600 hover:text-violet-800"
+                >
+                  Add knowledge entries →
+                </Link>
+              </div>
+            )}
+          </InsightCard>
+
+          {/* Missing Knowledge */}
+          {data.insights.errorTopics.length > 0 && (
+            <InsightCard
+              title="Missing Knowledge"
+              subtitle="Error topics that could benefit from memory entries"
+            >
+              {data.insights.errorTopics.slice(0, 3).map((t) => (
+                <div
+                  key={t.topic}
+                  className="flex items-center justify-between py-1.5"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                    <p className="text-sm text-gray-700 truncate">{t.topic}</p>
+                  </div>
+                  <span className="text-xs text-gray-400 shrink-0 ml-2">
+                    {t.errorCount} errors
+                  </span>
+                </div>
+              ))}
+              <Link
+                href="/memory"
+                className="block text-xs text-violet-600 hover:text-violet-800 mt-2"
+              >
+                Add knowledge to reduce errors →
+              </Link>
+            </InsightCard>
+          )}
         </div>
       </div>
     </div>

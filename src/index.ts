@@ -7,6 +7,7 @@ import { initMerchantContext } from "./merchants/context";
 import { bootChannels, findSlackAdapter } from "./channels/registry";
 import { handleIncomingMessage } from "./core/orchestrator";
 import { initScheduler, stopScheduler } from "./scheduler";
+import { loadKnowledgeBase } from "./knowledge/loader";
 import { logger } from "./utils/logger";
 
 async function main() {
@@ -18,6 +19,9 @@ async function main() {
 
   // 2. Ensure Postgres tables exist
   await ensureTables();
+
+  // 2b. Load knowledge base into memory
+  await loadKnowledgeBase();
 
   // 3. Load merchant configs (seed Postgres if empty, then load + build index)
   await initMerchantContext();

@@ -38,6 +38,16 @@ export const CATEGORY_COLORS: Record<string, string> = {
 
 export const GENERAL_SUPPORT_TOPIC = "General Support";
 
+/** Knowledge base category slugs → display labels */
+export const KNOWLEDGE_CATEGORIES: Record<string, string> = {
+  faq: "FAQ",
+  integration: "Integration",
+  decline_code: "Decline Codes",
+  payment_method: "Payment Methods",
+  troubleshooting: "Troubleshooting",
+  policy: "Policy",
+};
+
 /** Convert a raw tool name to a display topic. Handles unknown tools gracefully. */
 export function toolToTopic(toolName: string): string {
   return (

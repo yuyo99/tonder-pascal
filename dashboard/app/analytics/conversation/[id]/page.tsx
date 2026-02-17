@@ -17,6 +17,7 @@ interface ConversationDetail {
   latencyMs: number | null;
   ticketId: string | null;
   error: string | null;
+  knowledgeUsed: { id: string; title: string; category: string }[];
   createdAt: string;
 }
 
@@ -149,6 +150,28 @@ export default function ConversationDetailPage() {
         <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-2">Answer</p>
         <p className="text-gray-800 whitespace-pre-wrap text-sm leading-relaxed">{conv.answer}</p>
       </div>
+
+      {/* Knowledge Used */}
+      {conv.knowledgeUsed && conv.knowledgeUsed.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 mb-4">
+          <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">
+            Knowledge Used ({conv.knowledgeUsed.length})
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {conv.knowledgeUsed.map((k) => (
+              <div
+                key={k.id}
+                className="flex items-center gap-2 border border-violet-200 bg-violet-50 rounded-lg px-3 py-2"
+              >
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-200 text-violet-700 font-medium uppercase">
+                  {k.category}
+                </span>
+                <span className="text-sm text-violet-800">{k.title}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tool Calls */}
       {conv.toolCalls.length > 0 && (

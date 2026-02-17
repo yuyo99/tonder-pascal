@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     const interval = `${days} days`;
 
     // Run all queries in parallel
-    const [topicStats, coOccurrence, topMerchants, weeklyTrend, recentQs] =
+    const [topicStats, coOccurrence, topMerchants, weeklyTrend, recentQs, knowledgeStats] =
       await Promise.all([
         // Q1: Topic frequency, errors, avg rounds
         query(`
@@ -143,6 +143,15 @@ export async function GET(req: NextRequest) {
           WHERE rn <= 5
           ORDER BY tool_name, created_at DESC
         `),
+
+        // Q6: Knowledge base coverage stats
+        query(`
+          SELECT category, COUNT(*) AS entry_count, COALESCE(SUM(hit_count), 0) AS total_hits
+          FROM pascal_knowledge_base
+          WHERE is_active = true
+          GROUP BY category
+          ORDER BY total_hits DESC
+        `),
       ]);
 
     // --- Map raw SQL results to the response shape ---
@@ -248,6 +257,13 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Knowledge coverage
+    const knowledgeCoverage = knowledgeStats.rows.map((r) => ({
+      category: r.category,
+      entryCount: parseInt(r.entry_count),
+      totalHits: parseInt(r.total_hits),
+    }));
+
     return NextResponse.json({
       graph: { nodes, edges },
       insights: {
@@ -256,6 +272,7 @@ export async function GET(req: NextRequest) {
         topMerchants: topMerchantsList,
         complexTopics,
         weeklyTrend: weeklyTrendData,
+        knowledgeCoverage,
       },
       recentQuestions,
     });

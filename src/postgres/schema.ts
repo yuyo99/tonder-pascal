@@ -56,6 +56,28 @@ CREATE INDEX IF NOT EXISTS idx_pascal_conv_log_created
   ON pascal_conversation_log (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_pascal_conv_log_merchant
   ON pascal_conversation_log (merchant_name);
+
+CREATE TABLE IF NOT EXISTS pascal_knowledge_base (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  category      TEXT NOT NULL,
+  match_pattern TEXT NOT NULL,
+  title         TEXT NOT NULL,
+  content       TEXT NOT NULL,
+  action        TEXT,
+  priority      INTEGER DEFAULT 5,
+  is_active     BOOLEAN DEFAULT true,
+  hit_count     INTEGER DEFAULT 0,
+  created_at    TIMESTAMPTZ DEFAULT now(),
+  updated_at    TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pascal_kb_category
+  ON pascal_knowledge_base (category) WHERE is_active = true;
+
+DO $$ BEGIN
+  ALTER TABLE pascal_conversation_log
+    ADD COLUMN IF NOT EXISTS knowledge_used JSONB DEFAULT '[]';
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
 `;
 
 export async function ensureTables(): Promise<void> {

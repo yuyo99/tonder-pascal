@@ -7,6 +7,7 @@ import { resolveMerchantContext } from "../merchants/context";
 import { IncomingMessage } from "../channels/types";
 import { MerchantContext } from "../merchants/types";
 import { trackInteraction } from "../scheduler/daily-report";
+import { findRelevantKnowledge, KnowledgeEntry } from "../knowledge/loader";
 import { pgQuery } from "../postgres/connection";
 import { logger } from "../utils/logger";
 
@@ -42,7 +43,24 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<strin
   );
 
   // Step 2: Build merchant-specific system prompt
-  const systemPrompt = buildSystemPrompt(merchantCtx);
+  let systemPrompt = buildSystemPrompt(merchantCtx);
+
+  // Step 2b: Inject relevant knowledge into system prompt
+  const knowledgeMatches = findRelevantKnowledge(msg.text);
+  if (knowledgeMatches.length > 0) {
+    const knowledgeSection = knowledgeMatches
+      .map((k) => {
+        let entry = `### ${k.title}\n${k.content}`;
+        if (k.action) entry += `\n**Recommended action:** ${k.action}`;
+        return entry;
+      })
+      .join("\n\n");
+    systemPrompt += `\n\n## Relevant Knowledge\nUse the following knowledge to help answer the merchant's question:\n\n${knowledgeSection}`;
+    logger.info(
+      { count: knowledgeMatches.length, titles: knowledgeMatches.map((k) => k.title), merchant: merchantCtx.businessName },
+      "Knowledge injected into prompt"
+    );
+  }
 
   // Step 3: Run Claude tool-use loop
   let result: ToolLoopResult;
@@ -90,9 +108,20 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<strin
     timestamp: new Date(),
   });
 
-  // Step 6: Persist conversation to Postgres (fire-and-forget)
+  // Step 6: Update knowledge hit counts (fire-and-forget)
+  if (knowledgeMatches.length > 0) {
+    const ids = knowledgeMatches.map((k) => k.id);
+    pgQuery(
+      `UPDATE pascal_knowledge_base SET hit_count = hit_count + 1 WHERE id = ANY($1::uuid[])`,
+      [ids]
+    ).catch((err) => {
+      logger.warn({ err }, "Failed to update knowledge hit counts — non-fatal");
+    });
+  }
+
+  // Step 7: Persist conversation to Postgres (fire-and-forget)
   const latencyMs = Date.now() - startTime;
-  logConversation(merchantCtx, msg, result, latencyMs, error);
+  logConversation(merchantCtx, msg, result, latencyMs, error, knowledgeMatches);
 
   return result.answer;
 }
@@ -104,14 +133,21 @@ function logConversation(
   msg: IncomingMessage,
   result: ToolLoopResult,
   latencyMs: number,
-  error?: string
+  error?: string,
+  knowledgeMatches: KnowledgeEntry[] = []
 ): void {
+  const knowledgeUsed = knowledgeMatches.map((k) => ({
+    id: k.id,
+    title: k.title,
+    category: k.category,
+  }));
+
   pgQuery(
     `INSERT INTO pascal_conversation_log
-      (merchant_id, merchant_name, platform, channel_id, user_name, question, answer, tool_calls, rounds, latency_ms, error)
+      (merchant_id, merchant_name, platform, channel_id, user_name, question, answer, tool_calls, rounds, latency_ms, error, knowledge_used)
      VALUES (
        (SELECT id FROM pascal_merchant_channels WHERE platform = $1 AND channel_id = $2 LIMIT 1),
-       $3, $1, $2, $4, $5, $6, $7, $8, $9, $10
+       $3, $1, $2, $4, $5, $6, $7, $8, $9, $10, $11
      )`,
     [
       ctx.platform,
@@ -124,6 +160,7 @@ function logConversation(
       result.rounds,
       latencyMs,
       error || null,
+      JSON.stringify(knowledgeUsed),
     ]
   ).catch((err) => {
     logger.warn({ err }, "Failed to log conversation — non-fatal");
