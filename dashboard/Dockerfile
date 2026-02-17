@@ -1,8 +1,8 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY dashboard/package*.json ./
+COPY package*.json ./
 RUN npm ci
-COPY dashboard/ .
+COPY . .
 RUN npm run build
 
 FROM node:20-alpine
