@@ -78,6 +78,20 @@ DO $$ BEGIN
     ADD COLUMN IF NOT EXISTS knowledge_used JSONB DEFAULT '[]';
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
+
+CREATE TABLE IF NOT EXISTS pascal_onboardings (
+  id          SERIAL PRIMARY KEY,
+  name        TEXT NOT NULL,
+  type        TEXT NOT NULL DEFAULT 'merchant' CHECK (type IN ('merchant', 'partner')),
+  owner       TEXT DEFAULT '',
+  notes       TEXT DEFAULT '',
+  phases      JSONB NOT NULL DEFAULT '{}',
+  status      TEXT NOT NULL DEFAULT 'not_started' CHECK (status IN ('not_started', 'in_progress', 'completed')),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pascal_onboardings_status
+  ON pascal_onboardings (status);
 `;
 
 export async function ensureTables(): Promise<void> {
