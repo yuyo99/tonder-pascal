@@ -175,12 +175,15 @@ interface NavItem {
   icon: (props: { className?: string }) => ReactNode;
 }
 
-const NAV_ITEMS: NavItem[] = [
+const AGENT_ITEMS: NavItem[] = [
   { label: "Overview", href: "/", icon: IconGrid },
   { label: "Analytics", href: "/analytics", icon: IconChart },
   { label: "Brain", href: "/brain", icon: IconBrain },
   { label: "Memory", href: "/memory", icon: IconMemory },
   { label: "Chats", href: "/merchants", icon: IconChats },
+];
+
+const ADMIN_ITEMS: NavItem[] = [
   { label: "Onboarding", href: "/onboarding", icon: IconOnboarding },
   { label: "Integrations", href: "/integrations", icon: IconIntegrations },
 ];
@@ -228,14 +231,45 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className={`flex-1 py-4 overflow-y-auto overflow-x-hidden ${collapsed ? "px-1" : "px-3"}`}>
+        {/* Agent section */}
         {!collapsed && (
           <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-500">
-            Main
+            Agent
           </p>
         )}
-
         <div className="space-y-0.5">
-          {NAV_ITEMS.map((item) => {
+          {AGENT_ITEMS.map((item) => {
+            const active = isActive(item.href);
+            return (
+              <a
+                key={item.href}
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                title={collapsed ? item.label : undefined}
+                className={`relative flex items-center gap-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 ${
+                  collapsed ? "px-0 justify-center" : "px-3"
+                } ${
+                  active
+                    ? "bg-white/[0.07] text-white before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-full before:bg-violet-400"
+                    : "text-gray-400 hover:bg-white/[0.04] hover:text-gray-200"
+                }`}
+              >
+                <item.icon className="w-[18px] h-[18px] shrink-0" />
+                {!collapsed && <span>{item.label}</span>}
+              </a>
+            );
+          })}
+        </div>
+
+        {/* Admin section */}
+        {!collapsed && (
+          <p className="px-3 mt-5 mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-500">
+            Admin
+          </p>
+        )}
+        {collapsed && <div className="mt-3" />}
+        <div className="space-y-0.5">
+          {ADMIN_ITEMS.map((item) => {
             const active = isActive(item.href);
             return (
               <a
