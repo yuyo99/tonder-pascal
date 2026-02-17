@@ -2,7 +2,7 @@ import cron, { ScheduledTask } from "node-cron";
 import { WebClient } from "@slack/web-api";
 import { pgQuery } from "../postgres/connection";
 import { sendDailyReport } from "./daily-report";
-import { sendLinearOverdueAlert } from "./linear-alert";
+import { sendLinearOverdueAlert, sendLinearEodReview } from "./linear-alert";
 import { onConfigChange } from "../merchants/config-store";
 import { logger } from "../utils/logger";
 
@@ -32,6 +32,7 @@ const runningTasks = new Map<string, { task: ScheduledTask; config: ReportConfig
 let globalTask: ScheduledTask | null = null;
 // Hardcoded system alerts
 let linearAlertTask: ScheduledTask | null = null;
+let linearEodTask: ScheduledTask | null = null;
 let slackClientRef: WebClient | null = null;
 
 /**
@@ -187,6 +188,21 @@ export function initScheduler(slackClient: WebClient): void {
   );
   logger.info("Linear overdue alert scheduled (daily 8:00 AM Mexico City)");
 
+  // Linear EOD review — daily at 4:59 PM Mexico City
+  linearEodTask = cron.schedule(
+    "59 16 * * *",
+    async () => {
+      logger.info("Running Linear EOD review...");
+      try {
+        await sendLinearEodReview(slackClient);
+      } catch (err) {
+        logger.error({ err }, "Linear EOD review failed");
+      }
+    },
+    { timezone: "America/Mexico_City" }
+  );
+  logger.info("Linear EOD review scheduled (daily 4:59 PM Mexico City)");
+
   logger.info("Scheduler initialized — syncing scheduled reports from Postgres");
 }
 
@@ -206,6 +222,10 @@ export function stopScheduler(): void {
   if (linearAlertTask) {
     linearAlertTask.stop();
     linearAlertTask = null;
+  }
+  if (linearEodTask) {
+    linearEodTask.stop();
+    linearEodTask = null;
   }
   slackClientRef = null;
   logger.info("Scheduler stopped");

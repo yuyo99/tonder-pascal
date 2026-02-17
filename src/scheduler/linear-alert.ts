@@ -41,7 +41,7 @@ interface LinearIssue {
 
 // ── GraphQL ──────────────────────────────────────────────────────────
 
-const OVERDUE_ISSUES_QUERY = `
+const ISSUES_QUERY = `
   query($filter: IssueFilter!) {
     issues(filter: $filter, first: 100) {
       nodes {
@@ -50,6 +50,7 @@ const OVERDUE_ISSUES_QUERY = `
         priority
         priorityLabel
         dueDate
+        completedAt
         state { name type }
         assignee { name }
         url
@@ -101,7 +102,7 @@ async function fetchOverdueLinearIssues(): Promise<LinearIssue[]> {
   const client = new LinearClient({ apiKey: config.linear.apiKey });
   const today = getTodayMexicoCity();
 
-  const result = await client.client.rawRequest(OVERDUE_ISSUES_QUERY, {
+  const result = await client.client.rawRequest(ISSUES_QUERY, {
     filter: {
       team: {
         id: { in: [TEAM_IDS.support, TEAM_IDS.integrations] },
@@ -261,4 +262,238 @@ export async function sendLinearOverdueAlert(slackClient: WebClient): Promise<vo
   });
 
   logger.info({ count: issues.length, channel: LINEAR_ALERT_CHANNEL }, "Linear overdue alert posted");
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// EOD Review (4:59 PM) — still pending + resolved today
+// ═══════════════════════════════════════════════════════════════════════
+
+async function fetchResolvedTodayIssues(): Promise<LinearIssue[]> {
+  if (!config.linear.apiKey) return [];
+
+  const client = new LinearClient({ apiKey: config.linear.apiKey });
+  const today = getTodayMexicoCity();
+
+  // Fetch urgent/high issues from both teams that were completed/canceled
+  // and updated today (fallback for completedAt filter)
+  const result = await client.client.rawRequest(ISSUES_QUERY, {
+    filter: {
+      team: {
+        id: { in: [TEAM_IDS.support, TEAM_IDS.integrations] },
+      },
+      priority: { in: [1, 2] },
+      state: {
+        type: { in: ["completed", "canceled"] },
+      },
+      completedAt: { gte: `${today}T00:00:00.000Z` },
+    },
+  });
+
+  const nodes = (result as any).data.issues.nodes as any[];
+
+  return nodes.map((n) => ({
+    identifier: n.identifier,
+    title: n.title,
+    priority: n.priority,
+    priorityLabel: n.priorityLabel,
+    dueDate: n.dueDate || today,
+    stateName: n.state.name,
+    assigneeName: n.assignee?.name || null,
+    url: n.url,
+    labels: (n.labels?.nodes || []).map((l: any) => l.name),
+    teamName: n.team.name,
+    overdueDays: n.dueDate ? daysBetween(n.dueDate, today) : 0,
+  }));
+}
+
+// ── EOD Block Kit Formatter ──────────────────────────────────────────
+
+function buildPendingSection(issues: LinearIssue[]): KnownBlock[] {
+  const blocks: KnownBlock[] = [];
+
+  // Group by team
+  const byTeam = new Map<string, LinearIssue[]>();
+  for (const issue of issues) {
+    const list = byTeam.get(issue.teamName) || [];
+    list.push(issue);
+    byTeam.set(issue.teamName, list);
+  }
+
+  const teamOrder = ["Support", "Integrations"];
+  for (const teamName of teamOrder) {
+    const teamIssues = byTeam.get(teamName);
+    if (!teamIssues || teamIssues.length === 0) continue;
+
+    const display = TEAM_DISPLAY[teamName] || { icon: ":pushpin:", label: teamName };
+
+    blocks.push({
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `${display.icon} *${display.label}*`,
+        },
+      ],
+    });
+
+    // Group by priority (Urgent first)
+    const byPriority = new Map<number, LinearIssue[]>();
+    for (const issue of teamIssues) {
+      const list = byPriority.get(issue.priority) || [];
+      list.push(issue);
+      byPriority.set(issue.priority, list);
+    }
+
+    for (const prio of [1, 2]) {
+      const prioIssues = byPriority.get(prio);
+      if (!prioIssues || prioIssues.length === 0) continue;
+
+      const prioDisplay = PRIORITY_DISPLAY[prio] || { icon: ":white_circle:", label: "Other" };
+
+      blocks.push({
+        type: "context",
+        elements: [{ type: "mrkdwn", text: `${prioDisplay.icon} *${prioDisplay.label}*` }],
+      });
+
+      const lines: string[] = [];
+      for (const issue of prioIssues) {
+        const assignee = issue.assigneeName || "Unassigned";
+        const dueDateStr = formatDueDate(issue.dueDate);
+        const overdueTag =
+          issue.overdueDays > 0
+            ? `:warning: *${issue.overdueDays} day${issue.overdueDays !== 1 ? "s" : ""} overdue*`
+            : ":calendar: Due today";
+
+        lines.push(
+          `• <${issue.url}|${issue.identifier}> ${issue.title}\n` +
+            `   :bust_in_silhouette: ${assignee}  ·  :calendar: ${dueDateStr}  ·  ${overdueTag}`
+        );
+      }
+
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: lines.join("\n\n") },
+      });
+    }
+  }
+
+  return blocks;
+}
+
+function buildResolvedSection(issues: LinearIssue[]): KnownBlock[] {
+  const lines: string[] = [];
+
+  for (const issue of issues) {
+    const assignee = issue.assigneeName || "Unassigned";
+    lines.push(
+      `• <${issue.url}|${issue.identifier}> ${issue.title}\n` +
+        `   :bust_in_silhouette: ${assignee}  ·  _${issue.stateName}_`
+    );
+  }
+
+  return [
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: lines.join("\n\n") },
+    },
+  ];
+}
+
+function buildEodReviewBlocks(
+  pending: LinearIssue[],
+  resolved: LinearIssue[],
+  displayDate: string
+): KnownBlock[] {
+  const blocks: KnownBlock[] = [];
+
+  // Header
+  blocks.push({
+    type: "header",
+    text: {
+      type: "plain_text",
+      text: `:clipboard: Linear EOD Review — ${displayDate}`,
+    },
+  });
+
+  // Summary
+  blocks.push({
+    type: "section",
+    text: {
+      type: "mrkdwn",
+      text: `*${pending.length}* still pending  ·  *${resolved.length}* resolved today`,
+    },
+  });
+
+  // Still Pending section
+  if (pending.length > 0) {
+    blocks.push({ type: "divider" });
+    blocks.push({
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `:hourglass_flowing_sand: *Still Pending* (${pending.length})`,
+        },
+      ],
+    });
+    blocks.push(...buildPendingSection(pending));
+  }
+
+  // Resolved Today section
+  if (resolved.length > 0) {
+    blocks.push({ type: "divider" });
+    blocks.push({
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `:white_check_mark: *Resolved Today* (${resolved.length})`,
+        },
+      ],
+    });
+    blocks.push(...buildResolvedSection(resolved));
+  }
+
+  // All clear
+  if (pending.length === 0 && resolved.length === 0) {
+    blocks.push({ type: "divider" });
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `:white_check_mark: No urgent/high tickets pending or resolved today. All clear!`,
+      },
+    });
+  }
+
+  return blocks;
+}
+
+// ── Public: Send EOD Review ──────────────────────────────────────────
+
+export async function sendLinearEodReview(slackClient: WebClient): Promise<void> {
+  const displayDate = getDisplayDate();
+
+  const [pending, resolved] = await Promise.all([
+    fetchOverdueLinearIssues(),
+    fetchResolvedTodayIssues(),
+  ]);
+
+  const blocks = buildEodReviewBlocks(pending, resolved, displayDate);
+
+  const fallbackText =
+    pending.length > 0 || resolved.length > 0
+      ? `Linear EOD review: ${pending.length} pending, ${resolved.length} resolved today`
+      : "Linear EOD review: All clear — no urgent/high tickets pending or resolved today";
+
+  await slackClient.chat.postMessage({
+    channel: LINEAR_ALERT_CHANNEL,
+    blocks,
+    text: fallbackText,
+  });
+
+  logger.info(
+    { pending: pending.length, resolved: resolved.length, channel: LINEAR_ALERT_CHANNEL },
+    "Linear EOD review posted"
+  );
 }
