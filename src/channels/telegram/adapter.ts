@@ -30,9 +30,8 @@ async function tryHandleDepositTicket(
   if (!isValidTxid(ticket.txid)) {
     logger.info(
       { chatId, userName, txid: ticket.txid, orderId: ticket.orderId },
-      `${logLabel}: invalid/empty txid — rejecting`
+      `${logLabel}: blank/invalid txid — ignoring silently`
     );
-    await replyFn(`Invalid txid: "${ticket.txid}". Must be alphanumeric and non-empty.`);
     return true;
   }
 
