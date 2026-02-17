@@ -368,7 +368,16 @@ export default function OnboardingPage() {
         </div>
 
         {/* Modal */}
-        {showModal && <FormModal />}
+        {showModal && (
+          <FormModal
+            editingId={editingId}
+            form={form}
+            setForm={setForm}
+            saving={saving}
+            onSave={handleSave}
+            onClose={() => setShowModal(false)}
+          />
+        )}
       </div>
     );
   }
@@ -477,115 +486,143 @@ export default function OnboardingPage() {
       )}
 
       {/* Modal */}
-      {showModal && <FormModal />}
+      {showModal && (
+        <FormModal
+          editingId={editingId}
+          form={form}
+          setForm={setForm}
+          saving={saving}
+          onSave={handleSave}
+          onClose={() => setShowModal(false)}
+        />
+      )}
     </div>
   );
-
-  /* ─── Form Modal (shared between list and detail views) ─── */
-
-  function FormModal() {
-    return (
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-          <div className="p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              {editingId ? "Edit Onboarding" : "New Onboarding"}
-            </h2>
-
-            <div className="space-y-4">
-              {/* Name */}
-              <div>
-                <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
-                  Merchant / Partner Name{" "}
-                  <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="e.g. Nuvigo Pay"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
-                />
-              </div>
-
-              {/* Type */}
-              <div>
-                <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
-                  Type
-                </label>
-                <select
-                  value={form.type}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      type: e.target.value as "merchant" | "partner",
-                    })
-                  }
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
-                >
-                  <option value="merchant">Merchant</option>
-                  <option value="partner">Partner</option>
-                </select>
-              </div>
-
-              {/* Owner */}
-              <div>
-                <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
-                  Owner{" "}
-                  <span className="normal-case text-gray-400">(optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.owner}
-                  onChange={(e) => setForm({ ...form, owner: e.target.value })}
-                  placeholder="e.g. Geraldine Sprockel"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
-                />
-              </div>
-
-              {/* Notes */}
-              <div>
-                <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
-                  Notes{" "}
-                  <span className="normal-case text-gray-400">(optional)</span>
-                </label>
-                <textarea
-                  value={form.notes}
-                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                  rows={2}
-                  placeholder="Any additional context..."
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 resize-y"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving || !form.name.trim()}
-                className="px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving
-                  ? "Saving..."
-                  : editingId
-                  ? "Update"
-                  : "Create"}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 }
 
 /* ─── Sub-Components ─── */
+
+type FormData = {
+  name: string;
+  type: "merchant" | "partner";
+  owner: string;
+  notes: string;
+};
+
+function FormModal({
+  editingId,
+  form,
+  setForm,
+  saving,
+  onSave,
+  onClose,
+}: {
+  editingId: number | null;
+  form: FormData;
+  setForm: (f: FormData) => void;
+  saving: boolean;
+  onSave: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div
+        className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            {editingId ? "Edit Onboarding" : "New Onboarding"}
+          </h2>
+
+          <div className="space-y-4">
+            {/* Name */}
+            <div>
+              <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
+                Merchant / Partner Name{" "}
+                <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="e.g. Nuvigo Pay"
+                autoFocus
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+              />
+            </div>
+
+            {/* Type */}
+            <div>
+              <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
+                Type
+              </label>
+              <select
+                value={form.type}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    type: e.target.value as "merchant" | "partner",
+                  })
+                }
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+              >
+                <option value="merchant">Merchant</option>
+                <option value="partner">Partner</option>
+              </select>
+            </div>
+
+            {/* Owner */}
+            <div>
+              <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
+                Owner{" "}
+                <span className="normal-case text-gray-400">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={form.owner}
+                onChange={(e) => setForm({ ...form, owner: e.target.value })}
+                placeholder="e.g. Geraldine Sprockel"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+              />
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
+                Notes{" "}
+                <span className="normal-case text-gray-400">(optional)</span>
+              </label>
+              <textarea
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                rows={2}
+                placeholder="Any additional context..."
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 resize-y"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onSave}
+              disabled={saving || !form.name.trim()}
+              className="px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? "Saving..." : editingId ? "Update" : "Create"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function OnboardingCard({
   onboarding,
