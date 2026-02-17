@@ -28,7 +28,13 @@ export interface PhaseItemState {
   checked_at: string; // ISO timestamp
 }
 
-export type PhasesState = Record<string, Record<string, PhaseItemState>>;
+export interface CustomItem {
+  id: string;
+  label: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type PhasesState = Record<string, Record<string, any>>;
 
 /* ─── Phase Definitions ─── */
 
@@ -142,12 +148,40 @@ export const ONBOARDING_PHASES: PhaseDefinition[] = [
   },
 ];
 
-/* ─── Derived Constants ─── */
+/* ─── Per-Onboarding Customization Helpers ─── */
 
-export const TOTAL_ITEMS = ONBOARDING_PHASES.reduce(
-  (sum, phase) => sum + phase.items.length,
-  0
-);
+/** Extract metadata keys from phase JSONB data */
+export function getPhaseMetadata(phaseData: Record<string, unknown>) {
+  return {
+    removed: (phaseData._removed as string[]) || [],
+    renamed: (phaseData._renamed as Record<string, string>) || {},
+    customItems: (phaseData._custom_items as CustomItem[]) || [],
+  };
+}
+
+/**
+ * Resolve the effective item list for a phase, accounting for
+ * per-onboarding removals, renames, and custom items.
+ */
+export function getEffectiveItems(
+  phase: PhaseDefinition,
+  phaseData: Record<string, unknown>
+): ChecklistItem[] {
+  const { removed, renamed, customItems } = getPhaseMetadata(phaseData);
+
+  // Start with hardcoded defaults, filter removed, apply renames
+  const defaultItems = phase.items
+    .filter((item) => !removed.includes(item.id))
+    .map((item) => ({
+      id: item.id,
+      label: renamed[item.id] || item.label,
+    }));
+
+  // Append custom items (also filter any removed custom items)
+  const custom = customItems.filter((item) => !removed.includes(item.id));
+
+  return [...defaultItems, ...custom];
+}
 
 /* ─── Progress Utilities ─── */
 
@@ -158,16 +192,21 @@ export function calculateProgress(phases: PhasesState): {
   percentage: number;
 } {
   let completed = 0;
+  let total = 0;
+
   for (const phase of ONBOARDING_PHASES) {
     const phaseData = phases[phase.id] || {};
-    for (const item of phase.items) {
+    const effectiveItems = getEffectiveItems(phase, phaseData);
+    total += effectiveItems.length;
+    for (const item of effectiveItems) {
       if (phaseData[item.id]?.checked) completed++;
     }
   }
+
   return {
     completed,
-    total: TOTAL_ITEMS,
-    percentage: TOTAL_ITEMS > 0 ? Math.round((completed / TOTAL_ITEMS) * 100) : 0,
+    total,
+    percentage: total > 0 ? Math.round((completed / total) * 100) : 0,
   };
 }
 
@@ -175,7 +214,10 @@ export function calculateProgress(phases: PhasesState): {
 export function getCurrentPhase(phases: PhasesState): PhaseDefinition {
   for (const phase of ONBOARDING_PHASES) {
     const phaseData = phases[phase.id] || {};
-    const allChecked = phase.items.every((item) => phaseData[item.id]?.checked);
+    const effectiveItems = getEffectiveItems(phase, phaseData);
+    const allChecked =
+      effectiveItems.length > 0 &&
+      effectiveItems.every((item) => phaseData[item.id]?.checked);
     if (!allChecked) return phase;
   }
   return ONBOARDING_PHASES[ONBOARDING_PHASES.length - 1];
@@ -187,11 +229,15 @@ export function getPhaseStatus(
   phases: PhasesState
 ): "not_started" | "in_progress" | "completed" {
   const phaseData = phases[phase.id] || {};
-  const checkedCount = phase.items.filter(
+  const effectiveItems = getEffectiveItems(phase, phaseData);
+
+  if (effectiveItems.length === 0) return "completed";
+
+  const checkedCount = effectiveItems.filter(
     (item) => phaseData[item.id]?.checked
   ).length;
   if (checkedCount === 0) return "not_started";
-  if (checkedCount === phase.items.length) return "completed";
+  if (checkedCount === effectiveItems.length) return "completed";
   return "in_progress";
 }
 

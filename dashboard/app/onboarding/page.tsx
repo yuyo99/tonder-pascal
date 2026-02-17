@@ -7,8 +7,10 @@ import {
   getCurrentPhase,
   getPhaseStatus,
   getOverallStatus,
+  getEffectiveItems,
   type PhasesState,
   type PhaseDefinition,
+  type CustomItem,
 } from "@/lib/onboarding-phases";
 
 /* ─── Types ─── */
@@ -54,6 +56,10 @@ export default function OnboardingPage() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingLabel, setEditingLabel] = useState("");
+  const [addingToPhase, setAddingToPhase] = useState<string | null>(null);
+  const [newItemLabel, setNewItemLabel] = useState("");
 
   /* ─── Data Fetching ─── */
 
@@ -196,6 +202,90 @@ export default function OnboardingPage() {
       fetchOnboardings();
     } catch {
       // Rollback
+      setDetail({ ...detail, phases: currentPhases });
+    }
+  }
+
+  async function handleRenameItem(phaseId: string, itemId: string, newLabel: string) {
+    if (!detail || !newLabel.trim()) {
+      setEditingItemId(null);
+      return;
+    }
+
+    const currentPhases: PhasesState = JSON.parse(JSON.stringify(detail.phases));
+    const phaseData = { ...(currentPhases[phaseId] || {}) };
+    const currentRenamed = (phaseData._renamed as Record<string, string>) || {};
+    phaseData._renamed = { ...currentRenamed, [itemId]: newLabel.trim() };
+
+    const updatedPhases = { ...currentPhases, [phaseId]: phaseData };
+    const newStatus = getOverallStatus(updatedPhases);
+
+    setDetail({ ...detail, phases: updatedPhases, status: newStatus, updated_at: new Date().toISOString() });
+    setEditingItemId(null);
+
+    try {
+      await fetch(`/api/onboarding/${detail.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phases: { [phaseId]: phaseData }, status: newStatus }),
+      });
+      fetchOnboardings();
+    } catch {
+      setDetail({ ...detail, phases: currentPhases });
+    }
+  }
+
+  async function handleRemoveItem(phaseId: string, itemId: string) {
+    if (!detail) return;
+
+    const currentPhases: PhasesState = JSON.parse(JSON.stringify(detail.phases));
+    const phaseData = { ...(currentPhases[phaseId] || {}) };
+    const currentRemoved = (phaseData._removed as string[]) || [];
+    if (currentRemoved.includes(itemId)) return;
+
+    phaseData._removed = [...currentRemoved, itemId];
+
+    const updatedPhases = { ...currentPhases, [phaseId]: phaseData };
+    const newStatus = getOverallStatus(updatedPhases);
+
+    setDetail({ ...detail, phases: updatedPhases, status: newStatus, updated_at: new Date().toISOString() });
+
+    try {
+      await fetch(`/api/onboarding/${detail.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phases: { [phaseId]: phaseData }, status: newStatus }),
+      });
+      fetchOnboardings();
+    } catch {
+      setDetail({ ...detail, phases: currentPhases });
+    }
+  }
+
+  async function handleAddItem(phaseId: string, label: string) {
+    if (!detail || !label.trim()) return;
+
+    const currentPhases: PhasesState = JSON.parse(JSON.stringify(detail.phases));
+    const phaseData = { ...(currentPhases[phaseId] || {}) };
+    const currentCustom = (phaseData._custom_items as CustomItem[]) || [];
+
+    phaseData._custom_items = [...currentCustom, { id: `custom_${Date.now()}`, label: label.trim() }];
+
+    const updatedPhases = { ...currentPhases, [phaseId]: phaseData };
+    const newStatus = getOverallStatus(updatedPhases);
+
+    setDetail({ ...detail, phases: updatedPhases, status: newStatus, updated_at: new Date().toISOString() });
+    setAddingToPhase(null);
+    setNewItemLabel("");
+
+    try {
+      await fetch(`/api/onboarding/${detail.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phases: { [phaseId]: phaseData }, status: newStatus }),
+      });
+      fetchOnboardings();
+    } catch {
       setDetail({ ...detail, phases: currentPhases });
     }
   }
@@ -363,6 +453,17 @@ export default function OnboardingPage() {
               isLast={phaseIndex === ONBOARDING_PHASES.length - 1}
               isCurrent={currentPhase.id === phase.id}
               onToggleItem={handleToggleItem}
+              onRenameItem={handleRenameItem}
+              onRemoveItem={handleRemoveItem}
+              onAddItem={handleAddItem}
+              editingItemId={editingItemId}
+              editingLabel={editingLabel}
+              setEditingItemId={setEditingItemId}
+              setEditingLabel={setEditingLabel}
+              addingToPhase={addingToPhase}
+              newItemLabel={newItemLabel}
+              setAddingToPhase={setAddingToPhase}
+              setNewItemLabel={setNewItemLabel}
             />
           ))}
         </div>
@@ -691,16 +792,39 @@ function PhaseSection({
   isLast,
   isCurrent,
   onToggleItem,
+  onRenameItem,
+  onRemoveItem,
+  onAddItem,
+  editingItemId,
+  editingLabel,
+  setEditingItemId,
+  setEditingLabel,
+  addingToPhase,
+  newItemLabel,
+  setAddingToPhase,
+  setNewItemLabel,
 }: {
   phase: PhaseDefinition;
   phases: PhasesState;
   isLast: boolean;
   isCurrent: boolean;
   onToggleItem: (phaseId: string, itemId: string) => void;
+  onRenameItem: (phaseId: string, itemId: string, newLabel: string) => void;
+  onRemoveItem: (phaseId: string, itemId: string) => void;
+  onAddItem: (phaseId: string, label: string) => void;
+  editingItemId: string | null;
+  editingLabel: string;
+  setEditingItemId: (id: string | null) => void;
+  setEditingLabel: (label: string) => void;
+  addingToPhase: string | null;
+  newItemLabel: string;
+  setAddingToPhase: (phaseId: string | null) => void;
+  setNewItemLabel: (label: string) => void;
 }) {
   const status = getPhaseStatus(phase, phases);
   const phaseData = phases[phase.id] || {};
-  const checkedCount = phase.items.filter(
+  const effectiveItems = getEffectiveItems(phase, phaseData);
+  const checkedCount = effectiveItems.filter(
     (item) => phaseData[item.id]?.checked
   ).length;
 
@@ -787,7 +911,7 @@ function PhaseSection({
           <span
             className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${countColor}`}
           >
-            {checkedCount}/{phase.items.length}
+            {checkedCount}/{effectiveItems.length}
           </span>
           <span className="text-[11px] text-gray-400 hidden sm:inline ml-auto mr-2">
             {phase.owner}
@@ -817,30 +941,87 @@ function PhaseSection({
         {/* Checklist items */}
         {expanded && (
           <div className="mt-2 ml-5 space-y-0.5">
-            {phase.items.map((item) => {
+            {effectiveItems.map((item) => {
               const itemState = phaseData[item.id];
               const isChecked = itemState?.checked || false;
+              const isEditing = editingItemId === `${phase.id}:${item.id}`;
+
               return (
-                <label
+                <div
                   key={item.id}
-                  className="flex items-center gap-3 py-1.5 px-2.5 rounded-lg hover:bg-gray-50 cursor-pointer group/item transition-colors"
+                  className="flex items-center gap-3 py-1.5 px-2.5 rounded-lg hover:bg-gray-50 group/item transition-colors"
                 >
                   <input
                     type="checkbox"
                     checked={isChecked}
                     onChange={() => onToggleItem(phase.id, item.id)}
-                    className="w-4 h-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500 focus:ring-offset-0 cursor-pointer"
+                    className="w-4 h-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500 focus:ring-offset-0 cursor-pointer shrink-0"
                   />
-                  <span
-                    className={`text-sm flex-1 ${
-                      isChecked
-                        ? "text-gray-400 line-through"
-                        : "text-gray-700"
-                    }`}
-                  >
-                    {item.label}
-                  </span>
-                  {itemState?.checked_at && (
+
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editingLabel}
+                      onChange={(e) => setEditingLabel(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") onRenameItem(phase.id, item.id, editingLabel);
+                        if (e.key === "Escape") setEditingItemId(null);
+                      }}
+                      onBlur={() => {
+                        if (editingLabel.trim()) onRenameItem(phase.id, item.id, editingLabel);
+                        else setEditingItemId(null);
+                      }}
+                      autoFocus
+                      className="flex-1 text-sm px-2 py-0.5 border border-violet-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                    />
+                  ) : (
+                    <span
+                      className={`text-sm flex-1 ${
+                        isChecked
+                          ? "text-gray-400 line-through"
+                          : "text-gray-700"
+                      }`}
+                    >
+                      {item.label}
+                    </span>
+                  )}
+
+                  {/* Action icons — visible on hover */}
+                  {!isEditing && (
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover/item:opacity-100 transition-opacity shrink-0">
+                      {/* Edit */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingItemId(`${phase.id}:${item.id}`);
+                          setEditingLabel(item.label);
+                        }}
+                        className="p-1 text-gray-300 hover:text-violet-600 transition-colors"
+                        title="Edit item"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                        </svg>
+                      </button>
+                      {/* Delete */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemoveItem(phase.id, item.id);
+                        }}
+                        className="p-1 text-gray-300 hover:text-red-500 transition-colors"
+                        title="Remove item"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M18 6L6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Checked date */}
+                  {itemState?.checked_at && !isEditing && (
                     <span className="text-[10px] text-gray-300 shrink-0">
                       {new Date(itemState.checked_at).toLocaleDateString(
                         "en-US",
@@ -848,9 +1029,52 @@ function PhaseSection({
                       )}
                     </span>
                   )}
-                </label>
+                </div>
               );
             })}
+
+            {/* Add item row */}
+            {addingToPhase === phase.id ? (
+              <div className="flex items-center gap-2 py-1.5 px-2.5">
+                <svg className="w-4 h-4 text-violet-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                <input
+                  type="text"
+                  value={newItemLabel}
+                  onChange={(e) => setNewItemLabel(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newItemLabel.trim()) onAddItem(phase.id, newItemLabel);
+                    if (e.key === "Escape") { setAddingToPhase(null); setNewItemLabel(""); }
+                  }}
+                  autoFocus
+                  placeholder="New item..."
+                  className="flex-1 text-sm px-2 py-0.5 border border-violet-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                />
+                <button
+                  onClick={() => { if (newItemLabel.trim()) onAddItem(phase.id, newItemLabel); }}
+                  className="text-xs text-violet-600 font-medium hover:text-violet-800"
+                >
+                  Add
+                </button>
+                <button
+                  onClick={() => { setAddingToPhase(null); setNewItemLabel(""); }}
+                  className="text-xs text-gray-400 hover:text-gray-600"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setAddingToPhase(phase.id); setNewItemLabel(""); }}
+                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-violet-600 py-1.5 px-2.5 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                Add item
+              </button>
+            )}
           </div>
         )}
       </div>
