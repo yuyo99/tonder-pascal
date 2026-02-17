@@ -7,16 +7,25 @@ import { resolveMerchantContext } from "../merchants/context";
 import { IncomingMessage } from "../channels/types";
 import { MerchantContext } from "../merchants/types";
 import { trackInteraction } from "../scheduler/daily-report";
+import { pgQuery } from "../postgres/connection";
 import { logger } from "../utils/logger";
 
 const client = new Anthropic({ apiKey: config.claude.apiKey });
 const MAX_TOOL_ROUNDS = 5;
+
+interface ToolLoopResult {
+  answer: string;
+  toolCalls: { tool: string; input: Record<string, unknown> }[];
+  rounds: number;
+}
 
 /**
  * Handle an incoming message from any channel.
  * Returns the response text to send back.
  */
 export async function handleIncomingMessage(msg: IncomingMessage): Promise<string> {
+  const startTime = Date.now();
+
   // Step 1: Resolve merchant context
   const merchantCtx = await resolveMerchantContext(msg.channelId, msg.platform);
   if (!merchantCtx) {
@@ -36,16 +45,17 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<strin
   const systemPrompt = buildSystemPrompt(merchantCtx);
 
   // Step 3: Run Claude tool-use loop
-  let answer: string;
+  let result: ToolLoopResult;
+  let error: string | undefined;
 
   try {
-    answer = await runToolLoop(msg.text, systemPrompt, merchantCtx);
+    result = await runToolLoop(msg.text, systemPrompt, merchantCtx);
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     const errType = err instanceof Error ? err.constructor.name : typeof err;
     logger.error({ err, errType, errMsg, merchant: merchantCtx.businessName }, "Orchestrator error");
 
-    // Surface a hint about the error type (safe — no secrets leaked)
+    let answer: string;
     if (errMsg.includes("authentication") || errMsg.includes("api_key") || errMsg.includes("401")) {
       answer = "I'm experiencing an authentication issue. Please contact Tonder support.";
     } else if (errMsg.includes("rate_limit") || errMsg.includes("429")) {
@@ -57,27 +67,67 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<strin
     } else {
       answer = `I'm sorry, I encountered an error processing your request. (${errType}: ${errMsg.slice(0, 100)}). Please try again or contact Tonder support.`;
     }
+
+    error = `${errType}: ${errMsg.slice(0, 500)}`;
+    result = { answer, toolCalls: [], rounds: 0 };
   }
 
   // Step 4: Final audit — catch any leaked provider names
-  const leaked = auditResponse(answer);
+  const leaked = auditResponse(result.answer);
   if (leaked.length > 0) {
     logger.warn(
       { leaked, merchant: merchantCtx.businessName },
       "Provider names leaked in response — sanitizing"
     );
-    answer = sanitizeToolOutput(answer);
+    result.answer = sanitizeToolOutput(result.answer);
   }
 
-  // Step 5: Track interaction for daily report
+  // Step 5: Track interaction for daily report (in-memory)
   trackInteraction({
     merchantName: merchantCtx.businessName,
     question: msg.text,
-    answered: true,
+    answered: !error,
     timestamp: new Date(),
   });
 
-  return answer;
+  // Step 6: Persist conversation to Postgres (fire-and-forget)
+  const latencyMs = Date.now() - startTime;
+  logConversation(merchantCtx, msg, result, latencyMs, error);
+
+  return result.answer;
+}
+
+// ── Conversation logging (fire-and-forget) ──
+
+function logConversation(
+  ctx: MerchantContext,
+  msg: IncomingMessage,
+  result: ToolLoopResult,
+  latencyMs: number,
+  error?: string
+): void {
+  pgQuery(
+    `INSERT INTO pascal_conversation_log
+      (merchant_id, merchant_name, platform, channel_id, user_name, question, answer, tool_calls, rounds, latency_ms, error)
+     VALUES (
+       (SELECT id FROM pascal_merchant_channels WHERE platform = $1 AND channel_id = $2 LIMIT 1),
+       $3, $1, $2, $4, $5, $6, $7, $8, $9, $10
+     )`,
+    [
+      ctx.platform,
+      ctx.channelId,
+      ctx.businessName,
+      msg.userName || null,
+      msg.text,
+      result.answer,
+      JSON.stringify(result.toolCalls),
+      result.rounds,
+      latencyMs,
+      error || null,
+    ]
+  ).catch((err) => {
+    logger.warn({ err }, "Failed to log conversation — non-fatal");
+  });
 }
 
 // ── Retry wrapper for transient Claude API errors ──
@@ -111,11 +161,12 @@ async function runToolLoop(
   question: string,
   systemPrompt: string,
   merchantCtx: MerchantContext
-): Promise<string> {
+): Promise<ToolLoopResult> {
   const messages: Anthropic.MessageParam[] = [
     { role: "user", content: question },
   ];
 
+  const toolCalls: { tool: string; input: Record<string, unknown> }[] = [];
   let rounds = 0;
 
   while (rounds < MAX_TOOL_ROUNDS) {
@@ -137,7 +188,8 @@ async function runToolLoop(
     );
 
     if (toolBlocks.length === 0) {
-      return textBlocks.map((b) => b.text).join("\n") || "I couldn't generate a response.";
+      const answer = textBlocks.map((b) => b.text).join("\n") || "I couldn't generate a response.";
+      return { answer, toolCalls, rounds };
     }
 
     logger.info(
@@ -149,13 +201,10 @@ async function runToolLoop(
 
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
     for (const toolBlock of toolBlocks) {
-      const rawResult = await executeTool(
-        toolBlock.name,
-        toolBlock.input as Record<string, unknown>,
-        merchantCtx
-      );
+      const input = toolBlock.input as Record<string, unknown>;
+      toolCalls.push({ tool: toolBlock.name, input });
 
-      // Sanitize provider names before Claude sees tool output
+      const rawResult = await executeTool(toolBlock.name, input, merchantCtx);
       const sanitized = sanitizeToolOutput(rawResult);
 
       toolResults.push({
@@ -168,9 +217,14 @@ async function runToolLoop(
     messages.push({ role: "user", content: toolResults });
 
     if (response.stop_reason === "end_turn") {
-      return textBlocks.map((b) => b.text).join("\n") || "I couldn't generate a response.";
+      const answer = textBlocks.map((b) => b.text).join("\n") || "I couldn't generate a response.";
+      return { answer, toolCalls, rounds };
     }
   }
 
-  return "I needed too many steps to answer that. Please try a more specific question.";
+  return {
+    answer: "I needed too many steps to answer that. Please try a more specific question.",
+    toolCalls,
+    rounds,
+  };
 }

@@ -35,9 +35,30 @@ CREATE TABLE IF NOT EXISTS pascal_scheduled_reports (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (channel_id, report_type)
 );
+
+CREATE TABLE IF NOT EXISTS pascal_conversation_log (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  merchant_id    INTEGER REFERENCES pascal_merchant_channels(id) ON DELETE SET NULL,
+  merchant_name  TEXT NOT NULL,
+  platform       TEXT NOT NULL,
+  channel_id     TEXT NOT NULL,
+  user_name      TEXT,
+  question       TEXT NOT NULL,
+  answer         TEXT NOT NULL,
+  tool_calls     JSONB NOT NULL DEFAULT '[]',
+  rounds         INTEGER NOT NULL DEFAULT 0,
+  latency_ms     INTEGER,
+  ticket_id      TEXT,
+  error          TEXT,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pascal_conv_log_created
+  ON pascal_conversation_log (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pascal_conv_log_merchant
+  ON pascal_conversation_log (merchant_name);
 `;
 
 export async function ensureTables(): Promise<void> {
   await pgQuery(DDL);
-  logger.info("PostgreSQL tables ensured (pascal_merchant_channels, pascal_partner_bots, pascal_scheduled_reports)");
+  logger.info("PostgreSQL tables ensured");
 }

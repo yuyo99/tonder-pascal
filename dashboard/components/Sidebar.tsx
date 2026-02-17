@@ -25,6 +25,16 @@ function IconStore({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
+function IconChart({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10" />
+      <line x1="12" y1="20" x2="12" y2="4" />
+      <line x1="6" y1="20" x2="6" y2="14" />
+    </svg>
+  );
+}
+
 function IconCollapseLeft({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -49,56 +59,53 @@ function IconHamburger({ className = "w-5 h-5" }: { className?: string }) {
 
 function PascalLogo({ collapsed }: { collapsed: boolean }) {
   if (collapsed) {
+    // Minimal: dark circle with two violet glowing eyes
     return (
       <svg viewBox="0 0 32 32" className="h-8 w-8 shrink-0">
-        {/* Shield shape */}
-        <defs>
-          <linearGradient id="shield-grad-sm" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#8b5cf6" />
-            <stop offset="100%" stopColor="#6d28d9" />
-          </linearGradient>
-          <filter id="glow-sm">
-            <feGaussianBlur stdDeviation="1.5" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-        <path
-          d="M16 2 L28 8 L28 16 C28 23 22 28 16 30 C10 28 4 23 4 16 L4 8 Z"
-          fill="url(#shield-grad-sm)"
-          filter="url(#glow-sm)"
-          opacity="0.9"
-        />
-        <text x="16" y="20" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold" fontFamily="system-ui">P</text>
+        <circle cx="16" cy="16" r="15" fill="#1e1b4b" stroke="#312e81" strokeWidth="0.5" />
+        {/* Left eye */}
+        <ellipse cx="11" cy="16" rx="3.5" ry="3" fill="#6d28d9" opacity="0.4" />
+        <ellipse cx="11" cy="16" rx="2.5" ry="2" fill="#8b5cf6" />
+        <ellipse cx="11" cy="15.5" rx="1" ry="0.75" fill="#ede9fe" />
+        {/* Right eye */}
+        <ellipse cx="21" cy="16" rx="3.5" ry="3" fill="#6d28d9" opacity="0.4" />
+        <ellipse cx="21" cy="16" rx="2.5" ry="2" fill="#8b5cf6" />
+        <ellipse cx="21" cy="15.5" rx="1" ry="0.75" fill="#ede9fe" />
       </svg>
     );
   }
 
+  // Full robot head + "Pascal." text
   return (
     <div className="flex items-center gap-2.5">
-      <svg viewBox="0 0 32 32" className="h-8 w-8 shrink-0">
-        <defs>
-          <linearGradient id="shield-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#8b5cf6" />
-            <stop offset="100%" stopColor="#6d28d9" />
-          </linearGradient>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="1.5" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-        <path
-          d="M16 2 L28 8 L28 16 C28 23 22 28 16 30 C10 28 4 23 4 16 L4 8 Z"
-          fill="url(#shield-grad)"
-          filter="url(#glow)"
-          opacity="0.9"
-        />
-        <text x="16" y="20" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold" fontFamily="system-ui">P</text>
+      <svg viewBox="0 0 120 120" className="h-8 w-8 shrink-0" fill="none">
+        <circle cx="60" cy="60" r="58" fill="#1e1b4b" />
+        <circle cx="60" cy="60" r="58" stroke="#312e81" strokeWidth="2" />
+        <rect x="30" y="32" width="60" height="56" rx="12" fill="#1e1b4b" stroke="#312e81" strokeWidth="1.5" />
+        <rect x="36" y="36" width="48" height="14" rx="4" fill="#0f0a2e" stroke="#312e81" strokeWidth="0.5" />
+        {/* Left eye */}
+        <ellipse cx="44" cy="62" rx="8" ry="7" fill="#6d28d9" opacity="0.3" />
+        <ellipse cx="44" cy="62" rx="6" ry="5.5" fill="#6d28d9" opacity="0.5" />
+        <ellipse cx="44" cy="62" rx="4" ry="3.5" fill="#8b5cf6" />
+        <ellipse cx="44" cy="61" rx="2" ry="1.5" fill="#ede9fe" />
+        {/* Right eye */}
+        <ellipse cx="76" cy="62" rx="8" ry="7" fill="#6d28d9" opacity="0.3" />
+        <ellipse cx="76" cy="62" rx="6" ry="5.5" fill="#6d28d9" opacity="0.5" />
+        <ellipse cx="76" cy="62" rx="4" ry="3.5" fill="#8b5cf6" />
+        <ellipse cx="76" cy="61" rx="2" ry="1.5" fill="#ede9fe" />
+        {/* Mouth grill */}
+        <rect x="42" y="74" width="36" height="8" rx="3" fill="#0f0a2e" stroke="#312e81" strokeWidth="0.5" />
+        <line x1="50" y1="74" x2="50" y2="82" stroke="#312e81" strokeWidth="0.5" />
+        <line x1="58" y1="74" x2="58" y2="82" stroke="#312e81" strokeWidth="0.5" />
+        <line x1="66" y1="74" x2="66" y2="82" stroke="#312e81" strokeWidth="0.5" />
+        <line x1="74" y1="74" x2="74" y2="82" stroke="#312e81" strokeWidth="0.5" />
+        {/* Antenna */}
+        <line x1="60" y1="32" x2="60" y2="20" stroke="#312e81" strokeWidth="2" />
+        <circle cx="60" cy="18" r="4" fill="#6d28d9" opacity="0.8" />
+        <circle cx="60" cy="18" r="2" fill="#8b5cf6" />
+        {/* Ear pieces */}
+        <rect x="22" y="52" width="8" height="20" rx="3" fill="#1e1b4b" stroke="#312e81" strokeWidth="1" />
+        <rect x="90" y="52" width="8" height="20" rx="3" fill="#1e1b4b" stroke="#312e81" strokeWidth="1" />
       </svg>
       <span className="text-lg font-semibold text-white">
         Pascal<span className="text-violet-400">.</span>
@@ -117,6 +124,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: "Overview", href: "/", icon: IconGrid },
+  { label: "Analytics", href: "/analytics", icon: IconChart },
   { label: "Merchants", href: "/merchants", icon: IconStore },
 ];
 
