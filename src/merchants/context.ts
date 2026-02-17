@@ -1,5 +1,5 @@
-import { MERCHANT_CHANNEL_MAP } from "./mappings";
-import { MerchantContext, MerchantMapping } from "./types";
+import { MerchantContext } from "./types";
+import { getChannelIndex, loadConfigs, seedDefaults } from "./config-store";
 import { getCollection } from "../mongodb/connection";
 import { logger } from "../utils/logger";
 
@@ -9,21 +9,6 @@ const BIZ_COLLECTION = "business_business";
 let businessNameCache: Map<number, string> = new Map();
 let lastCacheRefresh = 0;
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
-
-// Pre-built index for fast channel lookup
-const channelIndex = new Map<string, MerchantMapping>();
-
-export function buildChannelIndex(): void {
-  channelIndex.clear();
-  for (const mapping of MERCHANT_CHANNEL_MAP) {
-    const key = `${mapping.platform}:${mapping.channelId}`;
-    channelIndex.set(key, mapping);
-  }
-  logger.info(
-    { count: channelIndex.size, keys: Array.from(channelIndex.keys()) },
-    "Merchant channel index built"
-  );
-}
 
 export async function refreshBusinessNames(): Promise<void> {
   const col = getCollection(BIZ_COLLECTION);
@@ -58,7 +43,7 @@ export async function resolveMerchantContext(
   platform: "slack" | "telegram" | "whatsapp"
 ): Promise<MerchantContext | null> {
   const key = `${platform}:${channelId}`;
-  const mapping = channelIndex.get(key);
+  const mapping = getChannelIndex().get(key);
   if (!mapping) return null;
 
   await ensureFreshCache();
@@ -92,7 +77,7 @@ export function isPartnerBot(
   username: string
 ): boolean {
   const key = `${platform}:${channelId}`;
-  const mapping = channelIndex.get(key);
+  const mapping = getChannelIndex().get(key);
   if (!mapping?.partnerBots) return false;
   return mapping.partnerBots.some(
     (pb) => pb.username.toLowerCase() === username.toLowerCase()
@@ -108,12 +93,13 @@ export function hasPartnerBots(
   platform: "slack" | "telegram" | "whatsapp"
 ): boolean {
   const key = `${platform}:${channelId}`;
-  const mapping = channelIndex.get(key);
+  const mapping = getChannelIndex().get(key);
   return !!(mapping?.partnerBots && mapping.partnerBots.length > 0);
 }
 
-/** Load merchant mappings and business names on startup */
+/** Load merchant configs from Postgres and business names from MongoDB */
 export async function initMerchantContext(): Promise<void> {
-  buildChannelIndex();
+  await seedDefaults();
+  await loadConfigs();
   await refreshBusinessNames();
 }

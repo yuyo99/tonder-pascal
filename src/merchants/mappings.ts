@@ -49,14 +49,10 @@ function singleWithBots(
 }
 
 /**
- * Static channel → merchant mapping.
- * Updated via code commits. Each merchant can have multiple entries
- * (one per channel per platform).
- *
- * businessId: number from business_business.id (used for mv_payment_transactions)
- * businessIdStr: string version (used for usrv-withdrawals-withdrawals and usrv-deposits-spei)
+ * Default merchant configs used ONLY for seeding Postgres on first boot.
+ * After seed, all config is read from the pascal_merchant_channels table.
  */
-export const MERCHANT_CHANNEL_MAP: MerchantMapping[] = [
+export const DEFAULT_MERCHANT_CONFIGS: MerchantMapping[] = [
   // ── Tonder Production ──
   single("C0AF237ATKJ", "slack", 86),
 

@@ -31,6 +31,9 @@ export const config = {
     apiKey: process.env.LINEAR_API_KEY || "",
     defaultAssignee: process.env.LINEAR_DEFAULT_ASSIGNEE || "guillermo@tonder.io",
   },
+  postgres: {
+    url: process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL || "",
+  },
   dailyReport: {
     slackUser: process.env.DAILY_REPORT_SLACK_USER || "U03HH53PUTA",
   },

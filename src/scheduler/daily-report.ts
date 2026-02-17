@@ -112,11 +112,30 @@ function buildMerchantBlock(stats: MerchantStats): string {
   return lines.join("\n");
 }
 
+// ── Per-Merchant Params ─────────────────────────────────────────────
+
+export interface MerchantReportParams {
+  merchantLabel: string;
+  slackUserId: string;
+  businessIds: number[];
+}
+
 // ── Daily Report Generation ─────────────────────────────────────────
 
-export async function sendDailyReport(slackClient: WebClient): Promise<void> {
-  const interactions = getDailyInteractions();
-  const recipientUserId = config.dailyReport.slackUser;
+export async function sendDailyReport(
+  slackClient: WebClient,
+  merchantParams?: MerchantReportParams
+): Promise<void> {
+  const allInteractions = getDailyInteractions();
+
+  // If per-merchant, filter to just that merchant's interactions
+  const interactions = merchantParams
+    ? allInteractions.filter((i) =>
+        i.merchantName.toLowerCase().includes(merchantParams.merchantLabel.toLowerCase())
+      )
+    : allInteractions;
+
+  const recipientUserId = merchantParams?.slackUserId || config.dailyReport.slackUser;
 
   if (!recipientUserId) {
     logger.warn("No DAILY_REPORT_SLACK_USER configured — skipping daily report");
@@ -153,9 +172,12 @@ export async function sendDailyReport(slackClient: WebClient): Promise<void> {
   const blocks: KnownBlock[] = [];
 
   // Header
+  const headerText = merchantParams
+    ? `:bar_chart: Pascal Daily Report — ${merchantParams.merchantLabel}`
+    : ":bar_chart: Pascal Daily Report";
   blocks.push({
     type: "header",
-    text: { type: "plain_text", text: ":bar_chart: Pascal Daily Report" },
+    text: { type: "plain_text", text: headerText },
   });
 
   // Date + summary
@@ -223,7 +245,8 @@ export async function sendDailyReport(slackClient: WebClient): Promise<void> {
   }
 
   // Fallback text for notifications
-  const fallbackText = `Pascal Daily Report — ${now}: ${interactions.length} interactions, ${totalTickets} tickets`;
+  const reportLabel = merchantParams ? `Pascal Daily Report (${merchantParams.merchantLabel})` : "Pascal Daily Report";
+  const fallbackText = `${reportLabel} — ${now}: ${interactions.length} interactions, ${totalTickets} tickets`;
 
   try {
     const dm = await slackClient.conversations.open({
@@ -245,6 +268,8 @@ export async function sendDailyReport(slackClient: WebClient): Promise<void> {
     logger.error({ err }, "Failed to send daily report");
   }
 
-  // Reset daily interactions
-  resetDailyInteractions();
+  // Reset daily interactions (only global report resets all; per-merchant doesn't)
+  if (!merchantParams) {
+    resetDailyInteractions();
+  }
 }
