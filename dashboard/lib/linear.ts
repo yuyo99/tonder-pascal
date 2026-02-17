@@ -22,10 +22,9 @@ function getLinearClient(): LinearClient {
 
 /* ─── Constants: Team & Label Parent IDs ─── */
 
-// Integrations team
-const INT_TEAM_KEY = "INT";
-// Support team
-const SOS_TEAM_KEY = "SOS";
+// Team IDs (use IDs directly to avoid extra nesting in GraphQL)
+const INT_TEAM_ID = "d2479bda-f447-4389-9ea2-5ed1038aec5f";
+const SOS_TEAM_ID = "b3b91e8f-cf68-4632-b6da-c49a2bc97b8a";
 
 // Parent label IDs that identify merchant/partner labels
 const INT_MERCHANTS_PARENT = "ea27fd32-657c-46f7-a475-ecd42137346d";
@@ -88,30 +87,22 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 /* ─── GraphQL ─── */
 
 const ISSUES_QUERY = `
-  query FetchTeamIssues($teamKey: String!, $cursor: String) {
-    teams(filter: { key: { eq: $teamKey } }) {
-      nodes {
-        id
-        key
-        issues(
-          first: 100
-          after: $cursor
-          orderBy: updatedAt
-        ) {
-          pageInfo { hasNextPage endCursor }
-          nodes {
-            id
-            identifier
-            title
-            url
-            priority
-            createdAt
-            updatedAt
-            dueDate
-            state { name type }
-            assignee { name }
-            labels { nodes { id name parent { id } } }
-          }
+  query FetchTeamIssues($teamId: String!, $cursor: String) {
+    team(id: $teamId) {
+      issues(first: 25, after: $cursor, orderBy: updatedAt) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id
+          identifier
+          title
+          url
+          priority
+          createdAt
+          updatedAt
+          dueDate
+          state { name type }
+          assignee { name }
+          labels { nodes { id name parent { id } } }
         }
       }
     }
@@ -166,22 +157,21 @@ interface RawIssue {
   labels: { nodes: Array<{ id: string; name: string; parent: { id: string } | null }> };
 }
 
-/** Fetch all issues for a team key, paginating through results */
-async function fetchTeamIssues(teamKey: string): Promise<RawIssue[]> {
+/** Fetch all issues for a team by ID, paginating through results */
+async function fetchTeamIssues(teamId: string): Promise<RawIssue[]> {
   const lc = getLinearClient();
   const allIssues: RawIssue[] = [];
   let cursor: string | null = null;
 
   for (let page = 0; page < 20; page++) {
     const result: any = await lc.client.rawRequest(ISSUES_QUERY, {
-      teamKey,
+      teamId,
       cursor,
     });
 
-    const teamNodes = result.data?.teams?.nodes;
-    if (!teamNodes || teamNodes.length === 0) break;
+    const issuesData = result.data?.team?.issues;
+    if (!issuesData) break;
 
-    const issuesData = teamNodes[0].issues;
     const nodes: RawIssue[] = issuesData.nodes || [];
     allIssues.push(...nodes);
 
@@ -288,8 +278,8 @@ export async function fetchIntegrationData(
 
   // Fetch both teams in parallel
   const [intIssues, sosIssues] = await Promise.all([
-    fetchTeamIssues(INT_TEAM_KEY),
-    fetchTeamIssues(SOS_TEAM_KEY),
+    fetchTeamIssues(INT_TEAM_ID),
+    fetchTeamIssues(SOS_TEAM_ID),
   ]);
 
   // Group and build entries
