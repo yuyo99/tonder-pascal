@@ -8,7 +8,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const isLogin = pathname === "/login";
 
   if (isLogin) {
-    return <>{children}</>;
+    return <div className="w-full">{children}</div>;
   }
 
   return (
