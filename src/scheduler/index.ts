@@ -2,6 +2,7 @@ import cron, { ScheduledTask } from "node-cron";
 import { WebClient } from "@slack/web-api";
 import { pgQuery } from "../postgres/connection";
 import { sendDailyReport } from "./daily-report";
+import { sendLinearOverdueAlert } from "./linear-alert";
 import { onConfigChange } from "../merchants/config-store";
 import { logger } from "../utils/logger";
 
@@ -29,6 +30,8 @@ const runningTasks = new Map<string, { task: ScheduledTask; config: ReportConfig
 
 // Fallback: the global daily report (kept for backwards compat if no per-merchant reports exist)
 let globalTask: ScheduledTask | null = null;
+// Hardcoded system alerts
+let linearAlertTask: ScheduledTask | null = null;
 let slackClientRef: WebClient | null = null;
 
 /**
@@ -167,6 +170,23 @@ export function initScheduler(slackClient: WebClient): void {
     });
   });
 
+  // ── Hardcoded system alerts ──────────────────────────────────────
+
+  // Linear overdue tickets alert — daily at 8:00 AM Mexico City
+  linearAlertTask = cron.schedule(
+    "0 8 * * *",
+    async () => {
+      logger.info("Running Linear overdue tickets alert...");
+      try {
+        await sendLinearOverdueAlert(slackClient);
+      } catch (err) {
+        logger.error({ err }, "Linear overdue alert failed");
+      }
+    },
+    { timezone: "America/Mexico_City" }
+  );
+  logger.info("Linear overdue alert scheduled (daily 8:00 AM Mexico City)");
+
   logger.info("Scheduler initialized — syncing scheduled reports from Postgres");
 }
 
@@ -182,6 +202,10 @@ export function stopScheduler(): void {
   if (globalTask) {
     globalTask.stop();
     globalTask = null;
+  }
+  if (linearAlertTask) {
+    linearAlertTask.stop();
+    linearAlertTask = null;
   }
   slackClientRef = null;
   logger.info("Scheduler stopped");
