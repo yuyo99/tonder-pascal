@@ -79,6 +79,14 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
+DO $$ BEGIN
+  ALTER TABLE pascal_merchant_channels ADD COLUMN IF NOT EXISTS integration_model TEXT DEFAULT '';
+  ALTER TABLE pascal_merchant_channels ADD COLUMN IF NOT EXISTS active_products TEXT[] DEFAULT '{}';
+  ALTER TABLE pascal_merchant_channels ADD COLUMN IF NOT EXISTS stage_email TEXT DEFAULT '';
+  ALTER TABLE pascal_merchant_channels ADD COLUMN IF NOT EXISTS production_email TEXT DEFAULT '';
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
 CREATE TABLE IF NOT EXISTS pascal_onboardings (
   id          SERIAL PRIMARY KEY,
   name        TEXT NOT NULL,

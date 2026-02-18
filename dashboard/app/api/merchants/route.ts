@@ -5,7 +5,8 @@ export async function GET() {
   try {
     const result = await query(`
       SELECT mc.id, mc.label, mc.channel_id, mc.platform, mc.business_ids,
-             mc.is_active, mc.notes, mc.created_at, mc.updated_at,
+             mc.is_active, mc.notes, mc.integration_model, mc.active_products,
+             mc.stage_email, mc.production_email, mc.created_at, mc.updated_at,
              COALESCE(
                json_agg(json_build_object('id', pb.id, 'username', pb.username, 'label', pb.label))
                FILTER (WHERE pb.id IS NOT NULL),
@@ -34,7 +35,8 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { label, channel_id, platform, business_ids, is_active, notes, partner_bots, scheduled_reports } = body;
+    const { label, channel_id, platform, business_ids, is_active, notes, partner_bots, scheduled_reports,
+            integration_model, active_products, stage_email, production_email } = body;
 
     if (!label || !channel_id || !platform || !business_ids?.length) {
       return NextResponse.json(
@@ -45,10 +47,11 @@ export async function POST(request: Request) {
 
     // Insert merchant channel
     const insertResult = await query(
-      `INSERT INTO pascal_merchant_channels (label, channel_id, platform, business_ids, is_active, notes)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO pascal_merchant_channels (label, channel_id, platform, business_ids, is_active, notes, integration_model, active_products, stage_email, production_email)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [label, channel_id, platform, business_ids, is_active ?? true, notes || ""]
+      [label, channel_id, platform, business_ids, is_active ?? true, notes || "",
+       integration_model || "", active_products || [], stage_email || "", production_email || ""]
     );
     const merchant = insertResult.rows[0];
 

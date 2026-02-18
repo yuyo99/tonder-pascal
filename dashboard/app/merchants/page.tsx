@@ -22,13 +22,29 @@ interface Merchant {
 
 export default function MerchantsPage() {
   const [merchants, setMerchants] = useState<Merchant[]>([]);
+  const [bizNames, setBizNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "slack" | "telegram">("all");
 
   useEffect(() => {
     fetch("/api/merchants")
       .then((r) => r.json())
-      .then((data) => setMerchants(data.merchants || []))
+      .then(async (data) => {
+        const list: Merchant[] = data.merchants || [];
+        setMerchants(list);
+
+        // Batch-resolve business names
+        const allIds = [...new Set(list.flatMap((m) => m.business_ids))];
+        if (allIds.length > 0) {
+          try {
+            const r = await fetch(`/api/merchants/businesses/resolve?ids=${allIds.join(",")}`);
+            const res = await r.json();
+            setBizNames(res.names || {});
+          } catch {
+            // Fallback: no names, just show IDs
+          }
+        }
+      })
       .catch(() => setMerchants([]))
       .finally(() => setLoading(false));
   }, []);
@@ -105,7 +121,7 @@ export default function MerchantsPage() {
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Label</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Platform</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Channel ID</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">Business IDs</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">Businesses</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Bots</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Status</th>
                   <th className="px-4 py-3 text-right font-medium text-gray-500">Actions</th>
@@ -134,10 +150,11 @@ export default function MerchantsPage() {
                       </code>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1.5">
                         {m.business_ids.map((bid) => (
-                          <span key={bid} className="inline-block px-2 py-0.5 bg-violet-50 text-violet-700 text-xs rounded-full font-medium">
-                            {bid}
+                          <span key={bid} className="inline-flex flex-col px-2 py-0.5 bg-violet-50 text-violet-700 text-xs rounded-lg font-medium">
+                            <span>{bizNames[String(bid)] || `Business ${bid}`}</span>
+                            <span className="text-[10px] text-violet-400 font-normal">ID: {bid}</span>
                           </span>
                         ))}
                       </div>

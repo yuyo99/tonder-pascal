@@ -9,7 +9,8 @@ export async function GET(
   try {
     const result = await query(
       `SELECT mc.id, mc.label, mc.channel_id, mc.platform, mc.business_ids,
-              mc.is_active, mc.notes, mc.created_at, mc.updated_at,
+              mc.is_active, mc.notes, mc.integration_model, mc.active_products,
+              mc.stage_email, mc.production_email, mc.created_at, mc.updated_at,
               COALESCE(
                 json_agg(json_build_object('id', pb.id, 'username', pb.username, 'label', pb.label))
                 FILTER (WHERE pb.id IS NOT NULL),
@@ -46,7 +47,8 @@ export async function PUT(
   const { id } = await params;
   try {
     const body = await request.json();
-    const { label, channel_id, platform, business_ids, is_active, notes, partner_bots, scheduled_reports } = body;
+    const { label, channel_id, platform, business_ids, is_active, notes, partner_bots, scheduled_reports,
+            integration_model, active_products, stage_email, production_email } = body;
 
     // Update merchant channel
     const updateResult = await query(
@@ -57,10 +59,15 @@ export async function PUT(
            business_ids = COALESCE($5, business_ids),
            is_active = COALESCE($6, is_active),
            notes = COALESCE($7, notes),
+           integration_model = COALESCE($8, integration_model),
+           active_products = COALESCE($9, active_products),
+           stage_email = COALESCE($10, stage_email),
+           production_email = COALESCE($11, production_email),
            updated_at = now()
        WHERE id = $1
        RETURNING *`,
-      [id, label, channel_id, platform, business_ids, is_active, notes]
+      [id, label, channel_id, platform, business_ids, is_active, notes,
+       integration_model, active_products, stage_email, production_email]
     );
     if (updateResult.rows.length === 0) {
       return NextResponse.json({ error: "Merchant not found" }, { status: 404 });

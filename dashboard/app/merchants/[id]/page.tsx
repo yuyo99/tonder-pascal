@@ -28,9 +28,36 @@ interface FormState {
   business_ids: number[];
   is_active: boolean;
   notes: string;
+  integration_model: string;
+  active_products: string[];
+  stage_email: string;
+  production_email: string;
   partner_bots: PartnerBot[];
   scheduled_reports: ScheduledReport[];
 }
+
+const INTEGRATION_MODELS = [
+  "Hybrid",
+  "Full SDK",
+  "Lite SDK",
+  "Ionic SDK",
+  "Flutter SDK",
+  "Direct API",
+  "React Native SDK",
+];
+
+const PRODUCT_OPTIONS = [
+  "Cards",
+  "OXXO Pay",
+  "SPEI (Frictionless)",
+  "SPEI (No Frictionless)",
+  "Paysafe",
+  "Withdrawals",
+  "Mercado Pago",
+  "Mercado Pago Disbursements",
+  "Neosurf",
+  "Card on File",
+];
 
 const emptyForm: FormState = {
   label: "",
@@ -39,6 +66,10 @@ const emptyForm: FormState = {
   business_ids: [],
   is_active: true,
   notes: "",
+  integration_model: "",
+  active_products: [],
+  stage_email: "",
+  production_email: "",
   partner_bots: [],
   scheduled_reports: [
     {
@@ -82,6 +113,10 @@ export default function MerchantEditPage() {
             business_ids: m.business_ids || [],
             is_active: m.is_active ?? true,
             notes: m.notes || "",
+            integration_model: m.integration_model || "",
+            active_products: m.active_products || [],
+            stage_email: m.stage_email || "",
+            production_email: m.production_email || "",
             partner_bots: m.partner_bots || [],
             scheduled_reports: m.scheduled_reports?.length
               ? m.scheduled_reports
@@ -127,6 +162,15 @@ export default function MerchantEditPage() {
 
   function removeBusinessId(bizId: number) {
     updateField("business_ids", form.business_ids.filter((b) => b !== bizId));
+  }
+
+  function toggleProduct(product: string) {
+    const current = form.active_products;
+    if (current.includes(product)) {
+      updateField("active_products", current.filter((p) => p !== product));
+    } else {
+      updateField("active_products", [...current, product]);
+    }
   }
 
   function addPartnerBot() {
@@ -348,6 +392,71 @@ export default function MerchantEditPage() {
         <p className="mt-2 text-xs text-gray-400">
           Search by name or type a numeric ID and press Enter
         </p>
+      </section>
+
+      {/* Integration Details */}
+      <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+        <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">
+          Integration Details
+        </h2>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Integration Model</label>
+            <select
+              value={form.integration_model}
+              onChange={(e) => updateField("integration_model", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            >
+              <option value="">Select integration model...</option>
+              {INTEGRATION_MODELS.map((model) => (
+                <option key={model} value={model}>{model}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Active Products</label>
+            <div className="grid grid-cols-2 gap-2">
+              {PRODUCT_OPTIONS.map((product) => (
+                <label
+                  key={product}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:bg-violet-50 cursor-pointer transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={form.active_products.includes(product)}
+                    onChange={() => toggleProduct(product)}
+                    className="w-4 h-4 text-violet-600 border-gray-300 rounded focus:ring-violet-500"
+                  />
+                  <span className="text-sm text-gray-700">{product}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Stage Account Email</label>
+              <input
+                type="email"
+                value={form.stage_email}
+                onChange={(e) => updateField("stage_email", e.target.value)}
+                placeholder="stage@merchant.com"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Production Account Email</label>
+              <input
+                type="email"
+                value={form.production_email}
+                onChange={(e) => updateField("production_email", e.target.value)}
+                placeholder="prod@merchant.com"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* Partner Bots (only for Telegram) */}
