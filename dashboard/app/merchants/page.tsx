@@ -17,6 +17,10 @@ interface Merchant {
   business_ids: number[];
   is_active: boolean;
   notes: string;
+  integration_model: string;
+  active_products: string[];
+  stage_email: string;
+  production_email: string;
   partner_bots: PartnerBot[];
 }
 
@@ -122,6 +126,8 @@ export default function MerchantsPage() {
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Platform</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Channel ID</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Businesses</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">Integration</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">Emails</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Bots</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Status</th>
                   <th className="px-4 py-3 text-right font-medium text-gray-500">Actions</th>
@@ -158,6 +164,44 @@ export default function MerchantsPage() {
                           </span>
                         ))}
                       </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {m.integration_model ? (
+                        <div>
+                          <span className="inline-block px-2 py-0.5 bg-indigo-50 text-indigo-700 text-xs rounded-full font-medium">
+                            {m.integration_model}
+                          </span>
+                          {m.active_products?.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {m.active_products.map((p) => (
+                                <span key={p} className="inline-block px-1.5 py-0.5 bg-gray-100 text-gray-500 text-[10px] rounded font-medium">
+                                  {p}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-300 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {m.stage_email || m.production_email ? (
+                        <div className="space-y-0.5">
+                          {m.stage_email && (
+                            <div className="text-xs text-gray-500">
+                              <span className="text-gray-400">STG</span> {m.stage_email}
+                            </div>
+                          )}
+                          {m.production_email && (
+                            <div className="text-xs text-gray-500">
+                              <span className="text-gray-400">PRD</span> {m.production_email}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-300 text-xs">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-500">
                       {m.partner_bots?.length || 0}
