@@ -3,21 +3,75 @@
  *
  * Fetches merchant/partner integration data from two Linear teams
  * (Integrations + Support) and caches it with a 5-minute TTL.
+ *
+ * Uses direct fetch() to the Linear GraphQL API instead of @linear/sdk
+ * to avoid ETIMEDOUT issues on Railway's Alpine containers.
  */
 
-import { LinearClient } from "@linear/sdk";
+const LINEAR_API_URL = "https://api.linear.app/graphql";
 
-/* ─── Singleton ─── */
+function getApiKey(): string {
+  const key = process.env.LINEAR_API_KEY;
+  if (!key) throw new Error("LINEAR_API_KEY not configured");
+  return key;
+}
 
-let client: LinearClient | null = null;
+/** Execute a GraphQL query against the Linear API with timeout + retry */
+async function linearGql<T = any>(
+  query: string,
+  variables: Record<string, unknown> = {}
+): Promise<T> {
+  const apiKey = getApiKey();
+  const maxRetries = 2;
 
-function getLinearClient(): LinearClient {
-  if (!client) {
-    const key = process.env.LINEAR_API_KEY;
-    if (!key) throw new Error("LINEAR_API_KEY not configured");
-    client = new LinearClient({ apiKey: key });
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+
+    try {
+      const res = await fetch(LINEAR_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: apiKey,
+        },
+        body: JSON.stringify({ query, variables }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Linear API ${res.status}: ${text}`);
+      }
+
+      const json = await res.json();
+      if (json.errors?.length) {
+        throw new Error(
+          `Linear GraphQL: ${json.errors.map((e: any) => e.message).join(", ")}`
+        );
+      }
+      return json.data as T;
+    } catch (err: any) {
+      clearTimeout(timeout);
+      const isRetryable =
+        err.name === "AbortError" ||
+        err.cause?.code === "ETIMEDOUT" ||
+        err.cause?.code === "ECONNRESET";
+
+      if (isRetryable && attempt < maxRetries) {
+        console.warn(
+          `Linear API attempt ${attempt + 1} failed (${err.cause?.code ?? err.name}), retrying...`
+        );
+        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      throw err;
+    }
   }
-  return client;
+
+  throw new Error("Linear API: max retries exceeded");
 }
 
 /* ─── Constants: Team & Label Parent IDs ─── */
@@ -159,21 +213,23 @@ interface RawIssue {
 
 /** Fetch all issues for a team by ID, paginating through results */
 async function fetchTeamIssues(teamId: string): Promise<RawIssue[]> {
-  const lc = getLinearClient();
   const allIssues: RawIssue[] = [];
   let cursor: string | null = null;
 
-  for (let page = 0; page < 20; page++) {
-    const result: any = await lc.client.rawRequest(ISSUES_QUERY, {
-      teamId,
-      cursor,
-    });
+  interface TeamIssuesResult {
+    team: { issues: {
+      pageInfo: { hasNextPage: boolean; endCursor: string | null };
+      nodes: RawIssue[];
+    } };
+  }
 
-    const issuesData = result.data?.team?.issues;
+  for (let page = 0; page < 20; page++) {
+    const result: TeamIssuesResult = await linearGql(ISSUES_QUERY, { teamId, cursor });
+
+    const issuesData = result?.team?.issues;
     if (!issuesData) break;
 
-    const nodes: RawIssue[] = issuesData.nodes || [];
-    allIssues.push(...nodes);
+    allIssues.push(...(issuesData.nodes || []));
 
     if (!issuesData.pageInfo.hasNextPage) break;
     cursor = issuesData.pageInfo.endCursor;
