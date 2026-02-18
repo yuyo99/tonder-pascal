@@ -180,7 +180,7 @@ const AGENT_ITEMS: NavItem[] = [
   { label: "Analytics", href: "/analytics", icon: IconChart },
   { label: "Brain", href: "/brain", icon: IconBrain },
   { label: "Memory", href: "/memory", icon: IconMemory },
-  { label: "Chats", href: "/merchants", icon: IconChats },
+  { label: "Merchant Chats", href: "/merchants", icon: IconChats },
 ];
 
 const ADMIN_ITEMS: NavItem[] = [

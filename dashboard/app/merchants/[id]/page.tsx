@@ -44,6 +44,7 @@ const INTEGRATION_MODELS = [
   "Flutter SDK",
   "Direct API",
   "React Native SDK",
+  "Hosted Checkout",
 ];
 
 const PRODUCT_OPTIONS = [
