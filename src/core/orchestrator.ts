@@ -11,8 +11,9 @@ import { findRelevantKnowledge, KnowledgeEntry } from "../knowledge/loader";
 import { pgQuery } from "../postgres/connection";
 import { logger } from "../utils/logger";
 
-const client = new Anthropic({ apiKey: config.claude.apiKey });
+const client = new Anthropic({ apiKey: config.claude.apiKey, timeout: 60_000 });
 const MAX_TOOL_ROUNDS = 5;
+const HANDLER_TIMEOUT_MS = 90_000; // 90s max for entire message handling
 
 interface ToolLoopResult {
   answer: string;
@@ -67,14 +68,21 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<strin
   let error: string | undefined;
 
   try {
-    result = await runToolLoop(msg.text, systemPrompt, merchantCtx);
+    result = await Promise.race([
+      runToolLoop(msg.text, systemPrompt, merchantCtx),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Handler timeout: response took too long")), HANDLER_TIMEOUT_MS)
+      ),
+    ]);
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     const errType = err instanceof Error ? err.constructor.name : typeof err;
     logger.error({ err, errType, errMsg, merchant: merchantCtx.businessName }, "Orchestrator error");
 
     let answer: string;
-    if (errMsg.includes("authentication") || errMsg.includes("api_key") || errMsg.includes("401")) {
+    if (errMsg.includes("Handler timeout")) {
+      answer = "Sorry, this request took too long. Please try again with a more specific question.";
+    } else if (errMsg.includes("authentication") || errMsg.includes("api_key") || errMsg.includes("401")) {
       answer = "I'm experiencing an authentication issue. Please contact Tonder support.";
     } else if (errMsg.includes("rate_limit") || errMsg.includes("429")) {
       answer = "I'm receiving too many requests right now. Please try again in a moment.";

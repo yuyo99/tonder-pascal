@@ -20,6 +20,15 @@ function getPool(): Pool {
       : { rejectUnauthorized: false },
   });
 
+  // Prevent unhandled 'error' events from crashing the process.
+  // Idle connections can emit ECONNRESET when Railway's PG proxy drops them.
+  pool.on("error", (err) => {
+    logger.warn(
+      { err: err.message, code: (err as NodeJS.ErrnoException).code },
+      "PG pool background error (non-fatal)"
+    );
+  });
+
   return pool;
 }
 
