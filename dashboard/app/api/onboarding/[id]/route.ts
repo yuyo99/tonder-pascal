@@ -10,7 +10,10 @@ export async function GET(
   try {
     const { id } = await params;
     const result = await query(
-      `SELECT * FROM pascal_onboardings WHERE id = $1`,
+      `SELECT o.*, mc.label AS merchant_channel_label
+       FROM pascal_onboardings o
+       LEFT JOIN pascal_merchant_channels mc ON mc.id = o.merchant_channel_id
+       WHERE o.id = $1`,
       [id]
     );
 
@@ -37,12 +40,25 @@ export async function PUT(
     const values: unknown[] = [];
     let idx = 1;
 
-    // Simple fields
-    for (const field of ["name", "type", "owner", "notes", "status"]) {
+    // Simple text/string fields
+    for (const field of [
+      "name", "type", "owner", "notes", "status", "priority",
+      "contact_name", "contact_email", "contact_phone", "integration_model",
+    ]) {
       if (body[field] !== undefined) {
         sets.push(`${field} = $${idx++}`);
         values.push(body[field]);
       }
+    }
+
+    // Nullable fields (target_date, merchant_channel_id)
+    if (body.target_date !== undefined) {
+      sets.push(`target_date = $${idx++}`);
+      values.push(body.target_date || null);
+    }
+    if (body.merchant_channel_id !== undefined) {
+      sets.push(`merchant_channel_id = $${idx++}`);
+      values.push(body.merchant_channel_id || null);
     }
 
     // JSONB deep merge for phases

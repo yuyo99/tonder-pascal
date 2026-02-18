@@ -100,6 +100,17 @@ CREATE TABLE IF NOT EXISTS pascal_onboardings (
 );
 CREATE INDEX IF NOT EXISTS idx_pascal_onboardings_status
   ON pascal_onboardings (status);
+
+DO $$ BEGIN
+  ALTER TABLE pascal_onboardings ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'normal';
+  ALTER TABLE pascal_onboardings ADD COLUMN IF NOT EXISTS target_date DATE;
+  ALTER TABLE pascal_onboardings ADD COLUMN IF NOT EXISTS contact_name TEXT DEFAULT '';
+  ALTER TABLE pascal_onboardings ADD COLUMN IF NOT EXISTS contact_email TEXT DEFAULT '';
+  ALTER TABLE pascal_onboardings ADD COLUMN IF NOT EXISTS contact_phone TEXT DEFAULT '';
+  ALTER TABLE pascal_onboardings ADD COLUMN IF NOT EXISTS merchant_channel_id INTEGER REFERENCES pascal_merchant_channels(id) ON DELETE SET NULL;
+  ALTER TABLE pascal_onboardings ADD COLUMN IF NOT EXISTS integration_model TEXT DEFAULT '';
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
 `;
 
 export async function ensureTables(): Promise<void> {

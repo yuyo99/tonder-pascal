@@ -36,6 +36,26 @@ export interface CustomItem {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type PhasesState = Record<string, Record<string, any>>;
 
+/* ─── Shared Constants ─── */
+
+export const PRIORITY_OPTIONS = [
+  { value: "urgent", label: "Urgent", color: "bg-red-100 text-red-700" },
+  { value: "high", label: "High", color: "bg-orange-100 text-orange-700" },
+  { value: "normal", label: "Normal", color: "bg-gray-100 text-gray-600" },
+  { value: "low", label: "Low", color: "bg-blue-100 text-blue-600" },
+] as const;
+
+export const INTEGRATION_MODELS = [
+  "API",
+  "SDK",
+  "Hosted Checkout",
+  "Payment Links",
+  "Plugins",
+  "White Label",
+  "Withdrawals Only",
+  "Full Stack",
+] as const;
+
 /* ─── Phase Definitions ─── */
 
 export const ONBOARDING_PHASES: PhaseDefinition[] = [

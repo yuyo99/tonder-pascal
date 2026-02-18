@@ -8,19 +8,31 @@ export async function GET(req: NextRequest) {
     const { searchParams } = req.nextUrl;
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "";
+    const priority = searchParams.get("priority") || "";
+    const owner = searchParams.get("owner") || "";
 
     const conditions: string[] = [];
     const params: unknown[] = [];
     let idx = 1;
 
     if (search) {
-      conditions.push(`name ILIKE $${idx}`);
+      conditions.push(`o.name ILIKE $${idx}`);
       params.push(`%${search}%`);
       idx++;
     }
     if (status) {
-      conditions.push(`status = $${idx}`);
+      conditions.push(`o.status = $${idx}`);
       params.push(status);
+      idx++;
+    }
+    if (priority) {
+      conditions.push(`o.priority = $${idx}`);
+      params.push(priority);
+      idx++;
+    }
+    if (owner) {
+      conditions.push(`o.owner ILIKE $${idx}`);
+      params.push(`%${owner}%`);
       idx++;
     }
 
@@ -28,7 +40,11 @@ export async function GET(req: NextRequest) {
       conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
     const result = await query(
-      `SELECT * FROM pascal_onboardings ${where} ORDER BY created_at DESC`,
+      `SELECT o.*, mc.label AS merchant_channel_label
+       FROM pascal_onboardings o
+       LEFT JOIN pascal_merchant_channels mc ON mc.id = o.merchant_channel_id
+       ${where}
+       ORDER BY o.created_at DESC`,
       params
     );
 
@@ -42,7 +58,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, type, owner, notes } = body;
+    const { name, type, owner, notes, priority, target_date,
+            contact_name, contact_email, contact_phone,
+            merchant_channel_id, integration_model } = body;
 
     if (!name?.trim()) {
       return NextResponse.json(
@@ -52,10 +70,24 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await query(
-      `INSERT INTO pascal_onboardings (name, type, owner, notes, phases, status)
-       VALUES ($1, $2, $3, $4, '{}', 'not_started')
+      `INSERT INTO pascal_onboardings
+       (name, type, owner, notes, phases, status, priority, target_date,
+        contact_name, contact_email, contact_phone, merchant_channel_id, integration_model)
+       VALUES ($1, $2, $3, $4, '{}', 'not_started', $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
-      [name.trim(), type || "merchant", owner || "", notes || ""]
+      [
+        name.trim(),
+        type || "merchant",
+        owner || "",
+        notes || "",
+        priority || "normal",
+        target_date || null,
+        contact_name || "",
+        contact_email || "",
+        contact_phone || "",
+        merchant_channel_id || null,
+        integration_model || "",
+      ]
     );
 
     return NextResponse.json(result.rows[0], { status: 201 });
