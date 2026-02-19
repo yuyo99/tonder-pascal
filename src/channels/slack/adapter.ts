@@ -4,7 +4,10 @@ import { formatResponse, formatError, formatThinking } from "./formatter";
 import { createSupportTicket, CommandType } from "../../linear/client";
 import { resolveMerchantContext } from "../../merchants/context";
 import { trackInteraction } from "../../scheduler/daily-report";
+import { handleFeedbackMessage } from "../../knowledge/feedback";
 import { logger } from "../../utils/logger";
+
+const FEEDBACK_TRIGGERS = /\b(feedback|feedback\s+alert|learn|new\s+knowledge|add\s+this)\b/i;
 
 interface SlackConfig {
   botToken: string;
@@ -173,6 +176,18 @@ export class SlackChannelAdapter implements ChannelAdapter {
           channel: event.channel,
           thread_ts: event.ts,
           text: "Hi! I'm Pascal, your payment assistant. Ask me about your transactions, withdrawals, or anything payment-related.",
+        });
+        return;
+      }
+
+      // CHECK: Is this feedback/training? (feedback, learn, add this, etc.)
+      if (FEEDBACK_TRIGGERS.test(question)) {
+        await handleFeedbackMessage({
+          text: question,
+          channelId: event.channel,
+          threadTs: event.ts,
+          userId: event.user || "",
+          slackClient: client,
         });
         return;
       }

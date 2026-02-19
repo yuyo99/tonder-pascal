@@ -84,12 +84,18 @@ type FormData = typeof emptyForm;
 
 /* ─── Helpers ─── */
 
-function daysBetween(a: string, b: Date = new Date()): number {
-  return Math.floor((b.getTime() - new Date(a).getTime()) / 86400000);
+function daysBetween(a: string | null | undefined, b: Date = new Date()): number {
+  if (!a) return 0;
+  const d = new Date(a).getTime();
+  if (isNaN(d)) return 0;
+  return Math.floor((b.getTime() - d) / 86400000);
 }
 
-function daysUntil(dateStr: string): number {
-  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
+function daysUntil(dateStr: string | null | undefined): number {
+  if (!dateStr) return 0;
+  const d = new Date(dateStr).getTime();
+  if (isNaN(d)) return 0;
+  return Math.ceil((d - Date.now()) / 86400000);
 }
 
 const PRIORITY_ORDER: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
