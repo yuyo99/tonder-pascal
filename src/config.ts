@@ -34,8 +34,5 @@ export const config = {
   postgres: {
     url: process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL || "",
   },
-  dailyReport: {
-    slackUser: process.env.DAILY_REPORT_SLACK_USER || "U03HH53PUTA",
-  },
   logLevel: process.env.LOG_LEVEL || "info",
 };

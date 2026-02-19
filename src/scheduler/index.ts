@@ -28,8 +28,7 @@ function reportKey(cfg: ReportConfig): string {
 // Running cron tasks keyed by reportKey
 const runningTasks = new Map<string, { task: ScheduledTask; config: ReportConfig }>();
 
-// Fallback: the global daily report (kept for backwards compat if no per-merchant reports exist)
-let globalTask: ScheduledTask | null = null;
+// (Global daily report fallback removed — only per-merchant scheduled reports run now)
 // Hardcoded system alerts
 let linearAlertTask: ScheduledTask | null = null;
 let linearEodTask: ScheduledTask | null = null;
@@ -126,30 +125,6 @@ async function syncScheduledReports(): Promise<void> {
     );
   }
 
-  // If there are per-merchant reports, stop the global fallback
-  if (desiredConfigs.size > 0 && globalTask) {
-    globalTask.stop();
-    globalTask = null;
-    logger.info("Stopped global daily report (per-merchant reports active)");
-  }
-
-  // If there are NO per-merchant reports, ensure the global fallback is running
-  if (desiredConfigs.size === 0 && !globalTask && slackClientRef) {
-    const client = slackClientRef;
-    globalTask = cron.schedule(
-      "0 9 * * *",
-      async () => {
-        logger.info("Running global daily report (fallback)...");
-        try {
-          await sendDailyReport(client);
-        } catch (err) {
-          logger.error({ err }, "Global daily report failed");
-        }
-      },
-      { timezone: "America/Mexico_City" }
-    );
-    logger.info("Started global daily report fallback (no per-merchant reports configured)");
-  }
 }
 
 /**
@@ -215,10 +190,6 @@ export function stopScheduler(): void {
     logger.info({ key }, "Stopped scheduled report");
   }
   runningTasks.clear();
-  if (globalTask) {
-    globalTask.stop();
-    globalTask = null;
-  }
   if (linearAlertTask) {
     linearAlertTask.stop();
     linearAlertTask = null;

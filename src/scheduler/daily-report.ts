@@ -1,6 +1,5 @@
 import { WebClient } from "@slack/web-api";
 import { KnownBlock } from "@slack/types";
-import { config } from "../config";
 import { logger } from "../utils/logger";
 
 // ── Top-Tier Clients ────────────────────────────────────────────────
@@ -135,10 +134,10 @@ export async function sendDailyReport(
       )
     : allInteractions;
 
-  const recipientUserId = merchantParams?.slackUserId || config.dailyReport.slackUser;
+  const recipientUserId = merchantParams?.slackUserId;
 
   if (!recipientUserId) {
-    logger.warn("No DAILY_REPORT_SLACK_USER configured — skipping daily report");
+    logger.warn("No recipient configured for daily report — skipping");
     return;
   }
 
