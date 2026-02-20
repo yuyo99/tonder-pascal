@@ -160,9 +160,12 @@ function PascalLogo({ collapsed }: { collapsed: boolean }) {
         <rect x="22" y="52" width="8" height="20" rx="3" fill="#1e1b4b" stroke="#312e81" strokeWidth="1" />
         <rect x="90" y="52" width="8" height="20" rx="3" fill="#1e1b4b" stroke="#312e81" strokeWidth="1" />
       </svg>
-      <span className="text-lg font-semibold text-white">
-        Pascal<span className="text-violet-400">.</span>
-      </span>
+      <div className="flex flex-col">
+        <span className="text-lg font-semibold text-white leading-tight">
+          Pascal<span className="text-violet-400">.</span>
+        </span>
+        <span className="text-[10px] text-gray-500 font-medium">Merchant Operations</span>
+      </div>
     </div>
   );
 }
