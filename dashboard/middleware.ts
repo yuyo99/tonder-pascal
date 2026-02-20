@@ -4,7 +4,8 @@ import { requireAuth } from "./lib/auth";
 export function middleware(req: NextRequest) {
   if (
     req.nextUrl.pathname === "/login" ||
-    req.nextUrl.pathname === "/api/auth/login"
+    req.nextUrl.pathname === "/api/auth/login" ||
+    req.nextUrl.pathname === "/api/auth/logout"
   ) {
     return;
   }
