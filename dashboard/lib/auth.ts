@@ -6,8 +6,8 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
-const COOKIE_NAME = "pascal_session";
-const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
+export const COOKIE_NAME = "pascal_session";
+export const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
 function getApiKey(): string {
   const key = process.env.DASHBOARD_API_KEY;
@@ -15,7 +15,11 @@ function getApiKey(): string {
   return key;
 }
 
-function generateToken(): string {
+export function verifyPassword(password: string): boolean {
+  return password === getApiKey();
+}
+
+export function generateToken(): string {
   const ts = Date.now().toString(36);
   const key = getApiKey();
   const raw = `${key.slice(0, 8)}:${ts}`;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { login } from "@/lib/auth";
+import { verifyPassword, generateToken, COOKIE_NAME, SESSION_MAX_AGE } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,12 +8,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Password required" }, { status: 400 });
     }
 
-    const success = await login(password);
-    if (!success) {
+    if (!verifyPassword(password)) {
       return NextResponse.json({ error: "Invalid password" }, { status: 401 });
     }
 
-    return NextResponse.json({ ok: true });
+    const token = generateToken();
+    const res = NextResponse.json({ ok: true });
+    res.cookies.set(COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: SESSION_MAX_AGE,
+      path: "/",
+    });
+    return res;
   } catch (err) {
     console.error("Login error:", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
