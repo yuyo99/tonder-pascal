@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
@@ -9,7 +8,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [shake, setShake] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const router = useRouter();
 
   useEffect(() => {
     setMounted(true);
@@ -28,8 +26,8 @@ export default function LoginPage() {
       });
 
       if (res.ok) {
-        router.push("/");
-        router.refresh();
+        window.location.href = "/";
+        return;
       } else {
         setError("Invalid access key");
         setShake(true);
