@@ -168,64 +168,94 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       return next();
     });
 
+    // ── Shared partner bot detection for any message type ──
+    const checkPartnerBot = async (
+      chatId: string,
+      chatType: string,
+      text: string,
+      fromId: string,
+      fromUsername: string,
+      senderChatUsername: string,
+      viaBotUsername: string,
+      messageId: number,
+      replyFn: (answer: string) => Promise<void>,
+      rawEvent: unknown,
+      eventType: string
+    ): Promise<boolean> => {
+      if (chatType === "private" || !text) return false;
+
+      // Method 1: Username-based detection
+      const partnerUsername = [fromUsername, senderChatUsername, viaBotUsername]
+        .find(u => u && isPartnerBot(chatId, "telegram", u)) || "";
+
+      // Method 2: Content-based fallback
+      const isPartnerChannel = !partnerUsername && hasPartnerBots(chatId, "telegram");
+
+      if (!partnerUsername && !isPartnerChannel) return false;
+
+      const label = partnerUsername || "content-match";
+      logger.info(
+        { chatId, detectedBy: partnerUsername ? "username" : "content", label, fromUsername, senderChatUsername, viaBotUsername, text: text.slice(0, 80) },
+        `Partner bot ${eventType} candidate — checking deposit ticket format`
+      );
+
+      const handled = await tryHandleDepositTicket(
+        text, chatId, fromId, label,
+        handler, replyFn, rawEvent, `${eventType} partner bot`
+      );
+
+      if (handled) return true;
+
+      // Username matched but content didn't parse — ignore silently
+      if (partnerUsername) {
+        logger.debug({ chatId, label }, `Partner bot ${eventType} did not match deposit ticket format — ignoring`);
+        return true;
+      }
+      // Content-based fallback didn't match — fall through
+      return false;
+    };
+
+    // ── Extract sender identities from a message ──
+    const extractSenderInfo = (message: Record<string, unknown>) => {
+      const from = message.from as Record<string, unknown> | undefined;
+      const senderChat = message.sender_chat as Record<string, unknown> | undefined;
+      const viaBot = message.via_bot as Record<string, unknown> | undefined;
+      return {
+        fromUsername: (from?.username as string) || "",
+        fromId: String((from?.id as number) || ""),
+        fromIsBot: (from?.is_bot as boolean) || false,
+        senderChatUsername: (senderChat?.username as string) || "",
+        viaBotUsername: (viaBot?.username as string) || "",
+      };
+    };
+
     // Handle text messages
     this.bot.on("text", async (ctx) => {
       const chatId = String(ctx.chat.id);
       const text = ctx.message.text.trim();
-
-      // Extract all possible sender identities (bots may use from, sender_chat, or via_bot)
-      const fromUsername = ctx.message.from.username || "";
-      const senderChatUsername = (ctx.message as unknown as Record<string, Record<string, string>>).sender_chat?.username || "";
-      const viaBotUsername = (ctx.message as unknown as Record<string, Record<string, string>>).via_bot?.username || "";
+      const sender = extractSenderInfo(ctx.message as unknown as Record<string, unknown>);
 
       logger.info(
         {
           chatId, chatType: ctx.chat.type,
-          from: fromUsername, fromIsBot: ctx.message.from.is_bot,
-          senderChat: senderChatUsername || undefined,
-          viaBot: viaBotUsername || undefined,
+          from: sender.fromUsername, fromIsBot: sender.fromIsBot,
+          senderChat: sender.senderChatUsername || undefined,
+          viaBot: sender.viaBotUsername || undefined,
           text: text.slice(0, 80),
         },
         "Telegram text event received"
       );
 
       // ── Partner bot auto-response (before mention check) ──
-      if (ctx.chat.type !== "private") {
-        // Method 1: Username-based detection
-        const partnerUsername = [fromUsername, senderChatUsername, viaBotUsername]
-          .find(u => u && isPartnerBot(chatId, "telegram", u)) || "";
-
-        // Method 2: Content-based fallback — if channel has partner bots configured,
-        // try matching the deposit ticket format (covers cases where Telegram hides
-        // the bot identity behind the channel's sender_chat)
-        const isPartnerChannel = !partnerUsername && hasPartnerBots(chatId, "telegram");
-
-        if (partnerUsername || isPartnerChannel) {
-          const label = partnerUsername || "content-match";
-          logger.info(
-            { chatId, detectedBy: partnerUsername ? "username" : "content", label, text: text.slice(0, 80) },
-            "Partner bot message candidate — checking deposit ticket format"
-          );
-
-          const replyToMsg = async (answer: string) => {
-            await ctx.reply(answer, { reply_parameters: { message_id: ctx.message.message_id } });
-          };
-
-          const handled = await tryHandleDepositTicket(
-            text, chatId, String(ctx.message.from.id), label,
-            handler, replyToMsg, ctx.message, "text-handler partner bot"
-          );
-
-          if (handled) return;
-
-          // If username matched but content didn't parse, ignore silently
-          if (partnerUsername) {
-            logger.debug({ chatId, label }, "Partner bot message did not match deposit ticket format — ignoring");
-            return;
-          }
-          // If only content-based, fall through to normal mention check
-        }
-      }
+      const replyToMsg = async (answer: string) => {
+        await ctx.reply(answer, { reply_parameters: { message_id: ctx.message.message_id } });
+      };
+      const wasPartnerBot = await checkPartnerBot(
+        chatId, ctx.chat.type, text,
+        sender.fromId, sender.fromUsername, sender.senderChatUsername, sender.viaBotUsername,
+        ctx.message.message_id, replyToMsg, ctx.message, "text"
+      );
+      if (wasPartnerBot) return;
 
       // In groups/supergroups, only respond when bot is mentioned or replied to
       if (ctx.chat.type !== "private") {
@@ -316,6 +346,52 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       }
     });
 
+    // Handle photo messages (partner bot deposit tickets with image attachments)
+    this.bot.on("photo", async (ctx) => {
+      const chatId = String(ctx.chat.id);
+      const caption = (ctx.message.caption || "").trim();
+      if (!caption) return;
+
+      const sender = extractSenderInfo(ctx.message as unknown as Record<string, unknown>);
+
+      logger.info(
+        { chatId, chatType: ctx.chat.type, from: sender.fromUsername, caption: caption.slice(0, 80) },
+        "Telegram photo event received"
+      );
+
+      const replyFn = async (answer: string) => {
+        await ctx.reply(answer, { reply_parameters: { message_id: ctx.message.message_id } });
+      };
+      await checkPartnerBot(
+        chatId, ctx.chat.type, caption,
+        sender.fromId, sender.fromUsername, sender.senderChatUsername, sender.viaBotUsername,
+        ctx.message.message_id, replyFn, ctx.message, "photo"
+      );
+    });
+
+    // Handle document messages (partner bot deposit tickets with PDF attachments)
+    this.bot.on("document", async (ctx) => {
+      const chatId = String(ctx.chat.id);
+      const caption = (ctx.message.caption || "").trim();
+      if (!caption) return;
+
+      const sender = extractSenderInfo(ctx.message as unknown as Record<string, unknown>);
+
+      logger.info(
+        { chatId, chatType: ctx.chat.type, from: sender.fromUsername, caption: caption.slice(0, 80) },
+        "Telegram document event received"
+      );
+
+      const replyFn = async (answer: string) => {
+        await ctx.reply(answer, { reply_parameters: { message_id: ctx.message.message_id } });
+      };
+      await checkPartnerBot(
+        chatId, ctx.chat.type, caption,
+        sender.fromId, sender.fromUsername, sender.senderChatUsername, sender.viaBotUsername,
+        ctx.message.message_id, replyFn, ctx.message, "document"
+      );
+    });
+
     // Handle channel posts (Telegram channels are broadcast-only, different from groups)
     this.bot.on("channel_post", async (ctx) => {
       const post = ctx.channelPost;
@@ -330,38 +406,14 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       );
 
       // ── Partner bot auto-response (channel posts) ──
-      const postSenderChat = (post as unknown as Record<string, unknown>).sender_chat as Record<string, unknown> | undefined;
-      const postFromField = (post as unknown as Record<string, unknown>).from as Record<string, unknown> | undefined;
-      const postFromUsername = (postSenderChat?.username as string) || (postFromField?.username as string) || "";
-
-      // Method 1: Username-based detection
-      const isPostPartnerUsername = postFromUsername && isPartnerBot(chatId, "telegram", postFromUsername);
-      // Method 2: Content-based fallback for partner bot channels
-      const isPostPartnerChannel = !isPostPartnerUsername && hasPartnerBots(chatId, "telegram");
-
-      if (isPostPartnerUsername || isPostPartnerChannel) {
-        const label = isPostPartnerUsername ? postFromUsername : "content-match";
-        logger.info(
-          { chatId, detectedBy: isPostPartnerUsername ? "username" : "content", label, text: text.slice(0, 80) },
-          "Partner bot channel_post candidate — checking deposit ticket format"
-        );
-
-        const replyFn = async (answer: string) => { await ctx.reply(answer); };
-
-        const handled = await tryHandleDepositTicket(
-          text, chatId, "channel", label,
-          handler, replyFn, post, "channel_post partner bot"
-        );
-
-        if (handled) return;
-
-        // Username matched but content didn't parse — ignore silently
-        if (isPostPartnerUsername) {
-          logger.debug({ chatId, label }, "Partner bot channel_post did not match deposit ticket format — ignoring");
-          return;
-        }
-        // Content-based fallback didn't match — fall through to normal channel handling
-      }
+      const postSender = extractSenderInfo(post as unknown as Record<string, unknown>);
+      const postReplyFn = async (answer: string) => { await ctx.reply(answer); };
+      const wasChannelPartnerBot = await checkPartnerBot(
+        chatId, ctx.chat.type, text,
+        "channel", postSender.fromUsername || postSender.senderChatUsername, postSender.senderChatUsername, postSender.viaBotUsername,
+        0, postReplyFn, post, "channel_post"
+      );
+      if (wasChannelPartnerBot) return;
 
       // In channels, respond to ALL text posts (no mention required — channels are broadcast)
       const botUsername = this.botInfo?.username || "";
