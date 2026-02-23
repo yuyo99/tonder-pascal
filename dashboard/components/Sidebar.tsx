@@ -88,6 +88,16 @@ function IconIntegrations({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
+function IconMonitoring({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}
+
 function IconCollapseLeft({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -184,6 +194,7 @@ const AGENT_ITEMS: NavItem[] = [
   { label: "Brain", href: "/brain", icon: IconBrain },
   { label: "Memory", href: "/memory", icon: IconMemory },
   { label: "Merchant Chats", href: "/merchants", icon: IconChats },
+  { label: "Monitoring", href: "/monitoring", icon: IconMonitoring },
 ];
 
 const ADMIN_ITEMS: NavItem[] = [

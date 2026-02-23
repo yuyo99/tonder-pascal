@@ -112,6 +112,20 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
+CREATE TABLE IF NOT EXISTS pascal_error_logs (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source      TEXT NOT NULL,
+  severity    TEXT NOT NULL DEFAULT 'error',
+  message     TEXT NOT NULL,
+  stack       TEXT,
+  context     JSONB NOT NULL DEFAULT '{}',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pascal_error_logs_created
+  ON pascal_error_logs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pascal_error_logs_source
+  ON pascal_error_logs (source);
+
 -- ═══ Seed: Integration Knowledge Base Entries ═══
 ` +
 `

@@ -5,6 +5,7 @@ import { sendDailyReport } from "./daily-report";
 import { sendLinearOverdueAlert, sendLinearEodReview } from "./linear-alert";
 import { onConfigChange } from "../merchants/config-store";
 import { logger } from "../utils/logger";
+import { storeErrorFromCatch } from "../utils/error-store";
 
 interface ReportConfig {
   id: number;
@@ -113,6 +114,7 @@ async function syncScheduledReports(): Promise<void> {
           });
         } catch (err) {
           logger.error({ err, merchant: cfg.merchantLabel }, "Scheduled report failed");
+          storeErrorFromCatch("scheduler", err, { merchant: cfg.merchantLabel, action: cfg.reportType });
         }
       },
       { timezone: cfg.timezone }
@@ -137,12 +139,14 @@ export function initScheduler(slackClient: WebClient): void {
   // Sync now
   syncScheduledReports().catch((err) => {
     logger.error({ err }, "Initial scheduler sync failed");
+    storeErrorFromCatch("scheduler", err, { action: "initial_sync" });
   });
 
   // Re-sync whenever merchant configs change (polling detects changes)
   onConfigChange(() => {
     syncScheduledReports().catch((err) => {
       logger.error({ err }, "Scheduler re-sync failed");
+      storeErrorFromCatch("scheduler", err, { action: "resync" });
     });
   });
 
@@ -157,6 +161,7 @@ export function initScheduler(slackClient: WebClient): void {
         await sendLinearOverdueAlert(slackClient);
       } catch (err) {
         logger.error({ err }, "Linear overdue alert failed");
+        storeErrorFromCatch("scheduler", err, { action: "linear_overdue" });
       }
     },
     { timezone: "America/Mexico_City" }
@@ -172,6 +177,7 @@ export function initScheduler(slackClient: WebClient): void {
         await sendLinearEodReview(slackClient);
       } catch (err) {
         logger.error({ err }, "Linear EOD review failed");
+        storeErrorFromCatch("scheduler", err, { action: "linear_eod" });
       }
     },
     { timezone: "America/Mexico_City" }

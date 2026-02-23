@@ -9,6 +9,7 @@ import { handleIncomingMessage } from "./core/orchestrator";
 import { initScheduler, stopScheduler } from "./scheduler";
 import { loadKnowledgeBase } from "./knowledge/loader";
 import { logger } from "./utils/logger";
+import { storeErrorFromCatch } from "./utils/error-store";
 
 async function main() {
   logger.info("Starting Pascal...");
@@ -65,6 +66,7 @@ async function main() {
 // Prevent unhandled rejections from crashing the process
 process.on("unhandledRejection", (reason) => {
   logger.error({ err: reason }, "Unhandled rejection — not crashing");
+  storeErrorFromCatch("system", reason, {}, "fatal");
 });
 
 main().catch((err) => {

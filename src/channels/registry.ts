@@ -3,6 +3,7 @@ import { ChannelAdapter, IncomingMessage } from "./types";
 import { SlackChannelAdapter } from "./slack/adapter";
 import { TelegramChannelAdapter } from "./telegram/adapter";
 import { logger } from "../utils/logger";
+import { storeErrorFromCatch } from "../utils/error-store";
 
 /**
  * Boot all enabled channel adapters and wire them to the message handler.
@@ -34,6 +35,7 @@ export async function bootChannels(
       adapters.push(telegram);
     } catch (err) {
       logger.error({ err }, "Telegram adapter failed to start — continuing without Telegram");
+      storeErrorFromCatch("telegram", err, { action: "adapter_start" });
     }
   }
 

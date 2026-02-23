@@ -12,6 +12,7 @@ import { config } from "../config";
 import { pgQuery } from "../postgres/connection";
 import { loadKnowledgeBase } from "./loader";
 import { logger } from "../utils/logger";
+import { storeErrorFromCatch } from "../utils/error-store";
 
 const client = new Anthropic({ apiKey: config.claude.apiKey, timeout: 30_000 });
 
@@ -125,6 +126,7 @@ export async function handleFeedbackMessage(params: {
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     logger.error({ err, userId, channelId }, "Failed to process feedback");
+    storeErrorFromCatch("feedback", err, { channel: channelId, user: userId });
 
     await slackClient.chat.update({
       channel: channelId,

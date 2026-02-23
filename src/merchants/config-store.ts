@@ -2,6 +2,7 @@ import { pgQuery } from "../postgres/connection";
 import { MerchantMapping, PartnerBotConfig } from "./types";
 import { DEFAULT_MERCHANT_CONFIGS } from "./mappings";
 import { logger } from "../utils/logger";
+import { storeErrorFromCatch } from "../utils/error-store";
 
 // ── In-memory state ─────────────────────────────────────────────────
 
@@ -144,6 +145,7 @@ export function startConfigPolling(intervalMs = 60_000): void {
       await loadConfigs();
     } catch (err) {
       logger.error({ err }, "Config polling failed");
+      storeErrorFromCatch("config", err, { action: "polling" });
     }
   }, intervalMs);
   logger.info({ intervalMs }, "Config polling started");

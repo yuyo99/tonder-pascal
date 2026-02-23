@@ -10,6 +10,7 @@ import { trackInteraction } from "../scheduler/daily-report";
 import { findRelevantKnowledge, KnowledgeEntry } from "../knowledge/loader";
 import { pgQuery } from "../postgres/connection";
 import { logger } from "../utils/logger";
+import { storeErrorFromCatch } from "../utils/error-store";
 
 const client = new Anthropic({ apiKey: config.claude.apiKey, timeout: 60_000 });
 const MAX_TOOL_ROUNDS = 5;
@@ -78,6 +79,7 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<strin
     const errMsg = err instanceof Error ? err.message : String(err);
     const errType = err instanceof Error ? err.constructor.name : typeof err;
     logger.error({ err, errType, errMsg, merchant: merchantCtx.businessName }, "Orchestrator error");
+    storeErrorFromCatch("orchestrator", err, { merchant: merchantCtx.businessName, platform: msg.platform, channel: msg.channelId, user: msg.userName });
 
     let answer: string;
     if (errMsg.includes("Handler timeout")) {

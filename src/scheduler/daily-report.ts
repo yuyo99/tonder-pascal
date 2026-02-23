@@ -1,6 +1,7 @@
 import { WebClient } from "@slack/web-api";
 import { KnownBlock } from "@slack/types";
 import { logger } from "../utils/logger";
+import { storeErrorFromCatch } from "../utils/error-store";
 
 // ── Top-Tier Clients ────────────────────────────────────────────────
 
@@ -265,6 +266,7 @@ export async function sendDailyReport(
     }
   } catch (err) {
     logger.error({ err }, "Failed to send daily report");
+    storeErrorFromCatch("scheduler", err, { action: "send_daily_report" });
   }
 
   // Reset daily interactions (only global report resets all; per-merchant doesn't)

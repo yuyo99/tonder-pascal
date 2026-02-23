@@ -4,6 +4,7 @@ import { MerchantContext } from "../merchants/types";
 import * as queries from "../mongodb/queries";
 
 import { logger } from "../utils/logger";
+import { storeErrorFromCatch } from "../utils/error-store";
 
 // Shared date parameter definitions
 const dateParams = {
@@ -308,6 +309,7 @@ export async function executeTool(
     }
   } catch (err) {
     logger.error({ err, toolName, input }, "Tool execution failed");
+    storeErrorFromCatch("tool", err, { tool: toolName, merchant: merchantCtx.businessName, input: JSON.stringify(input).slice(0, 500) });
     return `Error executing ${toolName}: ${err instanceof Error ? err.message : "Unknown error"}`;
   }
 }

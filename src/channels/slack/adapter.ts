@@ -6,6 +6,7 @@ import { resolveMerchantContext } from "../../merchants/context";
 import { trackInteraction } from "../../scheduler/daily-report";
 import { handleFeedbackMessage } from "../../knowledge/feedback";
 import { logger } from "../../utils/logger";
+import { storeErrorFromCatch } from "../../utils/error-store";
 
 const FEEDBACK_TRIGGERS = /\b(feedback|feedback\s+alert|learn|new\s+knowledge|add\s+this)\b/i;
 
@@ -142,6 +143,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
       );
     } catch (err) {
       logger.error({ err, channelId }, "Failed to create Linear ticket");
+      storeErrorFromCatch("slack", err, { channel: channelId, action: "create_ticket" });
       await this.app.client.chat.postMessage({
         channel: channelId,
         thread_ts: threadTs || eventTs,
@@ -239,6 +241,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
         });
       } catch (err) {
         logger.error({ err }, "Failed to answer Slack @mention");
+        storeErrorFromCatch("slack", err, { channel: event.channel, user: event.user, action: "app_mention" });
         const errorMsg = err instanceof Error ? err.message : "Unknown error";
         await client.chat.update({
           channel: event.channel,
@@ -287,6 +290,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
         });
       } catch (err) {
         logger.error({ err }, "Failed to answer Slack DM");
+        storeErrorFromCatch("slack", err, { channel: msg.channel!, user: msg.user, action: "dm" });
         const errorMsg = err instanceof Error ? err.message : "Unknown error";
         await client.chat.update({
           channel: msg.channel!,

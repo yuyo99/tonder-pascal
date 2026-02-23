@@ -5,6 +5,7 @@ import { resolveMerchantContext, isPartnerBot, hasPartnerBots } from "../../merc
 import { trackInteraction } from "../../scheduler/daily-report";
 import { parseDepositTicket, isValidTxid, buildTicketLookupPrompt } from "./partner-bot";
 import { logger } from "../../utils/logger";
+import { storeErrorFromCatch, storeError } from "../../utils/error-store";
 
 interface TelegramConfig {
   botToken: string;
@@ -51,6 +52,7 @@ async function tryHandleDepositTicket(
       { err, chatId, userName, orderId: ticket.orderId },
       `${logLabel}: failed to process deposit ticket`
     );
+    storeErrorFromCatch("telegram", err, { channel: chatId, user: userName, action: "deposit_ticket", orderId: ticket.orderId });
     await replyFn("Sorry, I encountered an error looking up this deposit ticket.");
   }
   return true;
@@ -141,6 +143,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       );
     } catch (err) {
       logger.error({ err, chatId }, "Failed to create Linear ticket from Telegram");
+      storeErrorFromCatch("telegram", err, { channel: chatId, action: "create_ticket" });
       await ctx.reply("Sorry, I could not create the ticket. Please try again.");
     }
   }
@@ -261,6 +264,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       if (ctx.chat.type !== "private") {
         if (!this.botInfo) {
           logger.error({ chatId }, "Bot identity not resolved — cannot check mentions");
+          storeError("telegram", "Bot identity not resolved — cannot check mentions", { channel: chatId });
           return;
         }
         const isMentioned = text.includes(`@${this.botInfo.username}`);
@@ -331,6 +335,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         }
       } catch (err) {
         logger.error({ err }, "Failed to answer Telegram message");
+        storeErrorFromCatch("telegram", err, { channel: chatId, action: "text_message" });
         try {
           await ctx.telegram.editMessageText(
             ctx.chat.id,
@@ -472,6 +477,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         }
       } catch (err) {
         logger.error({ err }, "Failed to answer Telegram channel post");
+        storeErrorFromCatch("telegram", err, { channel: chatId, action: "channel_post" });
         try {
           await ctx.telegram.editMessageText(
             ctx.chat.id,
@@ -488,6 +494,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
     // Error handling — catch errors so they don't crash the process
     this.bot.catch((err) => {
       logger.error({ err }, "Telegram bot error");
+      storeErrorFromCatch("telegram", err, { action: "telegraf_catch" });
     });
 
     // Resolve bot identity once (cached for mention detection)
@@ -500,6 +507,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       );
     } catch (err) {
       logger.error({ err }, "Failed to resolve Telegram bot identity — mentions won't work");
+      storeErrorFromCatch("telegram", err, { action: "resolve_identity" });
     }
 
     // Use polling (not webhooks) for simplicity
@@ -509,6 +517,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       .then(() => logger.info("Telegram polling CONFIRMED active"))
       .catch((err) => {
         logger.error({ err }, "Telegram bot launch failed — will continue without Telegram");
+        storeErrorFromCatch("telegram", err, { action: "launch" });
       });
     logger.info("Telegram adapter started (polling)");
   }
