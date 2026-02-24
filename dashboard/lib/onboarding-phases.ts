@@ -1,8 +1,8 @@
 /**
  * Onboarding phase definitions and progress utilities.
  *
- * This is the single source of truth for the 8 onboarding phases
- * and their 41 checklist items. Imported by both the API routes
+ * This is the single source of truth for the 10 onboarding phases
+ * and their 48 checklist items. Imported by both the API routes
  * and the frontend page.
  */
 
@@ -60,16 +60,39 @@ export const INTEGRATION_MODELS = [
 
 export const ONBOARDING_PHASES: PhaseDefinition[] = [
   {
+    id: "phase_0",
+    name: "Commercial Agreement",
+    shortName: "Phase 0",
+    owner: "Geraldine Sprockel",
+    items: [
+      { id: "commercials_closed", label: "Commercials closed" },
+      { id: "countries_products_defined", label: "Countries & products defined" },
+      { id: "target_golive_agreed", label: "Target go-live agreed" },
+      { id: "onboarding_start_date_set", label: "Onboarding start date set" },
+    ],
+  },
+  {
     id: "phase_1",
-    name: "Pre-Integration / KYB",
+    name: "KYB / Compliance",
     shortName: "Phase 1",
     owner: "Geraldine Sprockel",
     items: [
+      { id: "kyb_requirements_sent", label: "KYB requirements sent" },
+      { id: "kyb_received", label: "KYB received" },
       { id: "kyb_submitted", label: "KYB submitted" },
-      { id: "timeline_validated", label: "Target timeline validated and accepted" },
-      { id: "legal_docs_validated", label: "Legal documentation validated with Sumsub" },
-      { id: "docs_sent_acquirer", label: "Documentation sent to the acquirer" },
+      { id: "compliance_validated", label: "Compliance validated (Sumsub / internal)" },
+      { id: "sent_to_acquirer", label: "Sent to acquirer (if applicable)" },
       { id: "kyb_approved", label: "KYB approved" },
+    ],
+  },
+  {
+    id: "phase_1_5",
+    name: "Legal",
+    shortName: "Phase 1.5",
+    owner: "Geraldine Sprockel",
+    items: [
+      { id: "msa_sent", label: "MSA sent" },
+      { id: "msa_signed", label: "MSA signed" },
     ],
   },
   {
