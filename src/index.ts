@@ -49,6 +49,14 @@ async function main() {
   // Graceful shutdown
   const shutdown = async (signal: string) => {
     logger.info({ signal }, "Shutting down...");
+
+    // Force exit after 15s if graceful shutdown hangs
+    const forceTimer = setTimeout(() => {
+      logger.warn("Graceful shutdown timed out — forcing exit");
+      process.exit(1);
+    }, 15_000);
+    forceTimer.unref();
+
     stopScheduler();
     stopConfigPolling();
     for (const adapter of adapters) {

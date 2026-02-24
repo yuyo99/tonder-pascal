@@ -549,7 +549,14 @@ export class TelegramChannelAdapter implements ChannelAdapter {
   }
 
   async stop(): Promise<void> {
-    this.bot.stop("SIGTERM");
+    logger.info("Stopping Telegram adapter...");
+    try {
+      this.bot.stop("SIGTERM");
+      // Give Telegraf time to close the long-polling connection
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    } catch (err) {
+      logger.warn({ err }, "Error stopping Telegram bot (may already be stopped)");
+    }
     logger.info("Telegram adapter stopped");
   }
 
