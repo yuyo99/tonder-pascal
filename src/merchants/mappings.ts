@@ -64,12 +64,12 @@ export const DEFAULT_MERCHANT_CONFIGS: MerchantMapping[] = [
 
   // ── BCGAME (Telegram) ──
   singleWithBots("-1002589749469", "telegram", 121, [
-    { username: "BcgameTicketBot", label: "BcgameTicketBot" },
+    { username: "bcgame_ticket_bot", label: "BcgameTicketBot" },
   ]),
 
-  // ── Tonder Production 2 (Telegram) — includes BcgameTicketBot + tonder_operator for testing ──
+  // ── Tonder Production 2 (Telegram) — includes bcgame_ticket_bot + tonder_operator for testing ──
   singleWithBots("-1003575792934", "telegram", 91, [
-    { username: "BcgameTicketBot", label: "BcgameTicketBot" },
+    { username: "bcgame_ticket_bot", label: "BcgameTicketBot" },
     { username: "tonder_operator", label: "Tonder Operator (test)" },
   ]),
 ];

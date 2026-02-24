@@ -126,10 +126,10 @@ CREATE INDEX IF NOT EXISTS idx_pascal_error_logs_created
 CREATE INDEX IF NOT EXISTS idx_pascal_error_logs_source
   ON pascal_error_logs (source);
 
--- Fix bcgameticketbot username (was seeded with underscores, actual TG username has none)
+-- Fix bcgameticketbot username: ensure DB has the correct @username (with underscores)
 UPDATE pascal_partner_bots
-SET username = 'BcgameTicketBot'
-WHERE username = 'bcgame_ticket_bot';
+SET username = 'bcgame_ticket_bot'
+WHERE LOWER(username) = 'bcgameticketbot';
 
 -- ═══ Seed: Integration Knowledge Base Entries ═══
 ` +

@@ -26,6 +26,8 @@ async function tryHandleDepositTicket(
   logLabel: string
 ): Promise<boolean> {
   const ticket = parseDepositTicket(text);
+  logger.info({ chatId, ticketParsed: !!ticket, orderId: ticket?.orderId, txid: ticket?.txid },
+    `${logLabel}: deposit ticket parse result`);
   if (!ticket) return false;
 
   if (!isValidTxid(ticket.txid)) {
@@ -37,6 +39,8 @@ async function tryHandleDepositTicket(
   }
 
   const lookupPrompt = buildTicketLookupPrompt(ticket);
+  logger.info({ chatId, orderId: ticket.orderId, txid: ticket.txid },
+    `${logLabel}: calling orchestrator for deposit ticket lookup`);
   try {
     const answer = await handler({
       channelId: chatId,
@@ -158,13 +162,20 @@ export class TelegramChannelAdapter implements ChannelAdapter {
 
     // Catch-all middleware: logs EVERY raw update for debugging
     this.bot.use(async (ctx, next) => {
+      const msg = (ctx.update as unknown as Record<string, unknown>).message as Record<string, unknown> | undefined;
+      const from = msg?.from as Record<string, unknown> | undefined;
       logger.info(
         {
           updateType: ctx.updateType,
           chatId: ctx.chat?.id,
           chatType: ctx.chat?.type,
-          hasMessage: "message" in ctx.update,
-          hasChannelPost: "channel_post" in ctx.update,
+          fromId: from?.id,
+          fromUsername: from?.username,
+          fromIsBot: from?.is_bot,
+          hasText: !!(msg?.text),
+          hasPhoto: !!(msg?.photo),
+          hasDocument: !!(msg?.document),
+          hasCaption: !!(msg?.caption),
         },
         "RAW Telegram update received"
       );
@@ -187,12 +198,21 @@ export class TelegramChannelAdapter implements ChannelAdapter {
     ): Promise<boolean> => {
       if (chatType === "private" || !text) return false;
 
+      logger.info({ chatId, chatType, fromUsername, senderChatUsername, viaBotUsername, text: text.slice(0, 60) },
+        `checkPartnerBot [${eventType}]: evaluating`);
+
       // Method 1: Username-based detection
       const partnerUsername = [fromUsername, senderChatUsername, viaBotUsername]
         .find(u => u && isPartnerBot(chatId, "telegram", u)) || "";
 
+      logger.info({ chatId, partnerUsername: partnerUsername || "(none)", fromUsername },
+        `checkPartnerBot [${eventType}]: username match result`);
+
       // Method 2: Content-based fallback
       const isPartnerChannel = !partnerUsername && hasPartnerBots(chatId, "telegram");
+
+      logger.info({ chatId, isPartnerChannel, hasPartnerBots: hasPartnerBots(chatId, "telegram") },
+        `checkPartnerBot [${eventType}]: fallback check`);
 
       if (!partnerUsername && !isPartnerChannel) return false;
 
