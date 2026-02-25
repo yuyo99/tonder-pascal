@@ -306,97 +306,87 @@ async function fetchResolvedTodayIssues(): Promise<LinearIssue[]> {
   }));
 }
 
-// ── EOD Block Kit Formatter ──────────────────────────────────────────
+// ── EOD Block Kit Formatter (Team Checklist) ─────────────────────────
 
-function buildPendingSection(issues: LinearIssue[]): KnownBlock[] {
+function buildTeamChecklist(
+  pending: LinearIssue[],
+  resolved: LinearIssue[]
+): KnownBlock[] {
   const blocks: KnownBlock[] = [];
 
-  // Group by team
-  const byTeam = new Map<string, LinearIssue[]>();
-  for (const issue of issues) {
-    const list = byTeam.get(issue.teamName) || [];
+  // Group both lists by team
+  const pendingByTeam = new Map<string, LinearIssue[]>();
+  for (const issue of pending) {
+    const list = pendingByTeam.get(issue.teamName) || [];
     list.push(issue);
-    byTeam.set(issue.teamName, list);
+    pendingByTeam.set(issue.teamName, list);
+  }
+
+  const resolvedByTeam = new Map<string, LinearIssue[]>();
+  for (const issue of resolved) {
+    const list = resolvedByTeam.get(issue.teamName) || [];
+    list.push(issue);
+    resolvedByTeam.set(issue.teamName, list);
   }
 
   const teamOrder = ["Support", "Integrations"];
+
   for (const teamName of teamOrder) {
-    const teamIssues = byTeam.get(teamName);
-    if (!teamIssues || teamIssues.length === 0) continue;
+    const teamPending = pendingByTeam.get(teamName) || [];
+    const teamResolved = resolvedByTeam.get(teamName) || [];
+    if (teamPending.length === 0 && teamResolved.length === 0) continue;
 
     const display = TEAM_DISPLAY[teamName] || { icon: ":pushpin:", label: teamName };
 
+    // Team header with counts
+    const parts: string[] = [];
+    if (teamPending.length > 0) parts.push(`${teamPending.length} pending`);
+    if (teamResolved.length > 0) parts.push(`${teamResolved.length} resolved`);
+
     blocks.push({
-      type: "context",
-      elements: [
-        {
-          type: "mrkdwn",
-          text: `${display.icon} *${display.label}*`,
-        },
-      ],
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `${display.icon} *${display.label}* — ${parts.join(" · ")}`,
+      },
     });
 
-    // Group by priority (Urgent first)
-    const byPriority = new Map<number, LinearIssue[]>();
-    for (const issue of teamIssues) {
-      const list = byPriority.get(issue.priority) || [];
-      list.push(issue);
-      byPriority.set(issue.priority, list);
+    // Pending issues (sorted: priority asc, overdue days desc)
+    const sortedPending = [...teamPending].sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      return b.overdueDays - a.overdueDays;
+    });
+
+    const lines: string[] = [];
+
+    for (const issue of sortedPending) {
+      const prioEmoji = PRIORITY_DISPLAY[issue.priority]?.icon || ":white_circle:";
+      const assignee = issue.assigneeName || "Unassigned";
+      const overdueTag =
+        issue.overdueDays > 0
+          ? `:warning: ${issue.overdueDays}d overdue`
+          : "Due today";
+
+      lines.push(
+        `☐ ${prioEmoji} \`${issue.identifier}\` ${issue.title} · ${assignee} · ${issue.stateName} · ${overdueTag}`
+      );
     }
 
-    for (const prio of [1, 2]) {
-      const prioIssues = byPriority.get(prio);
-      if (!prioIssues || prioIssues.length === 0) continue;
-
-      const prioDisplay = PRIORITY_DISPLAY[prio] || { icon: ":white_circle:", label: "Other" };
-
-      blocks.push({
-        type: "context",
-        elements: [{ type: "mrkdwn", text: `${prioDisplay.icon} *${prioDisplay.label}*` }],
-      });
-
-      const lines: string[] = [];
-      for (const issue of prioIssues) {
-        const assignee = issue.assigneeName || "Unassigned";
-        const dueDateStr = formatDueDate(issue.dueDate);
-        const overdueTag =
-          issue.overdueDays > 0
-            ? `:warning: *${issue.overdueDays} day${issue.overdueDays !== 1 ? "s" : ""} overdue*`
-            : ":calendar: Due today";
-
-        lines.push(
-          `• <${issue.url}|${issue.identifier}> ${issue.title}\n` +
-            `   :bust_in_silhouette: ${assignee}  ·  :calendar: ${dueDateStr}  ·  ${overdueTag}`
-        );
-      }
-
-      blocks.push({
-        type: "section",
-        text: { type: "mrkdwn", text: lines.join("\n\n") },
-      });
+    // Resolved issues
+    for (const issue of teamResolved) {
+      const assignee = issue.assigneeName || "Unassigned";
+      lines.push(
+        `:white_check_mark: \`${issue.identifier}\` ${issue.title} · ${assignee} · _${issue.stateName}_`
+      );
     }
+
+    blocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: lines.join("\n") },
+    });
   }
 
   return blocks;
-}
-
-function buildResolvedSection(issues: LinearIssue[]): KnownBlock[] {
-  const lines: string[] = [];
-
-  for (const issue of issues) {
-    const assignee = issue.assigneeName || "Unassigned";
-    lines.push(
-      `• <${issue.url}|${issue.identifier}> ${issue.title}\n` +
-        `   :bust_in_silhouette: ${assignee}  ·  _${issue.stateName}_`
-    );
-  }
-
-  return [
-    {
-      type: "section",
-      text: { type: "mrkdwn", text: lines.join("\n\n") },
-    },
-  ];
 }
 
 function buildEodReviewBlocks(
@@ -420,42 +410,14 @@ function buildEodReviewBlocks(
     type: "section",
     text: {
       type: "mrkdwn",
-      text: `*${pending.length}* still pending  ·  *${resolved.length}* resolved today`,
+      text: `*${pending.length}* pending  ·  *${resolved.length}* resolved today`,
     },
   });
 
-  // Still Pending section
-  if (pending.length > 0) {
+  if (pending.length > 0 || resolved.length > 0) {
     blocks.push({ type: "divider" });
-    blocks.push({
-      type: "context",
-      elements: [
-        {
-          type: "mrkdwn",
-          text: `:hourglass_flowing_sand: *Still Pending* (${pending.length})`,
-        },
-      ],
-    });
-    blocks.push(...buildPendingSection(pending));
-  }
-
-  // Resolved Today section
-  if (resolved.length > 0) {
-    blocks.push({ type: "divider" });
-    blocks.push({
-      type: "context",
-      elements: [
-        {
-          type: "mrkdwn",
-          text: `:white_check_mark: *Resolved Today* (${resolved.length})`,
-        },
-      ],
-    });
-    blocks.push(...buildResolvedSection(resolved));
-  }
-
-  // All clear
-  if (pending.length === 0 && resolved.length === 0) {
+    blocks.push(...buildTeamChecklist(pending, resolved));
+  } else {
     blocks.push({ type: "divider" });
     blocks.push({
       type: "section",
