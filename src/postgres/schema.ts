@@ -131,6 +131,44 @@ UPDATE pascal_partner_bots
 SET username = 'bcgame_ticket_bot'
 WHERE LOWER(username) = 'bcgameticketbot';
 
+-- ═══ Ensure Telegram channels & partner bots exist ═══
+-- (seedDefaults only runs if table is empty; these migrations ensure entries exist regardless)
+
+INSERT INTO pascal_merchant_channels (label, channel_id, platform, business_ids)
+VALUES ('BCGAME', '-1002589749469', 'telegram', ARRAY[121])
+ON CONFLICT (platform, channel_id) DO NOTHING;
+
+INSERT INTO pascal_merchant_channels (label, channel_id, platform, business_ids)
+VALUES ('Tonder Production 2', '-1003575792934', 'telegram', ARRAY[91])
+ON CONFLICT (platform, channel_id) DO NOTHING;
+
+INSERT INTO pascal_partner_bots (channel_id, username, label)
+SELECT mc.id, 'bcgame_ticket_bot', 'BcgameTicketBot'
+FROM pascal_merchant_channels mc
+WHERE mc.channel_id = '-1002589749469' AND mc.platform = 'telegram'
+AND NOT EXISTS (
+  SELECT 1 FROM pascal_partner_bots pb
+  WHERE pb.channel_id = mc.id AND pb.username = 'bcgame_ticket_bot'
+);
+
+INSERT INTO pascal_partner_bots (channel_id, username, label)
+SELECT mc.id, 'bcgame_ticket_bot', 'BcgameTicketBot'
+FROM pascal_merchant_channels mc
+WHERE mc.channel_id = '-1003575792934' AND mc.platform = 'telegram'
+AND NOT EXISTS (
+  SELECT 1 FROM pascal_partner_bots pb
+  WHERE pb.channel_id = mc.id AND pb.username = 'bcgame_ticket_bot'
+);
+
+INSERT INTO pascal_partner_bots (channel_id, username, label)
+SELECT mc.id, 'tonder_operator', 'Tonder Operator (test)'
+FROM pascal_merchant_channels mc
+WHERE mc.channel_id = '-1003575792934' AND mc.platform = 'telegram'
+AND NOT EXISTS (
+  SELECT 1 FROM pascal_partner_bots pb
+  WHERE pb.channel_id = mc.id AND pb.username = 'tonder_operator'
+);
+
 -- ═══ Seed: Integration Knowledge Base Entries ═══
 ` +
 `

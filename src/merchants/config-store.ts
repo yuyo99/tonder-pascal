@@ -77,6 +77,18 @@ export async function loadConfigs(): Promise<void> {
         { count: newIndex.size, keys: Array.from(newIndex.keys()) },
         "Merchant channel index built from Postgres"
       );
+      // Log partner bot configs for diagnostics
+      const botsInfo = [...newIndex.entries()]
+        .filter(([, m]) => m.partnerBots && m.partnerBots.length > 0)
+        .map(([key, m]) => ({
+          key,
+          bots: m.partnerBots!.map((b) => b.username),
+        }));
+      if (botsInfo.length > 0) {
+        logger.info({ partnerBots: botsInfo }, "Partner bot configs loaded");
+      } else {
+        logger.warn("No partner bot configs found in any channel");
+      }
     }
   }
 }
