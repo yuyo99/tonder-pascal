@@ -338,52 +338,89 @@ function buildTeamChecklist(
 
     const display = TEAM_DISPLAY[teamName] || { icon: ":pushpin:", label: teamName };
 
-    // Team header with counts
+    // Team divider + header
+    blocks.push({ type: "divider" });
+
     const parts: string[] = [];
     if (teamPending.length > 0) parts.push(`${teamPending.length} pending`);
     if (teamResolved.length > 0) parts.push(`${teamResolved.length} resolved`);
 
     blocks.push({
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: `${display.icon} *${display.label}* — ${parts.join(" · ")}`,
-      },
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `${display.icon} *${display.label}* (${parts.join(" · ")})`,
+        },
+      ],
     });
 
-    // Pending issues (sorted: priority asc, overdue days desc)
+    // Pending issues — grouped by priority, sorted by overdue days desc
     const sortedPending = [...teamPending].sort((a, b) => {
       if (a.priority !== b.priority) return a.priority - b.priority;
       return b.overdueDays - a.overdueDays;
     });
 
-    const lines: string[] = [];
-
+    // Group by priority within team
+    const byPriority = new Map<number, LinearIssue[]>();
     for (const issue of sortedPending) {
-      const prioEmoji = PRIORITY_DISPLAY[issue.priority]?.icon || ":white_circle:";
-      const assignee = issue.assigneeName || "Unassigned";
-      const overdueTag =
-        issue.overdueDays > 0
-          ? `:warning: ${issue.overdueDays}d overdue`
-          : "Due today";
+      const list = byPriority.get(issue.priority) || [];
+      list.push(issue);
+      byPriority.set(issue.priority, list);
+    }
 
-      lines.push(
-        `☐ ${prioEmoji} \`${issue.identifier}\` ${issue.title} · ${assignee} · ${issue.stateName} · ${overdueTag}`
-      );
+    for (const prio of [1, 2]) {
+      const prioIssues = byPriority.get(prio);
+      if (!prioIssues || prioIssues.length === 0) continue;
+
+      const prioDisplay = PRIORITY_DISPLAY[prio] || { icon: ":white_circle:", label: "Other" };
+
+      blocks.push({
+        type: "context",
+        elements: [{ type: "mrkdwn", text: `${prioDisplay.icon} *${prioDisplay.label}*` }],
+      });
+
+      const lines: string[] = [];
+      for (const issue of prioIssues) {
+        const assignee = issue.assigneeName || "Unassigned";
+        const overdueTag =
+          issue.overdueDays > 0
+            ? `:warning: *${issue.overdueDays}d overdue*`
+            : ":calendar: Due today";
+
+        lines.push(
+          `☐ <${issue.url}|${issue.identifier}> ${issue.title}\n` +
+            `     :bust_in_silhouette: ${assignee}  ·  ${issue.stateName}  ·  ${overdueTag}`
+        );
+      }
+
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: lines.join("\n\n") },
+      });
     }
 
     // Resolved issues
-    for (const issue of teamResolved) {
-      const assignee = issue.assigneeName || "Unassigned";
-      lines.push(
-        `:white_check_mark: \`${issue.identifier}\` ${issue.title} · ${assignee} · _${issue.stateName}_`
-      );
-    }
+    if (teamResolved.length > 0) {
+      blocks.push({
+        type: "context",
+        elements: [{ type: "mrkdwn", text: `:white_check_mark: *Resolved today*` }],
+      });
 
-    blocks.push({
-      type: "section",
-      text: { type: "mrkdwn", text: lines.join("\n") },
-    });
+      const resolvedLines: string[] = [];
+      for (const issue of teamResolved) {
+        const assignee = issue.assigneeName || "Unassigned";
+        resolvedLines.push(
+          `~<${issue.url}|${issue.identifier}>~ ${issue.title}\n` +
+            `     :bust_in_silhouette: ${assignee}  ·  _${issue.stateName}_`
+        );
+      }
+
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: resolvedLines.join("\n\n") },
+      });
+    }
   }
 
   return blocks;
@@ -402,20 +439,22 @@ function buildEodReviewBlocks(
     text: {
       type: "plain_text",
       text: `:clipboard: Linear EOD Review — ${displayDate}`,
+      emoji: true,
     },
   });
 
-  // Summary
+  // Summary with status icons
   blocks.push({
     type: "section",
     text: {
       type: "mrkdwn",
-      text: `*${pending.length}* pending  ·  *${resolved.length}* resolved today`,
+      text:
+        `:hourglass_flowing_sand: *${pending.length}* still pending  ·  ` +
+        `:white_check_mark: *${resolved.length}* resolved today`,
     },
   });
 
   if (pending.length > 0 || resolved.length > 0) {
-    blocks.push({ type: "divider" });
     blocks.push(...buildTeamChecklist(pending, resolved));
   } else {
     blocks.push({ type: "divider" });
@@ -423,10 +462,28 @@ function buildEodReviewBlocks(
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `:white_check_mark: No urgent/high tickets pending or resolved today. All clear!`,
+        text: `:tada: No urgent/high tickets pending or resolved today. All clear!`,
       },
     });
   }
+
+  // Footer with timestamp
+  const timeStr = new Date().toLocaleString("en-US", {
+    timeZone: "America/Mexico_City",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  blocks.push({ type: "divider" });
+  blocks.push({
+    type: "context",
+    elements: [
+      {
+        type: "mrkdwn",
+        text: `Urgent & High priority tickets from Support & Integrations  ·  ${timeStr} CST`,
+      },
+    ],
+  });
 
   return blocks;
 }
