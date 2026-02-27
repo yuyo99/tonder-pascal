@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
-    "@linear/sdk": "^25.0.0",
+    "@linear/sdk": "^76.0.0",
     "@slack/bolt": "^4.1.0",
     "dotenv": "^16.4.7",
     "mongodb": "^6.12.0",

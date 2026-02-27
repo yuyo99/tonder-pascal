@@ -30,13 +30,14 @@ interface LinearIssue {
   title: string;
   priority: number;
   priorityLabel: string;
-  dueDate: string; // "YYYY-MM-DD"
+  dueDate: string | null; // "YYYY-MM-DD" or null
+  hasDueDate: boolean;
   stateName: string;
   assigneeName: string | null;
   url: string;
   labels: string[];
   teamName: string;
-  overdueDays: number; // 0 = due today, >0 = overdue
+  overdueDays: number; // 0 = due today or no due date, >0 = overdue
 }
 
 // ── GraphQL ──────────────────────────────────────────────────────────
@@ -85,6 +86,23 @@ function daysBetween(dateStr: string, todayStr: string): number {
   return Math.round((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+function pushChunkedSections(blocks: KnownBlock[], lines: string[], maxChars = 2900): void {
+  let chunk: string[] = [];
+  let len = 0;
+  for (const line of lines) {
+    if (len + line.length + 2 > maxChars && chunk.length > 0) {
+      blocks.push({ type: "section", text: { type: "mrkdwn", text: chunk.join("\n\n") } });
+      chunk = [];
+      len = 0;
+    }
+    chunk.push(line);
+    len += line.length + 2;
+  }
+  if (chunk.length > 0) {
+    blocks.push({ type: "section", text: { type: "mrkdwn", text: chunk.join("\n\n") } });
+  }
+}
+
 function formatDueDate(dateStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number);
   const date = new Date(y, m - 1, d);
@@ -108,7 +126,6 @@ async function fetchOverdueLinearIssues(): Promise<LinearIssue[]> {
         id: { in: [TEAM_IDS.support, TEAM_IDS.integrations] },
       },
       priority: { in: [1, 2] },
-      dueDate: { lte: today },
       state: {
         type: { nin: ["completed", "canceled"] },
       },
@@ -122,13 +139,14 @@ async function fetchOverdueLinearIssues(): Promise<LinearIssue[]> {
     title: n.title,
     priority: n.priority,
     priorityLabel: n.priorityLabel,
-    dueDate: n.dueDate,
+    dueDate: n.dueDate || null,
+    hasDueDate: !!n.dueDate,
     stateName: n.state.name,
     assigneeName: n.assignee?.name || null,
     url: n.url,
     labels: (n.labels?.nodes || []).map((l: any) => l.name),
     teamName: n.team.name,
-    overdueDays: daysBetween(n.dueDate, today),
+    overdueDays: n.dueDate ? daysBetween(n.dueDate, today) : 0,
   }));
 }
 
@@ -206,22 +224,25 @@ function buildBlocks(issues: LinearIssue[], displayDate: string): KnownBlock[] {
       const lines: string[] = [];
       for (const issue of prioIssues) {
         const assignee = issue.assigneeName || "Unassigned";
-        const dueDateStr = formatDueDate(issue.dueDate);
-        const overdueTag =
-          issue.overdueDays > 0
-            ? `:warning: *${issue.overdueDays} day${issue.overdueDays !== 1 ? "s" : ""} overdue*`
-            : ":calendar: Due today";
+        let duePart: string;
+        if (!issue.hasDueDate) {
+          duePart = `:spiral_calendar_pad: No due date`;
+        } else {
+          const dueDateStr = formatDueDate(issue.dueDate!);
+          const overdueTag =
+            issue.overdueDays > 0
+              ? `:warning: *${issue.overdueDays} day${issue.overdueDays !== 1 ? "s" : ""} overdue*`
+              : ":calendar: Due today";
+          duePart = `:calendar: ${dueDateStr}  ·  ${overdueTag}`;
+        }
 
         lines.push(
           `• <${issue.url}|${issue.identifier}> ${issue.title}\n` +
-            `   :bust_in_silhouette: ${assignee}  ·  :calendar: ${dueDateStr}  ·  ${overdueTag}`
+            `   :bust_in_silhouette: ${assignee}  ·  ${duePart}`
         );
       }
 
-      blocks.push({
-        type: "section",
-        text: { type: "mrkdwn", text: lines.join("\n\n") },
-      });
+      pushChunkedSections(blocks, lines);
     }
   }
 
@@ -296,7 +317,8 @@ async function fetchResolvedTodayIssues(): Promise<LinearIssue[]> {
     title: n.title,
     priority: n.priority,
     priorityLabel: n.priorityLabel,
-    dueDate: n.dueDate || today,
+    dueDate: n.dueDate || null,
+    hasDueDate: !!n.dueDate,
     stateName: n.state.name,
     assigneeName: n.assignee?.name || null,
     url: n.url,
@@ -383,10 +405,14 @@ function buildTeamChecklist(
       const lines: string[] = [];
       for (const issue of prioIssues) {
         const assignee = issue.assigneeName || "Unassigned";
-        const overdueTag =
-          issue.overdueDays > 0
-            ? `:warning: *${issue.overdueDays}d overdue*`
-            : ":calendar: Due today";
+        let overdueTag: string;
+        if (!issue.hasDueDate) {
+          overdueTag = ":spiral_calendar_pad: No due date";
+        } else if (issue.overdueDays > 0) {
+          overdueTag = `:warning: *${issue.overdueDays}d overdue*`;
+        } else {
+          overdueTag = ":calendar: Due today";
+        }
 
         lines.push(
           `☐ <${issue.url}|${issue.identifier}> ${issue.title}\n` +
@@ -394,10 +420,7 @@ function buildTeamChecklist(
         );
       }
 
-      blocks.push({
-        type: "section",
-        text: { type: "mrkdwn", text: lines.join("\n\n") },
-      });
+      pushChunkedSections(blocks, lines);
     }
 
     // Resolved issues
@@ -416,10 +439,7 @@ function buildTeamChecklist(
         );
       }
 
-      blocks.push({
-        type: "section",
-        text: { type: "mrkdwn", text: resolvedLines.join("\n\n") },
-      });
+      pushChunkedSections(blocks, resolvedLines);
     }
   }
 
