@@ -9,7 +9,7 @@ import { logger } from "../utils/logger";
 const ALERT_CHANNEL = "C0743M91PCG";
 const ROBERTO_USER_ID = "U091BLCSUMC";
 const INT_TEAM_ID = "d2479bda-f447-4389-9ea2-5ed1038aec5f";
-const LABEL_NAME = "Account Creation PROD";
+const LABEL_NAME = "INT - Account Creation PROD";
 const FINANCE_CONSOLE_URL =
   "https://main.d1sqsry80rike8.amplifyapp.com/sign-in?redirect_url=https%3A%2F%2Fmain.d1sqsry80rike8.amplifyapp.com%2Ffinances%2Faccounts%3Fentity_type%3DBUSINESS";
 
