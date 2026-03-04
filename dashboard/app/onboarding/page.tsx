@@ -805,14 +805,110 @@ export default function OnboardingPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {sortedOnboardings.map((ob) => (
-            <OnboardingCard
-              key={ob.id}
-              onboarding={ob}
-              onClick={() => setSelectedId(ob.id)}
-            />
-          ))}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50/50">
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">Merchant</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">Status</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">Priority</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500 min-w-[160px]">Progress</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">Phase</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">Owner</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">Go-live</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-500">Age</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {sortedOnboardings.map((ob) => {
+                  const progress = calculateProgress(ob.phases);
+                  const currentPhase = getCurrentPhase(ob.phases);
+                  const age = daysBetween(ob.created_at);
+                  const isOverdue = ob.target_date && ob.status !== "completed" && new Date(ob.target_date) < new Date();
+                  const isCompleted = ob.status === "completed";
+
+                  return (
+                    <tr
+                      key={ob.id}
+                      onClick={() => setSelectedId(ob.id)}
+                      className={`hover:bg-gray-50/50 transition-colors cursor-pointer ${
+                        isOverdue ? "bg-red-50/30" : isCompleted ? "bg-emerald-50/20" : ""
+                      }`}
+                    >
+                      {/* Merchant */}
+                      <td className={`px-4 py-3 ${isOverdue ? "border-l-2 border-l-red-400" : ""}`}>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-gray-900 truncate max-w-[180px]">{ob.name}</span>
+                          <TypeBadge type={ob.type} />
+                          {ob.integration_model && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-indigo-50 text-indigo-700 shrink-0 whitespace-nowrap">
+                              {ob.integration_model}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-4 py-3">
+                        <StatusBadge status={ob.status} />
+                      </td>
+
+                      {/* Priority */}
+                      <td className="px-4 py-3">
+                        <PriorityBadge priority={ob.priority} />
+                      </td>
+
+                      {/* Progress */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden min-w-[60px]">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                progress.percentage === 100 ? "bg-emerald-500" : "bg-violet-500"
+                              }`}
+                              style={{ width: `${progress.percentage}%` }}
+                            />
+                          </div>
+                          <span className={`text-xs font-medium tabular-nums w-8 text-right ${
+                            progress.percentage === 100 ? "text-emerald-600" : "text-gray-600"
+                          }`}>
+                            {progress.percentage}%
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Phase */}
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-gray-600 whitespace-nowrap">{currentPhase.shortName}</span>
+                      </td>
+
+                      {/* Owner */}
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-gray-600 truncate block max-w-[120px]">{ob.owner || "—"}</span>
+                      </td>
+
+                      {/* Go-live */}
+                      <td className="px-4 py-3">
+                        {ob.target_date ? (
+                          <span className={`text-xs whitespace-nowrap ${isOverdue ? "text-red-600 font-medium" : "text-gray-600"}`}>
+                            {new Date(ob.target_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-300">—</span>
+                        )}
+                      </td>
+
+                      {/* Age */}
+                      <td className="px-4 py-3 text-right">
+                        <span className="text-xs text-gray-500 tabular-nums">{age}d</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -1029,73 +1125,6 @@ function FormModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function OnboardingCard({
-  onboarding,
-  onClick,
-}: {
-  onboarding: Onboarding;
-  onClick: () => void;
-}) {
-  const progress = calculateProgress(onboarding.phases);
-  const currentPhase = getCurrentPhase(onboarding.phases);
-  const age = daysBetween(onboarding.created_at);
-  const isOverdue = onboarding.target_date && onboarding.status !== "completed" && new Date(onboarding.target_date) < new Date();
-
-  return (
-    <div
-      onClick={onClick}
-      className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 cursor-pointer hover:border-violet-200 hover:shadow-md transition-all"
-    >
-      <div className="flex items-center justify-between mb-2.5">
-        <div className="flex items-center gap-2 flex-wrap">
-          <h3 className="text-sm font-semibold text-gray-900">{onboarding.name}</h3>
-          <TypeBadge type={onboarding.type} />
-          <PriorityBadge priority={onboarding.priority} />
-          <StatusBadge status={onboarding.status} />
-          {onboarding.integration_model && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-indigo-50 text-indigo-700">
-              {onboarding.integration_model}
-            </span>
-          )}
-        </div>
-        <span className="text-xs text-gray-400 whitespace-nowrap ml-2">
-          {currentPhase.shortName} &mdash; {currentPhase.name}
-        </span>
-      </div>
-
-      {/* Progress bar */}
-      <div className="flex items-center gap-3 mb-2">
-        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all ${
-              progress.percentage === 100 ? "bg-emerald-500" : "bg-violet-500"
-            }`}
-            style={{ width: `${progress.percentage}%` }}
-          />
-        </div>
-        <span className="text-xs font-semibold text-gray-600 w-10 text-right">
-          {progress.percentage}%
-        </span>
-      </div>
-
-      {/* Meta row */}
-      <div className="flex items-center gap-3 text-[11px] text-gray-400 flex-wrap">
-        {onboarding.owner && <span>{onboarding.owner}</span>}
-        <span>{progress.completed}/{progress.total} items</span>
-        <span>{age}d old</span>
-        {onboarding.target_date && (
-          <span className={isOverdue ? "text-red-500 font-medium" : ""}>
-            {isOverdue
-              ? `Overdue ${new Date(onboarding.target_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
-              : `Go-live: ${new Date(onboarding.target_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
-          </span>
-        )}
-        {onboarding.contact_name && <span>{onboarding.contact_name}</span>}
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import { logger } from "../utils/logger";
 const ALERT_CHANNEL = "C0743M91PCG";
 const ROBERTO_USER_ID = "U091BLCSUMC";
 const INT_TEAM_ID = "d2479bda-f447-4389-9ea2-5ed1038aec5f";
+const FINOPS_TEAM_ID = "f3175c22-9085-4d04-b0d0-f95e2e678cdd";
 const LABEL_NAME = "INT - Account Creation PROD";
 const FINANCE_CONSOLE_URL =
   "https://main.d1sqsry80rike8.amplifyapp.com/sign-in?redirect_url=https%3A%2F%2Fmain.d1sqsry80rike8.amplifyapp.com%2Ffinances%2Faccounts%3Fentity_type%3DBUSINESS";
@@ -16,6 +17,11 @@ const FINANCE_CONSOLE_URL =
 // ── Dedup Tracker ────────────────────────────────────────────────────
 
 const alertedIssueIds = new Set<string>();
+
+// ── Cached FinOps IDs (resolved once) ────────────────────────────────
+
+let cachedFinOpsTriageStateId: string | null = null;
+let cachedRobertoUserId: string | null = null;
 
 // ── GraphQL ──────────────────────────────────────────────────────────
 
@@ -90,6 +96,91 @@ async function fetchAccountCreationIssues(): Promise<LabelIssue[]> {
   }));
 }
 
+// ── FinOps Ticket Creation ─────────────────────────────────────────
+
+async function resolveFinOpsIds(client: LinearClient): Promise<void> {
+  if (cachedFinOpsTriageStateId && cachedRobertoUserId) return;
+
+  // Resolve FinOps Triage state
+  if (!cachedFinOpsTriageStateId) {
+    const statesResult = await client.client.rawRequest(
+      `query($teamId: String!) { team(id: $teamId) { states { nodes { id name } } } }`,
+      { teamId: FINOPS_TEAM_ID },
+    );
+    const stateNodes = (statesResult as any).data.team.states.nodes as Array<{
+      id: string;
+      name: string;
+    }>;
+    const triage = stateNodes.find((s) => s.name === "Triage");
+    cachedFinOpsTriageStateId = triage?.id || null;
+    logger.debug({ triageStateId: cachedFinOpsTriageStateId }, "FinOps Triage state resolved");
+  }
+
+  // Resolve Roberto's Linear user ID
+  if (!cachedRobertoUserId) {
+    const usersResult = await client.client.rawRequest(
+      `query { users { nodes { id name } } }`,
+    );
+    const userNodes = (usersResult as any).data.users.nodes as Array<{
+      id: string;
+      name: string;
+    }>;
+    const roberto = userNodes.find((u) =>
+      u.name.toLowerCase().includes("roberto"),
+    );
+    cachedRobertoUserId = roberto?.id || null;
+    logger.debug({ robertoUserId: cachedRobertoUserId }, "Roberto user ID resolved");
+  }
+}
+
+async function createFinOpsTicket(
+  issue: LabelIssue,
+): Promise<{ identifier: string; url: string }> {
+  const client = new LinearClient({ apiKey: config.linear.apiKey! });
+  await resolveFinOpsIds(client);
+
+  const description = [
+    `## Account Configuration for ${issue.identifier}`,
+    "",
+    `**Source ticket:** [${issue.identifier}](${issue.url})`,
+    `**Project:** ${issue.projectName || "N/A"}`,
+    "",
+    "### Accounts",
+    "- [ ] Business Payable",
+    "- [ ] Business Settlement Pending",
+    "- [ ] Reserve Payable",
+    "- [ ] Payouts (if applicable)",
+    "",
+    "### Fees",
+    "- [ ] IN fees per method (merchants SLA)",
+    "- [ ] OUT fees per method (merchants SLA)",
+    "",
+    "---",
+    `Configure in [Finance Console](${FINANCE_CONSOLE_URL})`,
+  ].join("\n");
+
+  const issuePayload = await client.createIssue({
+    teamId: FINOPS_TEAM_ID,
+    title: `[Account Config] ${issue.identifier} — ${issue.title}`,
+    description,
+    priority: 2, // High
+    stateId: cachedFinOpsTriageStateId || undefined,
+    assigneeId: cachedRobertoUserId || undefined,
+  });
+
+  const created = await issuePayload.issue;
+  if (!created) {
+    throw new Error("Failed to create FinOps ticket in Linear");
+  }
+
+  logger.info(
+    { finOpsTicket: created.identifier, sourceIssue: issue.identifier },
+    "FinOps account configuration ticket created",
+  );
+
+  return { identifier: created.identifier, url: created.url };
+}
+
 // ── Block Kit Builder ────────────────────────────────────────────────
 
 function buildAlertBlocks(issue: LabelIssue): KnownBlock[] {
@@ -151,20 +242,35 @@ export async function sendAccountCreationAlert(slackClient: WebClient): Promise<
       text: `Account Creation PROD: ${issue.identifier} — ${issue.title}`,
     });
 
-    // Reply in thread
+    // Reply in thread: confirmation
     if (msg.ts) {
       await slackClient.chat.postMessage({
         channel: ALERT_CHANNEL,
         thread_ts: msg.ts,
         text: ":white_check_mark: Alert sent. Please confirm in this thread once accounts and fees are configured.",
       });
+
+      // Create FinOps ticket and post link in thread
+      try {
+        const finOpsTicket = await createFinOpsTicket(issue);
+        await slackClient.chat.postMessage({
+          channel: ALERT_CHANNEL,
+          thread_ts: msg.ts,
+          text: `:clipboard: FinOps ticket created: <${finOpsTicket.url}|${finOpsTicket.identifier}>`,
+        });
+      } catch (err) {
+        logger.error(
+          { err, issue: issue.identifier },
+          "Failed to create FinOps ticket — Slack alert still sent",
+        );
+      }
     }
 
     alertedIssueIds.add(issue.id);
 
     logger.info(
       { issue: issue.identifier, channel: ALERT_CHANNEL },
-      "Account Creation PROD alert sent"
+      "Account Creation PROD alert sent",
     );
   }
 }
