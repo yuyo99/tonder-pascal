@@ -6,6 +6,8 @@ import {
   ONBOARDING_PHASES,
   PRIORITY_OPTIONS,
   INTEGRATION_MODELS,
+  INTEGRATION_TYPES,
+  FEATURES,
   calculateProgress,
   getCurrentPhase,
   getPhaseStatus,
@@ -34,6 +36,8 @@ interface Onboarding {
   merchant_channel_id: number | null;
   merchant_channel_label: string | null;
   integration_model: string;
+  integration_types: string[];
+  features: string[];
   created_at: string;
   updated_at: string;
 }
@@ -78,6 +82,8 @@ const emptyForm = {
   contact_phone: "",
   merchant_channel_id: null as number | null,
   integration_model: "",
+  integration_types: [] as string[],
+  features: [] as string[],
 };
 
 type FormData = typeof emptyForm;
@@ -232,6 +238,8 @@ export default function OnboardingPage() {
       contact_phone: ob.contact_phone || "",
       merchant_channel_id: ob.merchant_channel_id,
       integration_model: ob.integration_model || "",
+      integration_types: ob.integration_types || [],
+      features: ob.features || [],
     });
     setShowModal(true);
   }
@@ -493,6 +501,21 @@ export default function OnboardingPage() {
                   </span>
                 )}
               </div>
+              {/* Integration Types + Features chips */}
+              {((detail.integration_types?.length ?? 0) > 0 || (detail.features?.length ?? 0) > 0) && (
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                  {detail.integration_types?.map((t) => (
+                    <span key={t} className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-violet-50 text-violet-600">
+                      {t}
+                    </span>
+                  ))}
+                  {detail.features?.map((f) => (
+                    <span key={f} className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-emerald-50 text-emerald-600">
+                      {f}
+                    </span>
+                  ))}
+                </div>
+              )}
               <div className="flex items-center gap-3 mt-1 text-sm text-gray-400 flex-wrap">
                 {detail.owner && <span>Owner: {detail.owner}</span>}
                 <span>{age} days old</span>
@@ -1105,6 +1128,64 @@ function FormModal({
                     <option key={m.id} value={m.id}>{m.label}</option>
                   ))}
                 </select>
+              </div>
+            </div>
+
+            {/* ── Integration Types (multi-select chips) ── */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-2">Integration Types</label>
+              <div className="flex flex-wrap gap-2">
+                {INTEGRATION_TYPES.map((t) => {
+                  const selected = form.integration_types.includes(t);
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => {
+                        const next = selected
+                          ? form.integration_types.filter((x) => x !== t)
+                          : [...form.integration_types, t];
+                        setForm({ ...form, integration_types: next });
+                      }}
+                      className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
+                        selected
+                          ? "bg-violet-100 border-violet-300 text-violet-700 font-medium"
+                          : "bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700"
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── Features (multi-select chips) ── */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-2">Features</label>
+              <div className="flex flex-wrap gap-2">
+                {FEATURES.map((f) => {
+                  const selected = form.features.includes(f);
+                  return (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => {
+                        const next = selected
+                          ? form.features.filter((x) => x !== f)
+                          : [...form.features, f];
+                        setForm({ ...form, features: next });
+                      }}
+                      className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
+                        selected
+                          ? "bg-emerald-100 border-emerald-300 text-emerald-700 font-medium"
+                          : "bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700"
+                      }`}
+                    >
+                      {f}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

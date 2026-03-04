@@ -56,6 +56,23 @@ export const INTEGRATION_MODELS = [
   "Full Stack",
 ] as const;
 
+export const INTEGRATION_TYPES = [
+  "Cards (Pay-in)",
+  "APMs (Pay-in)",
+  "Withdrawals (Payout)",
+  "Tokenization",
+] as const;
+
+export const FEATURES = [
+  "Guardian (Anti-fraud)",
+  "3D Secure",
+  "Webhooks",
+  "Recurring / Subscriptions",
+  "Payment Links",
+  "White Label Checkout",
+  "Multi-currency",
+] as const;
+
 /* ─── Phase Definitions ─── */
 
 export const ONBOARDING_PHASES: PhaseDefinition[] = [

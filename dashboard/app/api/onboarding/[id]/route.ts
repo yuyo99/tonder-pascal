@@ -51,6 +51,14 @@ export async function PUT(
       }
     }
 
+    // Array fields (integration_types, features)
+    for (const field of ["integration_types", "features"]) {
+      if (body[field] !== undefined) {
+        sets.push(`${field} = $${idx++}`);
+        values.push(body[field] || []);
+      }
+    }
+
     // Nullable fields (target_date, merchant_channel_id)
     if (body.target_date !== undefined) {
       sets.push(`target_date = $${idx++}`);

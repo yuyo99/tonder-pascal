@@ -60,7 +60,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { name, type, owner, notes, priority, target_date,
             contact_name, contact_email, contact_phone,
-            merchant_channel_id, integration_model } = body;
+            merchant_channel_id, integration_model,
+            integration_types, features } = body;
 
     if (!name?.trim()) {
       return NextResponse.json(
@@ -72,8 +73,9 @@ export async function POST(req: NextRequest) {
     const result = await query(
       `INSERT INTO pascal_onboardings
        (name, type, owner, notes, phases, status, priority, target_date,
-        contact_name, contact_email, contact_phone, merchant_channel_id, integration_model)
-       VALUES ($1, $2, $3, $4, '{}', 'not_started', $5, $6, $7, $8, $9, $10, $11)
+        contact_name, contact_email, contact_phone, merchant_channel_id, integration_model,
+        integration_types, features)
+       VALUES ($1, $2, $3, $4, '{}', 'not_started', $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         name.trim(),
@@ -87,6 +89,8 @@ export async function POST(req: NextRequest) {
         contact_phone || "",
         merchant_channel_id || null,
         integration_model || "",
+        integration_types || [],
+        features || [],
       ]
     );
 
