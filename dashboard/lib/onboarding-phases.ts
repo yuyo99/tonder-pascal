@@ -57,20 +57,19 @@ export const INTEGRATION_MODELS = [
 ] as const;
 
 export const INTEGRATION_TYPES = [
-  "Cards (Pay-in)",
-  "APMs (Pay-in)",
-  "Withdrawals (Payout)",
-  "Tokenization",
+  "Cards (Pay-ins)",
+  "Withdrawals (Pay-out)",
 ] as const;
 
 export const FEATURES = [
   "Guardian (Anti-fraud)",
   "3D Secure",
   "Webhooks",
-  "Recurring / Subscriptions",
   "Payment Links",
-  "White Label Checkout",
-  "Multi-currency",
+  "SPEI",
+  "OXXO Pay",
+  "Safety Pay",
+  "Raw Card Data",
 ] as const;
 
 /* ─── Phase Definitions ─── */
