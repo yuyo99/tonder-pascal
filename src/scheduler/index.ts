@@ -3,6 +3,7 @@ import { WebClient } from "@slack/web-api";
 import { pgQuery } from "../postgres/connection";
 import { sendDailyReport } from "./daily-report";
 import { sendLinearOverdueAlert, sendLinearEodReview } from "./linear-alert";
+import { sendAccountCreationAlert } from "./linear-label-alert";
 import { onConfigChange } from "../merchants/config-store";
 import { logger } from "../utils/logger";
 import { storeErrorFromCatch } from "../utils/error-store";
@@ -33,6 +34,7 @@ const runningTasks = new Map<string, { task: ScheduledTask; config: ReportConfig
 // Hardcoded system alerts
 let linearAlertTask: ScheduledTask | null = null;
 let linearEodTask: ScheduledTask | null = null;
+let accountCreationTask: ScheduledTask | null = null;
 let slackClientRef: WebClient | null = null;
 
 /**
@@ -184,6 +186,21 @@ export function initScheduler(slackClient: WebClient): void {
   );
   logger.info("Linear EOD review scheduled (daily 4:59 PM Mexico City)");
 
+  // Account Creation PROD label alert — every 30 min, 8am-8pm Mon-Fri
+  accountCreationTask = cron.schedule(
+    "*/30 8-20 * * 1-5",
+    async () => {
+      try {
+        await sendAccountCreationAlert(slackClient);
+      } catch (err) {
+        logger.error({ err }, "Account creation alert failed");
+        storeErrorFromCatch("scheduler", err, { action: "account_creation_alert" });
+      }
+    },
+    { timezone: "America/Mexico_City" }
+  );
+  logger.info("Account Creation PROD alert scheduled (every 30 min, 8am-8pm Mon-Fri)");
+
   logger.info("Scheduler initialized — syncing scheduled reports from Postgres");
 }
 
@@ -203,6 +220,10 @@ export function stopScheduler(): void {
   if (linearEodTask) {
     linearEodTask.stop();
     linearEodTask = null;
+  }
+  if (accountCreationTask) {
+    accountCreationTask.stop();
+    accountCreationTask = null;
   }
   slackClientRef = null;
   logger.info("Scheduler stopped");

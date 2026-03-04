@@ -73,21 +73,6 @@ function IconOnboarding({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
-function IconIntegrations({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M16 3h5v5" />
-      <line x1="21" y1="3" x2="14" y2="10" />
-      <path d="M8 21H3v-5" />
-      <line x1="3" y1="21" x2="10" y2="14" />
-      <path d="M21 16v5h-5" />
-      <line x1="21" y1="21" x2="14" y2="14" />
-      <path d="M3 8V3h5" />
-      <line x1="3" y1="3" x2="10" y2="10" />
-    </svg>
-  );
-}
-
 function IconMonitoring({ className = "w-5 h-5" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -199,7 +184,6 @@ const AGENT_ITEMS: NavItem[] = [
 
 const ADMIN_ITEMS: NavItem[] = [
   { label: "Onboarding", href: "/onboarding", icon: IconOnboarding },
-  { label: "Integrations", href: "/integrations", icon: IconIntegrations },
 ];
 
 /* ─── Sidebar Component ─── */
