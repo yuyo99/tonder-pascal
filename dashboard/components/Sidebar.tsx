@@ -107,18 +107,18 @@ function IconHamburger({ className = "w-5 h-5" }: { className?: string }) {
 
 function PascalLogo({ collapsed }: { collapsed: boolean }) {
   if (collapsed) {
-    // Minimal: dark circle with two violet glowing eyes
+    // Minimal: light circle with two violet glowing eyes
     return (
       <svg viewBox="0 0 32 32" className="h-8 w-8 shrink-0">
-        <circle cx="16" cy="16" r="15" fill="#1e1b4b" stroke="#312e81" strokeWidth="0.5" />
+        <circle cx="16" cy="16" r="15" fill="#f5f3ff" stroke="#ddd6fe" strokeWidth="0.5" />
         {/* Left eye */}
-        <ellipse cx="11" cy="16" rx="3.5" ry="3" fill="#6d28d9" opacity="0.4" />
-        <ellipse cx="11" cy="16" rx="2.5" ry="2" fill="#8b5cf6" />
-        <ellipse cx="11" cy="15.5" rx="1" ry="0.75" fill="#ede9fe" />
+        <ellipse cx="11" cy="16" rx="3.5" ry="3" fill="#7c3aed" opacity="0.25" />
+        <ellipse cx="11" cy="16" rx="2.5" ry="2" fill="#7c3aed" />
+        <ellipse cx="11" cy="15.5" rx="1" ry="0.75" fill="#ffffff" />
         {/* Right eye */}
-        <ellipse cx="21" cy="16" rx="3.5" ry="3" fill="#6d28d9" opacity="0.4" />
-        <ellipse cx="21" cy="16" rx="2.5" ry="2" fill="#8b5cf6" />
-        <ellipse cx="21" cy="15.5" rx="1" ry="0.75" fill="#ede9fe" />
+        <ellipse cx="21" cy="16" rx="3.5" ry="3" fill="#7c3aed" opacity="0.25" />
+        <ellipse cx="21" cy="16" rx="2.5" ry="2" fill="#7c3aed" />
+        <ellipse cx="21" cy="15.5" rx="1" ry="0.75" fill="#ffffff" />
       </svg>
     );
   }
@@ -127,39 +127,39 @@ function PascalLogo({ collapsed }: { collapsed: boolean }) {
   return (
     <div className="flex items-center gap-2.5">
       <svg viewBox="0 0 120 120" className="h-8 w-8 shrink-0" fill="none">
-        <circle cx="60" cy="60" r="58" fill="#1e1b4b" />
-        <circle cx="60" cy="60" r="58" stroke="#312e81" strokeWidth="2" />
-        <rect x="30" y="32" width="60" height="56" rx="12" fill="#1e1b4b" stroke="#312e81" strokeWidth="1.5" />
-        <rect x="36" y="36" width="48" height="14" rx="4" fill="#0f0a2e" stroke="#312e81" strokeWidth="0.5" />
+        <circle cx="60" cy="60" r="58" fill="#f5f3ff" />
+        <circle cx="60" cy="60" r="58" stroke="#ddd6fe" strokeWidth="2" />
+        <rect x="30" y="32" width="60" height="56" rx="12" fill="#f5f3ff" stroke="#ddd6fe" strokeWidth="1.5" />
+        <rect x="36" y="36" width="48" height="14" rx="4" fill="#ede9fe" stroke="#ddd6fe" strokeWidth="0.5" />
         {/* Left eye */}
-        <ellipse cx="44" cy="62" rx="8" ry="7" fill="#6d28d9" opacity="0.3" />
-        <ellipse cx="44" cy="62" rx="6" ry="5.5" fill="#6d28d9" opacity="0.5" />
-        <ellipse cx="44" cy="62" rx="4" ry="3.5" fill="#8b5cf6" />
-        <ellipse cx="44" cy="61" rx="2" ry="1.5" fill="#ede9fe" />
+        <ellipse cx="44" cy="62" rx="8" ry="7" fill="#7c3aed" opacity="0.15" />
+        <ellipse cx="44" cy="62" rx="6" ry="5.5" fill="#7c3aed" opacity="0.3" />
+        <ellipse cx="44" cy="62" rx="4" ry="3.5" fill="#7c3aed" />
+        <ellipse cx="44" cy="61" rx="2" ry="1.5" fill="#ffffff" />
         {/* Right eye */}
-        <ellipse cx="76" cy="62" rx="8" ry="7" fill="#6d28d9" opacity="0.3" />
-        <ellipse cx="76" cy="62" rx="6" ry="5.5" fill="#6d28d9" opacity="0.5" />
-        <ellipse cx="76" cy="62" rx="4" ry="3.5" fill="#8b5cf6" />
-        <ellipse cx="76" cy="61" rx="2" ry="1.5" fill="#ede9fe" />
+        <ellipse cx="76" cy="62" rx="8" ry="7" fill="#7c3aed" opacity="0.15" />
+        <ellipse cx="76" cy="62" rx="6" ry="5.5" fill="#7c3aed" opacity="0.3" />
+        <ellipse cx="76" cy="62" rx="4" ry="3.5" fill="#7c3aed" />
+        <ellipse cx="76" cy="61" rx="2" ry="1.5" fill="#ffffff" />
         {/* Mouth grill */}
-        <rect x="42" y="74" width="36" height="8" rx="3" fill="#0f0a2e" stroke="#312e81" strokeWidth="0.5" />
-        <line x1="50" y1="74" x2="50" y2="82" stroke="#312e81" strokeWidth="0.5" />
-        <line x1="58" y1="74" x2="58" y2="82" stroke="#312e81" strokeWidth="0.5" />
-        <line x1="66" y1="74" x2="66" y2="82" stroke="#312e81" strokeWidth="0.5" />
-        <line x1="74" y1="74" x2="74" y2="82" stroke="#312e81" strokeWidth="0.5" />
+        <rect x="42" y="74" width="36" height="8" rx="3" fill="#ede9fe" stroke="#ddd6fe" strokeWidth="0.5" />
+        <line x1="50" y1="74" x2="50" y2="82" stroke="#ddd6fe" strokeWidth="0.5" />
+        <line x1="58" y1="74" x2="58" y2="82" stroke="#ddd6fe" strokeWidth="0.5" />
+        <line x1="66" y1="74" x2="66" y2="82" stroke="#ddd6fe" strokeWidth="0.5" />
+        <line x1="74" y1="74" x2="74" y2="82" stroke="#ddd6fe" strokeWidth="0.5" />
         {/* Antenna */}
-        <line x1="60" y1="32" x2="60" y2="20" stroke="#312e81" strokeWidth="2" />
-        <circle cx="60" cy="18" r="4" fill="#6d28d9" opacity="0.8" />
-        <circle cx="60" cy="18" r="2" fill="#8b5cf6" />
+        <line x1="60" y1="32" x2="60" y2="20" stroke="#ddd6fe" strokeWidth="2" />
+        <circle cx="60" cy="18" r="4" fill="#7c3aed" opacity="0.5" />
+        <circle cx="60" cy="18" r="2" fill="#7c3aed" />
         {/* Ear pieces */}
-        <rect x="22" y="52" width="8" height="20" rx="3" fill="#1e1b4b" stroke="#312e81" strokeWidth="1" />
-        <rect x="90" y="52" width="8" height="20" rx="3" fill="#1e1b4b" stroke="#312e81" strokeWidth="1" />
+        <rect x="22" y="52" width="8" height="20" rx="3" fill="#f5f3ff" stroke="#ddd6fe" strokeWidth="1" />
+        <rect x="90" y="52" width="8" height="20" rx="3" fill="#f5f3ff" stroke="#ddd6fe" strokeWidth="1" />
       </svg>
       <div className="flex flex-col">
-        <span className="text-lg font-semibold text-white leading-tight">
-          Pascal<span className="text-violet-400">.</span>
+        <span className="text-lg font-semibold text-gray-900 leading-tight">
+          Pascal<span className="text-violet-500">.</span>
         </span>
-        <span className="text-[10px] text-gray-500 font-medium">Merchant Operations</span>
+        <span className="text-[10px] text-gray-400 font-medium">Merchant Operations</span>
       </div>
     </div>
   );
@@ -212,14 +212,14 @@ export default function Sidebar() {
   const sidebarContent = (
     <div className="flex flex-col h-full">
       {/* Logo area */}
-      <div className={`flex items-center py-5 border-b border-white/[0.06] overflow-hidden ${collapsed ? "px-2 justify-center" : "px-4 justify-between"}`}>
+      <div className={`flex items-center py-5 border-b border-gray-100 overflow-hidden ${collapsed ? "px-2 justify-center" : "px-4 justify-between"}`}>
         <a href="/" className="flex items-center" onClick={collapsed ? (e) => { e.preventDefault(); toggleCollapsed(); } : undefined}>
           <PascalLogo collapsed={collapsed} />
         </a>
         {!collapsed && (
           <button
             onClick={toggleCollapsed}
-            className="hidden lg:flex items-center justify-center w-7 h-7 rounded-md text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-colors"
+            className="hidden lg:flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
             title="Collapse sidebar"
           >
             <IconCollapseLeft className="w-4 h-4" />
@@ -231,7 +231,7 @@ export default function Sidebar() {
       <nav className={`flex-1 py-4 overflow-y-auto overflow-x-hidden ${collapsed ? "px-1" : "px-3"}`}>
         {/* Agent section */}
         {!collapsed && (
-          <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-500">
+          <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
             Agent
           </p>
         )}
@@ -248,8 +248,8 @@ export default function Sidebar() {
                   collapsed ? "px-0 justify-center" : "px-3"
                 } ${
                   active
-                    ? "bg-white/[0.07] text-white before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-full before:bg-violet-400"
-                    : "text-gray-400 hover:bg-white/[0.04] hover:text-gray-200"
+                    ? "bg-violet-50 text-violet-700 before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-full before:bg-violet-500"
+                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
                 }`}
               >
                 <item.icon className="w-[18px] h-[18px] shrink-0" />
@@ -261,7 +261,7 @@ export default function Sidebar() {
 
         {/* Admin section */}
         {!collapsed && (
-          <p className="px-3 mt-5 mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-500">
+          <p className="px-3 mt-5 mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
             Admin
           </p>
         )}
@@ -279,8 +279,8 @@ export default function Sidebar() {
                   collapsed ? "px-0 justify-center" : "px-3"
                 } ${
                   active
-                    ? "bg-white/[0.07] text-white before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-full before:bg-violet-400"
-                    : "text-gray-400 hover:bg-white/[0.04] hover:text-gray-200"
+                    ? "bg-violet-50 text-violet-700 before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-full before:bg-violet-500"
+                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
                 }`}
               >
                 <item.icon className="w-[18px] h-[18px] shrink-0" />
@@ -292,19 +292,19 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t border-white/[0.06]">
+      <div className="px-4 py-3 border-t border-gray-100">
         {!collapsed ? (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <p className="text-[11px] text-gray-500">Tonder AI Agent</p>
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <p className="text-[11px] text-gray-400">Tonder AI Agent</p>
             </div>
             <button
               onClick={async () => {
                 await fetch("/api/auth/logout", { method: "POST" });
                 window.location.href = "/login";
               }}
-              className="text-gray-500 hover:text-gray-300 transition-colors p-1 rounded hover:bg-white/[0.06]"
+              className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded hover:bg-gray-100"
               title="Sign out"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -320,7 +320,7 @@ export default function Sidebar() {
               await fetch("/api/auth/logout", { method: "POST" });
               window.location.href = "/login";
             }}
-            className="w-full flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors p-1.5 rounded hover:bg-white/[0.06]"
+            className="w-full flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors p-1.5 rounded hover:bg-gray-100"
             title="Sign out"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -339,22 +339,22 @@ export default function Sidebar() {
       {/* Mobile hamburger */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-3 left-3 z-50 w-10 h-10 flex items-center justify-center rounded-lg bg-[#0f1629] shadow-lg border border-white/[0.08]"
+        className="lg:hidden fixed top-3 left-3 z-50 w-10 h-10 flex items-center justify-center rounded-lg bg-white shadow-lg border border-gray-200"
       >
-        <IconHamburger className="w-5 h-5 text-gray-300" />
+        <IconHamburger className="w-5 h-5 text-gray-600" />
       </button>
 
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
+          className="lg:hidden fixed inset-0 bg-black/40 z-40 backdrop-blur-sm"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       {/* Mobile sidebar */}
       <aside
-        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-[#0f1629] shadow-2xl transform transition-transform duration-300 ease-out ${
+        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 shadow-2xl transform transition-transform duration-300 ease-out ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -363,7 +363,7 @@ export default function Sidebar() {
 
       {/* Desktop sidebar */}
       <aside
-        className={`hidden lg:flex flex-col bg-[#0f1629] border-r border-white/[0.06] transition-all duration-200 ease-out shrink-0 overflow-hidden ${
+        className={`hidden lg:flex flex-col bg-white border-r border-gray-200 transition-all duration-200 ease-out shrink-0 overflow-hidden ${
           collapsed ? "w-[60px]" : "w-[240px]"
         }`}
       >
