@@ -193,7 +193,8 @@ const AGENT_ITEMS: NavItem[] = [
 ];
 
 const ADMIN_ITEMS: NavItem[] = [
-  { label: "Onboarding", href: "/onboarding", icon: IconOnboarding },
+  { label: "CS Onboarding", href: "/onboarding/cs", icon: IconOnboarding },
+  { label: "INT Onboarding", href: "/onboarding/int", icon: IconOnboarding },
 ];
 
 /* ─── Sidebar Component ─── */

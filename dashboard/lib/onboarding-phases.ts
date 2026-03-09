@@ -309,3 +309,70 @@ export function getOverallStatus(
   if (completed === total) return "completed";
   return "in_progress";
 }
+
+/* ─── Team-Scoped Utilities ─── */
+
+export type TeamKey = "cs" | "int";
+
+export const TEAM_PHASES: Record<TeamKey, string[]> = {
+  cs: ["phase_0", "phase_1", "phase_1_5"],
+  int: ["phase_2", "phase_3", "phase_4", "phase_4_5", "phase_5", "phase_6", "phase_7"],
+};
+
+export const TEAM_LABELS: Record<TeamKey, { name: string; description: string }> = {
+  cs: {
+    name: "CS Onboarding",
+    description: "Commercial, compliance & legal phases",
+  },
+  int: {
+    name: "INT Onboarding",
+    description: "Integration, certification & go-live phases",
+  },
+};
+
+/** Get only the phases that belong to a team */
+export function getTeamPhases(team: TeamKey): PhaseDefinition[] {
+  const ids = TEAM_PHASES[team];
+  return ONBOARDING_PHASES.filter((p) => ids.includes(p.id));
+}
+
+/** Calculate progress scoped to a team's phases */
+export function calculateProgressForTeam(
+  phases: PhasesState,
+  team: TeamKey
+): { completed: number; total: number; percentage: number } {
+  let completed = 0;
+  let total = 0;
+
+  for (const phase of getTeamPhases(team)) {
+    const phaseData = phases[phase.id] || {};
+    const effectiveItems = getEffectiveItems(phase, phaseData);
+    total += effectiveItems.length;
+    for (const item of effectiveItems) {
+      if (phaseData[item.id]?.checked) completed++;
+    }
+  }
+
+  return {
+    completed,
+    total,
+    percentage: total > 0 ? Math.round((completed / total) * 100) : 0,
+  };
+}
+
+/** Get the current phase (first incomplete) within a team's subset */
+export function getCurrentPhaseForTeam(
+  phases: PhasesState,
+  team: TeamKey
+): PhaseDefinition {
+  const teamPhases = getTeamPhases(team);
+  for (const phase of teamPhases) {
+    const phaseData = phases[phase.id] || {};
+    const effectiveItems = getEffectiveItems(phase, phaseData);
+    const allChecked =
+      effectiveItems.length > 0 &&
+      effectiveItems.every((item) => phaseData[item.id]?.checked);
+    if (!allChecked) return phase;
+  }
+  return teamPhases[teamPhases.length - 1];
+}
