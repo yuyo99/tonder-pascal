@@ -16,6 +16,12 @@ export async function connectMongo(): Promise<void> {
   await client.connect();
   db = client.db(config.mongodb.dbName);
   logger.info("MongoDB connected");
+
+  // Ensure indexes for bot collections
+  await db.collection("pascal-alerted-issues").createIndex(
+    { issueId: 1 },
+    { unique: true, background: true },
+  );
 }
 
 export function getDatabase(): Db {

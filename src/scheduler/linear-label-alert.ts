@@ -3,6 +3,7 @@ import { WebClient } from "@slack/web-api";
 import { KnownBlock } from "@slack/types";
 import { config } from "../config";
 import { logger } from "../utils/logger";
+import { getCollection } from "../mongodb/connection";
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -14,9 +15,24 @@ const LABEL_NAME = "INT - Account Creation PROD";
 const FINANCE_CONSOLE_URL =
   "https://main.d1sqsry80rike8.amplifyapp.com/sign-in?redirect_url=https%3A%2F%2Fmain.d1sqsry80rike8.amplifyapp.com%2Ffinances%2Faccounts%3Fentity_type%3DBUSINESS";
 
-// ── Dedup Tracker ────────────────────────────────────────────────────
+const DEDUP_COLLECTION = "pascal-alerted-issues";
 
-const alertedIssueIds = new Set<string>();
+// ── Dedup via MongoDB ───────────────────────────────────────────────
+
+async function getAlertedIds(): Promise<Set<string>> {
+  const col = getCollection(DEDUP_COLLECTION);
+  const docs = await col.find({}, { projection: { issueId: 1, _id: 0 } }).toArray();
+  return new Set(docs.map((d) => d.issueId as string));
+}
+
+async function markAlerted(issueIds: string[]): Promise<void> {
+  if (issueIds.length === 0) return;
+  const col = getCollection(DEDUP_COLLECTION);
+  await col.insertMany(
+    issueIds.map((id) => ({ issueId: id, alertedAt: new Date() })),
+    { ordered: false },
+  );
+}
 
 // ── Cached FinOps IDs (resolved once) ────────────────────────────────
 
@@ -33,11 +49,8 @@ const LABEL_ISSUES_QUERY = `
         identifier
         title
         url
-        dueDate
         assignee { name }
-        state { name }
         project { name }
-        labels { nodes { name } }
       }
     }
   }
@@ -50,18 +63,8 @@ interface LabelIssue {
   identifier: string;
   title: string;
   url: string;
-  dueDate: string | null;
   assigneeName: string | null;
-  stateName: string;
   projectName: string | null;
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────
-
-function formatDueDate(dateStr: string): string {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 // ── Data Fetcher ─────────────────────────────────────────────────────
@@ -89,9 +92,7 @@ async function fetchAccountCreationIssues(): Promise<LabelIssue[]> {
     identifier: n.identifier,
     title: n.title,
     url: n.url,
-    dueDate: n.dueDate || null,
     assigneeName: n.assignee?.name || null,
-    stateName: n.state.name,
     projectName: n.project?.name || null,
   }));
 }
@@ -101,7 +102,6 @@ async function fetchAccountCreationIssues(): Promise<LabelIssue[]> {
 async function resolveFinOpsIds(client: LinearClient): Promise<void> {
   if (cachedFinOpsTriageStateId && cachedRobertoUserId) return;
 
-  // Resolve FinOps Triage state
   if (!cachedFinOpsTriageStateId) {
     const statesResult = await client.client.rawRequest(
       `query($teamId: String!) { team(id: $teamId) { states { nodes { id name } } } }`,
@@ -113,10 +113,8 @@ async function resolveFinOpsIds(client: LinearClient): Promise<void> {
     }>;
     const triage = stateNodes.find((s) => s.name === "Triage");
     cachedFinOpsTriageStateId = triage?.id || null;
-    logger.debug({ triageStateId: cachedFinOpsTriageStateId }, "FinOps Triage state resolved");
   }
 
-  // Resolve Roberto's Linear user ID
   if (!cachedRobertoUserId) {
     const usersResult = await client.client.rawRequest(
       `query { users { nodes { id name } } }`,
@@ -129,7 +127,6 @@ async function resolveFinOpsIds(client: LinearClient): Promise<void> {
       u.name.toLowerCase().includes("roberto"),
     );
     cachedRobertoUserId = roberto?.id || null;
-    logger.debug({ robertoUserId: cachedRobertoUserId }, "Roberto user ID resolved");
   }
 }
 
@@ -163,60 +160,45 @@ async function createFinOpsTicket(
     teamId: FINOPS_TEAM_ID,
     title: `[Account Config] ${issue.identifier} — ${issue.title}`,
     description,
-    priority: 2, // High
+    priority: 2,
     stateId: cachedFinOpsTriageStateId || undefined,
     assigneeId: cachedRobertoUserId || undefined,
   });
 
   const created = await issuePayload.issue;
-  if (!created) {
-    throw new Error("Failed to create FinOps ticket in Linear");
-  }
+  if (!created) throw new Error("Failed to create FinOps ticket");
 
   logger.info(
     { finOpsTicket: created.identifier, sourceIssue: issue.identifier },
-    "FinOps account configuration ticket created",
+    "FinOps ticket created",
   );
 
   return { identifier: created.identifier, url: created.url };
 }
 
-// ── Block Kit Builder ────────────────────────────────────────────────
+// ── Single batched Slack message ─────────────────────────────────────
 
-function buildAlertBlocks(issue: LabelIssue): KnownBlock[] {
-  const contextParts: string[] = [];
-  if (issue.projectName) contextParts.push(`:file_folder: ${issue.projectName}`);
-  contextParts.push(`:bust_in_silhouette: ${issue.assigneeName || "Unassigned"}`);
-  if (issue.dueDate) {
-    contextParts.push(`:calendar: ${formatDueDate(issue.dueDate)}`);
-  } else {
-    contextParts.push(`:spiral_calendar_pad: No deadline`);
-  }
+function buildBatchBlocks(issues: LabelIssue[]): KnownBlock[] {
+  const issueLines = issues
+    .map((i) => `• <${i.url}|${i.identifier}> — ${i.title}`)
+    .join("\n");
 
   return [
     {
       type: "header",
-      text: { type: "plain_text", text: ":bank: Account Creation PROD", emoji: true },
+      text: { type: "plain_text", text: `:bank: Account Creation PROD (${issues.length} new)`, emoji: true },
     },
     {
       type: "section",
       text: {
         type: "mrkdwn",
-        text:
-          `<@${ROBERTO_USER_ID}> Please configure accounts and fees for the merchant below in *<${FINANCE_CONSOLE_URL}|Finance Console>*.`,
+        text: `<@${ROBERTO_USER_ID}> Configure accounts & fees in *<${FINANCE_CONSOLE_URL}|Finance Console>*:`,
       },
     },
     { type: "divider" },
     {
       type: "section",
-      text: {
-        type: "mrkdwn",
-        text: `:link: <${issue.url}|${issue.identifier}> · ${issue.title}`,
-      },
-    },
-    {
-      type: "context",
-      elements: [{ type: "mrkdwn", text: contextParts.join("  ·  ") }],
+      text: { type: "mrkdwn", text: issueLines },
     },
   ];
 }
@@ -225,52 +207,47 @@ function buildAlertBlocks(issue: LabelIssue): KnownBlock[] {
 
 export async function sendAccountCreationAlert(slackClient: WebClient): Promise<void> {
   const issues = await fetchAccountCreationIssues();
+  const alreadyAlerted = await getAlertedIds();
 
-  const newIssues = issues.filter((i) => !alertedIssueIds.has(i.id));
+  const newIssues = issues.filter((i) => !alreadyAlerted.has(i.id));
 
   if (newIssues.length === 0) {
-    logger.debug("No new Account Creation PROD issues — skipping alert");
+    logger.debug("No new Account Creation PROD issues");
     return;
   }
 
-  for (const issue of newIssues) {
-    const blocks = buildAlertBlocks(issue);
+  // One Slack message for all new issues
+  const blocks = buildBatchBlocks(newIssues);
+  const msg = await slackClient.chat.postMessage({
+    channel: ALERT_CHANNEL,
+    blocks,
+    text: `Account Creation PROD: ${newIssues.length} new issue(s)`,
+  });
 
-    const msg = await slackClient.chat.postMessage({
-      channel: ALERT_CHANNEL,
-      blocks,
-      text: `Account Creation PROD: ${issue.identifier} — ${issue.title}`,
-    });
-
-    // Reply in thread: confirmation
-    if (msg.ts) {
-      await slackClient.chat.postMessage({
-        channel: ALERT_CHANNEL,
-        thread_ts: msg.ts,
-        text: ":white_check_mark: Alert sent. Please confirm in this thread once accounts and fees are configured.",
-      });
-
-      // Create FinOps ticket and post link in thread
+  // Create FinOps tickets and list them in thread
+  if (msg.ts) {
+    const ticketLines: string[] = [];
+    for (const issue of newIssues) {
       try {
-        const finOpsTicket = await createFinOpsTicket(issue);
-        await slackClient.chat.postMessage({
-          channel: ALERT_CHANNEL,
-          thread_ts: msg.ts,
-          text: `:clipboard: FinOps ticket created: <${finOpsTicket.url}|${finOpsTicket.identifier}>`,
-        });
+        const ticket = await createFinOpsTicket(issue);
+        ticketLines.push(`• <${ticket.url}|${ticket.identifier}> → ${issue.identifier}`);
       } catch (err) {
-        logger.error(
-          { err, issue: issue.identifier },
-          "Failed to create FinOps ticket — Slack alert still sent",
-        );
+        logger.error({ err, issue: issue.identifier }, "Failed to create FinOps ticket");
+        ticketLines.push(`• ${issue.identifier} — _FinOps ticket failed_`);
       }
     }
-
-    alertedIssueIds.add(issue.id);
-
-    logger.info(
-      { issue: issue.identifier, channel: ALERT_CHANNEL },
-      "Account Creation PROD alert sent",
-    );
+    await slackClient.chat.postMessage({
+      channel: ALERT_CHANNEL,
+      thread_ts: msg.ts,
+      text: `:clipboard: FinOps tickets:\n${ticketLines.join("\n")}`,
+    });
   }
+
+  // Persist dedup to MongoDB
+  await markAlerted(newIssues.map((i) => i.id));
+
+  logger.info(
+    { count: newIssues.length, channel: ALERT_CHANNEL },
+    "Account Creation PROD alert sent",
+  );
 }
