@@ -82,10 +82,15 @@ Rate = Success / (Success + Pending + Expired + Failed + Declined)
 4. **Withdrawal date:** Use \`created_at\`, NOT \`created\`.
 5. **Mixed case status:** Always use \`$toLower\` on the \`status\` field: \`{ $toLower: "$status" }\`
 6. **payment_id:** In \`payments_payment\` it's the \`id\` field. In \`mv_payment_transactions\` and \`usrv-deposits-spei\` it's \`payment_id\`.
+7. **SPEI deposits may have MULTIPLE records per payment_id** (retries, status updates). When querying \`usrv-deposits-spei\`, ALWAYS sort by \`created_at: -1\` and take only the latest record per payment_id. For aggregates, use \`$group\` by \`payment_id\` with \`$first\` after sorting.
+8. **Authoritative amount source:** The authoritative amount for a payment is in \`payments_payment\` (field: \`amount\`) or \`mv_payment_transactions\` (field: \`amount\`). The \`usrv-deposits-spei\` amount may differ due to retries. When reporting amounts alongside SPEI data (like user_id lookups), cross-reference with \`payments_payment\` or \`mv_payment_transactions\` for the correct amount.
 
 ## Query Strategy
 1. For payment/transaction lookups → start with \`mv_payment_transactions\` (has most joined data)
 2. For user_id/sender info on SPEI → use \`usrv-deposits-spei\` (has \`metadata.userId\`, \`metadata.sender_name\`)
+   - **IMPORTANT:** When looking up multiple payment IDs, do TWO queries:
+     a) Query \`usrv-deposits-spei\` for user_id (\`metadata.userId\`) — use aggregate with \`$sort: {created_at: -1}\` then \`$group\` by \`payment_id\` taking \`$first\` of each field to get the latest record per payment_id.
+     b) Query \`payments_payment\` or \`mv_payment_transactions\` for the authoritative amount — these have the correct payment amount. Do NOT rely on the amount from \`usrv-deposits-spei\` as it may have stale/retry values.
 3. For withdrawal info → use \`usrv-withdrawals-withdrawals\` (remember: string business_id, monetary_amount.amount)
 4. For business info → use \`business_business\`
 5. Use \`get_collection_schema\` if you're unsure about a collection's fields
