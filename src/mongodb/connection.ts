@@ -17,11 +17,15 @@ export async function connectMongo(): Promise<void> {
   db = client.db(config.mongodb.dbName);
   logger.info("MongoDB connected");
 
-  // Ensure indexes for bot collections
-  await db.collection("pascal-alerted-issues").createIndex(
-    { issueId: 1 },
-    { unique: true, background: true },
-  );
+  // Ensure indexes for bot collections (non-fatal — read-only users may lack createIndex)
+  try {
+    await db.collection("pascal-alerted-issues").createIndex(
+      { issueId: 1 },
+      { unique: true, background: true },
+    );
+  } catch (err) {
+    logger.warn({ err }, "Could not create index on pascal-alerted-issues (may already exist or lack permissions)");
+  }
 }
 
 export function getDatabase(): Db {
