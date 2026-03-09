@@ -284,13 +284,12 @@ async function execGetSchema(input: Record<string, unknown>): Promise<string> {
     collectFields(doc, "", fieldSet);
   }
 
-  // Return fields + one sample doc (truncated)
-  const sample = JSON.parse(JSON.stringify(docs[0]));
+  // Return fields + one sample doc (sanitized)
   return JSON.stringify({
     collection: collName,
     documentCount: await col.estimatedDocumentCount(),
     fields: Array.from(fieldSet).sort(),
-    sampleDocument: sample,
+    sampleDocument: sanitizeBSON(docs[0]),
   });
 }
 
@@ -305,6 +304,34 @@ function collectFields(obj: Document, prefix: string, fields: Set<string>) {
       }
     }
   }
+}
+
+/* ─── Sanitize Decimal128 and other BSON types for clean JSON ─── */
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function sanitizeBSON(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeBSON);
+
+  // Convert Decimal128 → number
+  if (obj.$numberDecimal !== undefined) {
+    return parseFloat(obj.$numberDecimal);
+  }
+  // Convert ObjectId → string
+  if (obj._bsontype === "ObjectId" || obj.$oid) {
+    return obj.toString();
+  }
+  // Convert Date objects
+  if (obj instanceof Date) {
+    return obj.toISOString();
+  }
+  // Recurse into plain objects
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    result[key] = sanitizeBSON(value);
+  }
+  return result;
 }
 
 /* ─── query_mongodb ─── */
@@ -333,7 +360,7 @@ async function execQueryMongodb(input: Record<string, unknown>): Promise<string>
       operation: "find",
       collection: collName,
       count: docs.length,
-      results: docs,
+      results: docs.map(sanitizeBSON),
     });
   }
 
@@ -366,7 +393,7 @@ async function execQueryMongodb(input: Record<string, unknown>): Promise<string>
       operation: "aggregate",
       collection: collName,
       count: docs.length,
-      results: docs,
+      results: docs.map(sanitizeBSON),
     });
   }
 
