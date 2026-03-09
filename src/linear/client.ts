@@ -9,6 +9,7 @@ let linear: LinearClient | null = null;
 let cachedTeamId: string | null = null;
 let cachedTriageStateId: string | null = null;
 let cachedAssigneeId: string | null = null;
+const resolvedUserIds = new Map<string, string>(); // email → Linear user ID
 
 function getLinearClient(): LinearClient {
   if (!linear) {
@@ -133,6 +134,58 @@ export async function createSupportTicket(
   logger.info(
     { identifier: issue.identifier, merchant: params.merchantCtx.businessName },
     "Linear support ticket created"
+  );
+
+  return {
+    id: issue.id,
+    identifier: issue.identifier,
+    url: issue.url,
+  };
+}
+
+/* ─── Lightweight triage ticket (no MerchantContext required) ─── */
+
+async function resolveUserByEmail(email: string): Promise<string | null> {
+  const cached = resolvedUserIds.get(email);
+  if (cached) return cached;
+
+  const client = getLinearClient();
+  const result = await client.client.rawRequest(
+    `query { users { nodes { id email } } }`
+  );
+  const users = (result as any).data.users.nodes as Array<{ id: string; email: string }>;
+  // Cache all users while we're at it
+  for (const u of users) resolvedUserIds.set(u.email, u.id);
+  return resolvedUserIds.get(email) || null;
+}
+
+export async function createTriageTicket(params: {
+  title: string;
+  description: string;
+  assigneeEmail: string;
+}): Promise<TicketResult> {
+  await resolveTeamAndState();
+  const client = getLinearClient();
+
+  const assigneeId = await resolveUserByEmail(params.assigneeEmail);
+
+  const issuePayload = await client.createIssue({
+    teamId: cachedTeamId!,
+    title: params.title,
+    description: params.description,
+    priority: 3, // Normal
+    stateId: cachedTriageStateId || undefined,
+    assigneeId: assigneeId || undefined,
+  });
+
+  const issue = await issuePayload.issue;
+  if (!issue) {
+    throw new Error("Failed to create Linear triage ticket");
+  }
+
+  logger.info(
+    { identifier: issue.identifier, assignee: params.assigneeEmail },
+    "Linear triage ticket created via emoji reaction"
   );
 
   return {

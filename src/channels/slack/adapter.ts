@@ -1,7 +1,7 @@
 import { App } from "@slack/bolt";
 import { ChannelAdapter, IncomingMessage, OutgoingMessage } from "../types";
 import { formatResponse, formatError, formatThinking } from "./formatter";
-import { createSupportTicket, CommandType } from "../../linear/client";
+import { createSupportTicket, createTriageTicket, CommandType } from "../../linear/client";
 import { resolveMerchantContext } from "../../merchants/context";
 import { trackInteraction } from "../../scheduler/daily-report";
 import { handleFeedbackMessage } from "../../knowledge/feedback";
@@ -297,6 +297,103 @@ export class SlackChannelAdapter implements ChannelAdapter {
           ts: thinking.ts!,
           blocks: formatError(errorMsg),
           text: `Error: ${errorMsg}`,
+        });
+      }
+    });
+
+    // Handle 🎫 emoji reaction → triage ticket
+    const ticketReactionProcessed = new Set<string>();
+
+    this.app.event("reaction_added", async ({ event, client }) => {
+      if (event.reaction !== "ticket") return;
+      if (event.item.type !== "message") return;
+
+      const { channel, ts: messageTs } = event.item as { channel: string; ts: string };
+      const dedupKey = `${channel}:${messageTs}`;
+
+      // Prevent duplicate tickets for the same message
+      if (ticketReactionProcessed.has(dedupKey)) return;
+      ticketReactionProcessed.add(dedupKey);
+      if (ticketReactionProcessed.size > 200) {
+        const entries = [...ticketReactionProcessed];
+        ticketReactionProcessed.clear();
+        for (const e of entries.slice(-100)) ticketReactionProcessed.add(e);
+      }
+
+      try {
+        // Fetch the original message text
+        const historyResult = await client.conversations.history({
+          channel,
+          latest: messageTs,
+          inclusive: true,
+          limit: 1,
+        });
+        const originalMessage = historyResult.messages?.[0];
+        const messageText = originalMessage?.text || "(no message text)";
+
+        // Reply in thread
+        await client.chat.postMessage({
+          channel,
+          thread_ts: messageTs,
+          text: "🎫 Support Team is reviewing your request.",
+        });
+
+        // Get channel name for context
+        let channelName = channel;
+        try {
+          const info = await client.conversations.info({ channel });
+          channelName = `#${(info.channel as any)?.name || channel}`;
+        } catch { /* keep channel ID */ }
+
+        // Get permalink
+        let permalink = "";
+        try {
+          const link = await client.chat.getPermalink({ channel, message_ts: messageTs });
+          permalink = link.permalink || "";
+        } catch { /* skip */ }
+
+        // Create Linear triage ticket
+        const title = messageText.length > 80
+          ? messageText.slice(0, 77) + "..."
+          : messageText;
+
+        const description = [
+          `**Channel:** ${channelName}`,
+          `**Flagged by:** <@${event.user}>`,
+          permalink ? `**Message:** [View in Slack](${permalink})` : "",
+          "",
+          "---",
+          "",
+          "**Original message:**",
+          "```",
+          messageText,
+          "```",
+        ].filter(Boolean).join("\n");
+
+        const ticket = await createTriageTicket({
+          title: `[Support] ${title}`,
+          description,
+          assigneeEmail: "davidc@tonder.io",
+        });
+
+        // Post ticket link in the same thread
+        await client.chat.postMessage({
+          channel,
+          thread_ts: messageTs,
+          text: `✅ Ticket created: <${ticket.url}|${ticket.identifier}>`,
+        });
+
+        logger.info(
+          { ticket: ticket.identifier, channel: channelName, user: event.user },
+          "Triage ticket created via 🎫 emoji reaction"
+        );
+      } catch (err) {
+        logger.error({ err, channel, messageTs }, "Failed to handle ticket emoji reaction");
+        storeErrorFromCatch("slack", err, { channel, action: "ticket_reaction" });
+        await client.chat.postMessage({
+          channel,
+          thread_ts: messageTs,
+          text: "⚠️ Could not create the support ticket. Please try again or create it manually in Linear.",
         });
       }
     });
