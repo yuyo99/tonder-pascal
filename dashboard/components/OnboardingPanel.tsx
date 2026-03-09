@@ -109,6 +109,47 @@ function daysUntil(dateStr: string | null | undefined): number {
 
 const PRIORITY_ORDER: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
 
+/* ─── SVG Progress Ring ─── */
+
+function ProgressRing({ percentage, size = 80 }: { percentage: number; size?: number }) {
+  const strokeWidth = 3.5;
+  const radius = (36 - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (percentage / 100) * circumference;
+  const color = percentage === 100 ? "text-emerald-500" : "text-violet-500";
+
+  return (
+    <svg viewBox="0 0 36 36" width={size} height={size} className="shrink-0">
+      <circle
+        cx="18" cy="18" r={radius}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={strokeWidth}
+        className="text-gray-100"
+      />
+      <circle
+        cx="18" cy="18" r={radius}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={strokeWidth}
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        strokeLinecap="round"
+        className={`${color} transition-all duration-700`}
+        transform="rotate(-90 18 18)"
+      />
+      <text
+        x="18" y="18"
+        textAnchor="middle"
+        dominantBaseline="central"
+        className="fill-gray-900 text-[8px] font-semibold"
+      >
+        {percentage}%
+      </text>
+    </svg>
+  );
+}
+
 /* ─── Panel Component ─── */
 
 export default function OnboardingPanel({ team }: { team: TeamKey }) {
@@ -421,7 +462,6 @@ export default function OnboardingPanel({ team }: { team: TeamKey }) {
 
   /* ─── Stats ─── */
 
-  const totalCount = onboardings.length;
   const activeCount = onboardings.filter((o) => o.status === "in_progress").length;
   const doneCount = onboardings.filter((o) => o.status === "completed").length;
   const overdueCount = onboardings.filter(
@@ -449,7 +489,7 @@ export default function OnboardingPanel({ team }: { team: TeamKey }) {
     if (!detail) {
       return (
         <div className="text-center py-16">
-          <p className="text-gray-600">Onboarding not found</p>
+          <p className="text-gray-400">Onboarding not found</p>
           <button
             onClick={() => setSelectedId(null)}
             className="mt-3 text-sm text-violet-600 hover:text-violet-800"
@@ -486,11 +526,11 @@ export default function OnboardingPanel({ team }: { team: TeamKey }) {
     return (
       <div>
         {/* Header */}
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex items-start justify-between mb-8">
           <div className="flex items-start gap-3">
             <button
               onClick={() => setSelectedId(null)}
-              className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors mt-1"
+              className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 transition-colors mt-1"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -498,32 +538,12 @@ export default function OnboardingPanel({ team }: { team: TeamKey }) {
               Back
             </button>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="text-2xl font-semibold text-gray-900">{detail.name}</h1>
                 <TypeBadge type={detail.type} />
                 <PriorityBadge priority={detail.priority} />
-                {detail.integration_model && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-indigo-50 text-indigo-700">
-                    {detail.integration_model}
-                  </span>
-                )}
               </div>
-              {/* Integration Types + Features chips */}
-              {((detail.integration_types?.length ?? 0) > 0 || (detail.features?.length ?? 0) > 0) && (
-                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                  {detail.integration_types?.map((t) => (
-                    <span key={t} className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-violet-50 text-violet-600">
-                      {t}
-                    </span>
-                  ))}
-                  {detail.features?.map((f) => (
-                    <span key={f} className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-emerald-50 text-emerald-600">
-                      {f}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center gap-3 mt-1 text-sm text-gray-400 flex-wrap">
+              <div className="flex items-center gap-3 mt-1.5 text-sm text-gray-400 flex-wrap">
                 {detail.owner && <span>Owner: {detail.owner}</span>}
                 <span>{age} days old</span>
                 {detail.target_date && (
@@ -539,7 +559,7 @@ export default function OnboardingPanel({ team }: { team: TeamKey }) {
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => openEdit(detail)}
-              className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Edit
             </button>
@@ -553,7 +573,7 @@ export default function OnboardingPanel({ team }: { team: TeamKey }) {
                 </button>
                 <button
                   onClick={() => setConfirmDelete(null)}
-                  className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                  className="px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   Cancel
                 </button>
@@ -561,7 +581,7 @@ export default function OnboardingPanel({ team }: { team: TeamKey }) {
             ) : (
               <button
                 onClick={() => setConfirmDelete(detail.id)}
-                className="px-3 py-1.5 text-xs font-medium text-red-500 hover:text-red-700 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                className="px-3 py-1.5 text-xs font-medium text-red-400 hover:text-red-600 border border-red-100 rounded-lg hover:bg-red-50 transition-colors"
               >
                 Delete
               </button>
@@ -569,136 +589,201 @@ export default function OnboardingPanel({ team }: { team: TeamKey }) {
           </div>
         </div>
 
-        {/* Info cards row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
-          {/* Contact info */}
-          {(detail.contact_name || detail.contact_email || detail.contact_phone) && (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-              <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Contact</h3>
-              {detail.contact_name && (
-                <p className="text-sm font-medium text-gray-900">{detail.contact_name}</p>
-              )}
-              {detail.contact_email && (
-                <a href={`mailto:${detail.contact_email}`} className="text-sm text-violet-600 hover:text-violet-800 block">
-                  {detail.contact_email}
-                </a>
-              )}
-              {detail.contact_phone && (
-                <p className="text-sm text-gray-500">{detail.contact_phone}</p>
-              )}
-            </div>
-          )}
-
-          {/* Target date */}
-          {detail.target_date && (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-              <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Target Go-Live</h3>
-              <p className={`text-lg font-semibold ${isOverdue ? "text-red-600" : "text-gray-900"}`}>
-                {new Date(detail.target_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-              </p>
-              <p className={`text-xs mt-0.5 ${isOverdue ? "text-red-500" : "text-gray-400"}`}>
-                {isOverdue ? `${Math.abs(targetDays!)} days overdue` : `${targetDays} days remaining`}
-              </p>
-            </div>
-          )}
-
-          {/* Linked merchant */}
-          {detail.merchant_channel_id && (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-              <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Linked Merchant Chat</h3>
-              <Link
-                href={`/merchants/${detail.merchant_channel_id}`}
-                className="text-sm font-medium text-violet-600 hover:text-violet-800 flex items-center gap-1"
-              >
-                {detail.merchant_channel_label || `Merchant #${detail.merchant_channel_id}`}
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </Link>
-            </div>
-          )}
-        </div>
-
-        {/* Notes */}
-        {detail.notes && (
-          <div className="mb-4 px-4 py-2.5 bg-gray-50 rounded-lg border border-gray-100">
-            <p className="text-sm text-gray-600">{detail.notes}</p>
-          </div>
-        )}
-
-        {/* Overall progress bar (scoped to team) */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">{teamLabel.name} Progress</span>
-              <StatusBadge status={detail.status} />
-            </div>
-            <span className="text-sm font-semibold text-gray-900">
-              {progress.completed}/{progress.total} items
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  progress.percentage === 100 ? "bg-emerald-500" : "bg-violet-500"
-                }`}
-                style={{ width: `${progress.percentage}%` }}
-              />
-            </div>
-            <span className={`text-lg font-bold ${progress.percentage === 100 ? "text-emerald-600" : "text-violet-600"}`}>
-              {progress.percentage}%
-            </span>
-          </div>
-          <p className="text-xs text-gray-400 mt-2">
-            Current phase: {currentPhase.shortName} &mdash; {currentPhase.name}
-          </p>
-        </div>
-
-        {/* Phase Timeline (scoped to team) */}
-        <div className="space-y-0">
-          {teamPhases.map((phase, phaseIndex) => (
-            <PhaseSection
-              key={phase.id}
-              phase={phase}
-              phases={detail.phases}
-              isLast={phaseIndex === teamPhases.length - 1}
-              isCurrent={currentPhase.id === phase.id}
-              onToggleItem={handleToggleItem}
-              onRenameItem={handleRenameItem}
-              onRemoveItem={handleRemoveItem}
-              onAddItem={handleAddItem}
-              editingItemId={editingItemId}
-              editingLabel={editingLabel}
-              setEditingItemId={setEditingItemId}
-              setEditingLabel={setEditingLabel}
-              addingToPhase={addingToPhase}
-              newItemLabel={newItemLabel}
-              setAddingToPhase={setAddingToPhase}
-              setNewItemLabel={setNewItemLabel}
-            />
-          ))}
-        </div>
-
-        {/* Activity Timeline */}
-        {activityEvents.length > 1 && (
-          <div className="mt-8 bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">Activity</h3>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {activityEvents.slice(0, 20).map((ev, i) => (
-                <div key={i} className="flex items-start gap-3 text-xs">
-                  <span className="text-gray-300 shrink-0 w-24 text-right">
-                    {new Date(ev.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                    {" "}
-                    {new Date(ev.date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                  <div className="w-1.5 h-1.5 rounded-full bg-violet-400 mt-1.5 shrink-0" />
-                  <span className="text-gray-600">{ev.label}</span>
+        {/* Two-column layout */}
+        <div className="flex gap-6">
+          {/* Left column — Progress + Phases + Activity */}
+          <div className="flex-1 min-w-0">
+            {/* Progress Ring Section */}
+            <div className="bg-white rounded-xl border border-gray-100 p-5 mb-8">
+              <div className="flex items-center gap-5">
+                <ProgressRing percentage={progress.percentage} size={80} />
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-medium text-gray-700">{teamLabel.name} Progress</span>
+                    <StatusBadge status={detail.status} />
+                  </div>
+                  <p className="text-sm text-gray-400">
+                    {progress.completed} of {progress.total} items complete
+                  </p>
+                  <p className="text-xs text-gray-300 mt-1">
+                    Current phase: {currentPhase.shortName} &mdash; {currentPhase.name}
+                  </p>
                 </div>
+              </div>
+            </div>
+
+            {/* Phase Timeline (scoped to team) */}
+            <div className="space-y-0 mb-8">
+              {teamPhases.map((phase, phaseIndex) => (
+                <PhaseSection
+                  key={phase.id}
+                  phase={phase}
+                  phases={detail.phases}
+                  isLast={phaseIndex === teamPhases.length - 1}
+                  isCurrent={currentPhase.id === phase.id}
+                  onToggleItem={handleToggleItem}
+                  onRenameItem={handleRenameItem}
+                  onRemoveItem={handleRemoveItem}
+                  onAddItem={handleAddItem}
+                  editingItemId={editingItemId}
+                  editingLabel={editingLabel}
+                  setEditingItemId={setEditingItemId}
+                  setEditingLabel={setEditingLabel}
+                  addingToPhase={addingToPhase}
+                  newItemLabel={newItemLabel}
+                  setAddingToPhase={setAddingToPhase}
+                  setNewItemLabel={setNewItemLabel}
+                />
               ))}
             </div>
+
+            {/* Activity Timeline */}
+            {activityEvents.length > 1 && (
+              <div className="mb-8">
+                <h3 className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-4">Activity</h3>
+                <div className="relative max-h-72 overflow-y-auto">
+                  {activityEvents.slice(0, 20).map((ev, i) => (
+                    <div key={i} className="relative flex items-start gap-3 pb-4 last:pb-0">
+                      {/* Connecting line */}
+                      {i < Math.min(activityEvents.length - 1, 19) && (
+                        <div className="absolute left-[5px] top-3 bottom-0 w-px bg-gray-100" />
+                      )}
+                      {/* Dot */}
+                      <div className={`w-2.5 h-2.5 rounded-full mt-0.5 shrink-0 ${
+                        i === 0 ? "bg-violet-400" : "bg-gray-200"
+                      }`} />
+                      {/* Content */}
+                      <div>
+                        <p className="text-sm text-gray-600 leading-tight">{ev.label}</p>
+                        <p className="text-[11px] text-gray-300 mt-0.5">
+                          {new Date(ev.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          {" "}
+                          {new Date(ev.date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Right column — Sidebar cards */}
+          <div className="w-80 shrink-0 space-y-5">
+            {/* Overview card */}
+            <div className="bg-white rounded-xl border border-gray-100 p-5">
+              <h3 className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-4">Overview</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Owner</span>
+                  <span className="text-gray-700 font-medium">{detail.owner || "\u2014"}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Age</span>
+                  <span className="text-gray-700 font-medium">{age} days</span>
+                </div>
+                {detail.target_date && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Target date</span>
+                    <span className={`font-medium ${isOverdue ? "text-red-500" : "text-gray-700"}`}>
+                      {new Date(detail.target_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </span>
+                  </div>
+                )}
+                {detail.merchant_channel_id && (
+                  <div className="flex justify-between text-sm items-center">
+                    <span className="text-gray-400">Merchant chat</span>
+                    <Link
+                      href={`/merchants/${detail.merchant_channel_id}`}
+                      className="text-violet-600 hover:text-violet-800 font-medium flex items-center gap-1"
+                    >
+                      {detail.merchant_channel_label || `#${detail.merchant_channel_id}`}
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                      </svg>
+                    </Link>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Contact card */}
+            {(detail.contact_name || detail.contact_email || detail.contact_phone) && (
+              <div className="bg-white rounded-xl border border-gray-100 p-5">
+                <h3 className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-4">Contact</h3>
+                <div className="space-y-3">
+                  {detail.contact_name && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Name</span>
+                      <span className="text-gray-700 font-medium">{detail.contact_name}</span>
+                    </div>
+                  )}
+                  {detail.contact_email && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Email</span>
+                      <a href={`mailto:${detail.contact_email}`} className="text-violet-600 hover:text-violet-800 font-medium">
+                        {detail.contact_email}
+                      </a>
+                    </div>
+                  )}
+                  {detail.contact_phone && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Phone</span>
+                      <span className="text-gray-700 font-medium">{detail.contact_phone}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Configuration card */}
+            {(detail.integration_model || (detail.integration_types?.length ?? 0) > 0 || (detail.features?.length ?? 0) > 0) && (
+              <div className="bg-white rounded-xl border border-gray-100 p-5">
+                <h3 className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-4">Configuration</h3>
+                <div className="space-y-3">
+                  {detail.integration_model && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Model</span>
+                      <span className="text-gray-700 font-medium">{detail.integration_model}</span>
+                    </div>
+                  )}
+                  {(detail.integration_types?.length ?? 0) > 0 && (
+                    <div>
+                      <p className="text-sm text-gray-400 mb-1.5">Types</p>
+                      <div className="flex flex-wrap gap-1">
+                        {detail.integration_types.map((t) => (
+                          <span key={t} className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-violet-50 text-violet-600">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(detail.features?.length ?? 0) > 0 && (
+                    <div>
+                      <p className="text-sm text-gray-400 mb-1.5">Features</p>
+                      <div className="flex flex-wrap gap-1">
+                        {detail.features.map((f) => (
+                          <span key={f} className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-emerald-50 text-emerald-600">
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Notes card */}
+            {detail.notes && (
+              <div className="bg-white rounded-xl border border-gray-100 p-5">
+                <h3 className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-3">Notes</h3>
+                <p className="text-sm text-gray-600 leading-relaxed">{detail.notes}</p>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Modal */}
         {showModal && (
@@ -730,7 +815,7 @@ export default function OnboardingPanel({ team }: { team: TeamKey }) {
         {team === "cs" && (
           <button
             onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 transition-colors shadow-sm"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M12 5v14M5 12h14" />
@@ -740,87 +825,89 @@ export default function OnboardingPanel({ team }: { team: TeamKey }) {
         )}
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-5 gap-3 mb-6">
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 text-center">
-          <p className="text-2xl font-semibold text-gray-900">{totalCount}</p>
-          <p className="text-xs text-gray-400">Total</p>
+      {/* Stats — 4 cards with left accent */}
+      <div className="grid grid-cols-4 gap-3 mb-6">
+        <div className="bg-white rounded-xl border border-gray-100 border-l-2 border-l-violet-500 p-5">
+          <p className="text-xs text-gray-400 mb-1">Active</p>
+          <p className="text-3xl font-semibold text-gray-900">{activeCount}</p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 text-center">
-          <p className="text-2xl font-semibold text-violet-600">{activeCount}</p>
-          <p className="text-xs text-gray-400">In Progress</p>
+        <div className="bg-white rounded-xl border border-gray-100 border-l-2 border-l-emerald-500 p-5">
+          <p className="text-xs text-gray-400 mb-1">Completed</p>
+          <p className="text-3xl font-semibold text-gray-900">{doneCount}</p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 text-center">
-          <p className="text-2xl font-semibold text-emerald-600">{doneCount}</p>
-          <p className="text-xs text-gray-400">Completed</p>
+        <div className="bg-white rounded-xl border border-gray-100 border-l-2 border-l-red-500 p-5">
+          <p className="text-xs text-gray-400 mb-1">Overdue</p>
+          <p className={`text-3xl font-semibold ${overdueCount > 0 ? "text-red-600" : "text-gray-900"}`}>{overdueCount}</p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 text-center">
-          <p className={`text-2xl font-semibold ${overdueCount > 0 ? "text-red-600" : "text-gray-300"}`}>{overdueCount}</p>
-          <p className="text-xs text-gray-400">Overdue</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 text-center">
-          <p className="text-2xl font-semibold text-gray-600">{avgDays}</p>
-          <p className="text-xs text-gray-400">Avg Days</p>
+        <div className="bg-white rounded-xl border border-gray-100 border-l-2 border-l-gray-300 p-5">
+          <p className="text-xs text-gray-400 mb-1">Avg Days</p>
+          <p className="text-3xl font-semibold text-gray-900">{avgDays}</p>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col gap-3 mb-5">
-        <div className="flex flex-wrap gap-3">
-          {/* Status tabs */}
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-            {STATUS_TABS.map((tab) => (
-              <button
-                key={tab.value}
-                onClick={() => setStatusFilter(tab.value)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
-                  statusFilter === tab.value
-                    ? "bg-white text-violet-700 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Priority tabs */}
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-            {PRIORITY_TABS.map((tab) => (
-              <button
-                key={tab.value}
-                onClick={() => setPriorityFilter(tab.value)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
-                  priorityFilter === tab.value
-                    ? "bg-white text-violet-700 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Sort */}
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 bg-white"
-          >
-            {SORT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+      {/* Filters — single horizontal row */}
+      <div className="flex items-center gap-3 mb-5">
+        {/* Search with magnifying glass */}
+        <div className="relative w-64">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <circle cx="11" cy="11" r="8" />
+            <path d="M21 21l-4.35-4.35" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 placeholder:text-gray-300"
+          />
         </div>
 
-        {/* Search */}
-        <input
-          type="text"
-          placeholder="Search by name..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full px-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
-        />
+        <div className="flex-1" />
+
+        {/* Status segmented control */}
+        <div className="flex bg-gray-100/80 rounded-lg p-0.5">
+          {STATUS_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setStatusFilter(tab.value)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                statusFilter === tab.value
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-400 hover:text-gray-600"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Priority segmented control */}
+        <div className="flex bg-gray-100/80 rounded-lg p-0.5">
+          {PRIORITY_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setPriorityFilter(tab.value)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                priorityFilter === tab.value
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-400 hover:text-gray-600"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Sort dropdown */}
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          className="px-3 py-1.5 text-xs font-medium border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 bg-white text-gray-600"
+        >
+          {SORT_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
       </div>
 
       {/* Loading */}
@@ -837,22 +924,20 @@ export default function OnboardingPanel({ team }: { team: TeamKey }) {
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/50">
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">Merchant</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">Status</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">Priority</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500 min-w-[160px]">Progress</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">Phase</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">Owner</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">Go-live</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-500">Age</th>
+                <tr className="border-b border-gray-50 bg-gray-50/30">
+                  <th className="px-5 py-3 text-left text-xs text-gray-400 uppercase tracking-wider font-medium">Merchant</th>
+                  <th className="px-5 py-3 text-left text-xs text-gray-400 uppercase tracking-wider font-medium">Status</th>
+                  <th className="px-5 py-3 text-left text-xs text-gray-400 uppercase tracking-wider font-medium min-w-[140px]">Progress</th>
+                  <th className="px-5 py-3 text-left text-xs text-gray-400 uppercase tracking-wider font-medium">Phase</th>
+                  <th className="px-5 py-3 text-left text-xs text-gray-400 uppercase tracking-wider font-medium">Go-live</th>
+                  <th className="px-5 py-3 text-right text-xs text-gray-400 uppercase tracking-wider font-medium">Age</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-50">
                 {sortedOnboardings.map((ob) => {
                   const progress = calculateProgressForTeam(ob.phases, team);
                   const currentPhase = getCurrentPhaseForTeam(ob.phases, team);
@@ -864,35 +949,36 @@ export default function OnboardingPanel({ team }: { team: TeamKey }) {
                     <tr
                       key={ob.id}
                       onClick={() => setSelectedId(ob.id)}
-                      className={`hover:bg-gray-50/50 transition-colors cursor-pointer ${
-                        isOverdue ? "bg-red-50/30" : isCompleted ? "bg-emerald-50/20" : ""
-                      }`}
+                      className="hover:bg-gray-50/40 transition-colors cursor-pointer"
                     >
-                      {/* Merchant */}
-                      <td className={`px-4 py-3 ${isOverdue ? "border-l-2 border-l-red-400" : ""}`}>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-gray-900 truncate max-w-[180px]">{ob.name}</span>
-                          <TypeBadge type={ob.type} />
-                          {ob.integration_model && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-indigo-50 text-indigo-700 shrink-0 whitespace-nowrap">
-                              {ob.integration_model}
-                            </span>
-                          )}
+                      {/* Merchant (combined: name + badges + owner) */}
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2.5">
+                          {/* Overdue / completed color bar */}
+                          <div className={`w-1 h-8 rounded-full shrink-0 ${
+                            isOverdue ? "bg-red-400" : isCompleted ? "bg-emerald-400" : "bg-transparent"
+                          }`} />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-gray-900 truncate max-w-[200px]">{ob.name}</span>
+                              <TypeBadge type={ob.type} />
+                              <PriorityBadge priority={ob.priority} />
+                            </div>
+                            <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[200px]">
+                              {ob.owner || "\u2014"}
+                              {ob.integration_model ? ` \u00B7 ${ob.integration_model}` : ""}
+                            </p>
+                          </div>
                         </div>
                       </td>
 
                       {/* Status */}
-                      <td className="px-4 py-3">
+                      <td className="px-5 py-4">
                         <StatusBadge status={ob.status} />
                       </td>
 
-                      {/* Priority */}
-                      <td className="px-4 py-3">
-                        <PriorityBadge priority={ob.priority} />
-                      </td>
-
                       {/* Progress */}
-                      <td className="px-4 py-3">
+                      <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden min-w-[60px]">
                             <div
@@ -903,7 +989,7 @@ export default function OnboardingPanel({ team }: { team: TeamKey }) {
                             />
                           </div>
                           <span className={`text-xs font-medium tabular-nums w-8 text-right ${
-                            progress.percentage === 100 ? "text-emerald-600" : "text-gray-600"
+                            progress.percentage === 100 ? "text-emerald-600" : "text-gray-500"
                           }`}>
                             {progress.percentage}%
                           </span>
@@ -911,19 +997,14 @@ export default function OnboardingPanel({ team }: { team: TeamKey }) {
                       </td>
 
                       {/* Phase */}
-                      <td className="px-4 py-3">
-                        <span className="text-xs text-gray-600 whitespace-nowrap">{currentPhase.shortName}</span>
-                      </td>
-
-                      {/* Owner */}
-                      <td className="px-4 py-3">
-                        <span className="text-xs text-gray-600 truncate block max-w-[120px]">{ob.owner || "\u2014"}</span>
+                      <td className="px-5 py-4">
+                        <span className="text-xs text-gray-500 whitespace-nowrap">{currentPhase.shortName}</span>
                       </td>
 
                       {/* Go-live */}
-                      <td className="px-4 py-3">
+                      <td className="px-5 py-4">
                         {ob.target_date ? (
-                          <span className={`text-xs whitespace-nowrap ${isOverdue ? "text-red-600 font-medium" : "text-gray-600"}`}>
+                          <span className={`text-xs whitespace-nowrap ${isOverdue ? "text-red-500 font-medium" : "text-gray-500"}`}>
                             {new Date(ob.target_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                           </span>
                         ) : (
@@ -932,8 +1013,8 @@ export default function OnboardingPanel({ team }: { team: TeamKey }) {
                       </td>
 
                       {/* Age */}
-                      <td className="px-4 py-3 text-right">
-                        <span className="text-xs text-gray-500 tabular-nums">{age}d</span>
+                      <td className="px-5 py-4 text-right">
+                        <span className="text-xs text-gray-400 tabular-nums">{age}d</span>
                       </td>
                     </tr>
                   );
@@ -992,11 +1073,11 @@ function FormModal({
 
           <div className="space-y-4">
             {/* ── Basic Info ── */}
-            <div className="text-xs font-medium text-gray-400 uppercase tracking-wide">Basic Info</div>
+            <div className="text-xs font-medium text-gray-400 uppercase tracking-wider">Basic Info</div>
 
             {/* Name */}
             <div>
-              <label className="block text-xs text-gray-500 mb-1">
+              <label className="block text-xs text-gray-400 mb-1">
                 Merchant / Partner Name <span className="text-red-400">*</span>
               </label>
               <input
@@ -1005,29 +1086,29 @@ function FormModal({
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="e.g. Nuvigo Pay"
                 autoFocus
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
               />
             </div>
 
             {/* Type + Priority row */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Type</label>
+                <label className="block text-xs text-gray-400 mb-1">Type</label>
                 <select
                   value={form.type}
                   onChange={(e) => setForm({ ...form, type: e.target.value as "merchant" | "partner" })}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                 >
                   <option value="merchant">Merchant</option>
                   <option value="partner">Partner</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Priority</label>
+                <label className="block text-xs text-gray-400 mb-1">Priority</label>
                 <select
                   value={form.priority}
                   onChange={(e) => setForm({ ...form, priority: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                 >
                   {PRIORITY_OPTIONS.map((p) => (
                     <option key={p.value} value={p.value}>{p.label}</option>
@@ -1039,85 +1120,85 @@ function FormModal({
             {/* Owner + Target Date row */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Owner</label>
+                <label className="block text-xs text-gray-400 mb-1">Owner</label>
                 <input
                   type="text"
                   value={form.owner}
                   onChange={(e) => setForm({ ...form, owner: e.target.value })}
                   placeholder="e.g. Geraldine Sprockel"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Target Go-Live</label>
+                <label className="block text-xs text-gray-400 mb-1">Target Go-Live</label>
                 <input
                   type="date"
                   value={form.target_date}
                   onChange={(e) => setForm({ ...form, target_date: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                 />
               </div>
             </div>
 
             {/* Notes */}
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Notes</label>
+              <label className="block text-xs text-gray-400 mb-1">Notes</label>
               <textarea
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 rows={2}
                 placeholder="Any additional context..."
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 resize-y"
+                className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 resize-y"
               />
             </div>
 
             {/* ── Contact Info ── */}
-            <div className="text-xs font-medium text-gray-400 uppercase tracking-wide pt-2">Contact Info</div>
+            <div className="text-xs font-medium text-gray-400 uppercase tracking-wider pt-2">Contact Info</div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Contact Name</label>
+              <label className="block text-xs text-gray-400 mb-1">Contact Name</label>
               <input
                 type="text"
                 value={form.contact_name}
                 onChange={(e) => setForm({ ...form, contact_name: e.target.value })}
                 placeholder="e.g. John Doe"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Email</label>
+                <label className="block text-xs text-gray-400 mb-1">Email</label>
                 <input
                   type="email"
                   value={form.contact_email}
                   onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
                   placeholder="john@company.com"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Phone</label>
+                <label className="block text-xs text-gray-400 mb-1">Phone</label>
                 <input
                   type="tel"
                   value={form.contact_phone}
                   onChange={(e) => setForm({ ...form, contact_phone: e.target.value })}
                   placeholder="+52 55 1234 5678"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                 />
               </div>
             </div>
 
             {/* ── Onboarding Config ── */}
-            <div className="text-xs font-medium text-gray-400 uppercase tracking-wide pt-2">Configuration</div>
+            <div className="text-xs font-medium text-gray-400 uppercase tracking-wider pt-2">Configuration</div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Integration Model</label>
+                <label className="block text-xs text-gray-400 mb-1">Integration Model</label>
                 <select
                   value={form.integration_model}
                   onChange={(e) => setForm({ ...form, integration_model: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                 >
                   <option value="">— None —</option>
                   {INTEGRATION_MODELS.map((m) => (
@@ -1126,11 +1207,11 @@ function FormModal({
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Linked Merchant Chat</label>
+                <label className="block text-xs text-gray-400 mb-1">Linked Merchant Chat</label>
                 <select
                   value={form.merchant_channel_id ?? ""}
                   onChange={(e) => setForm({ ...form, merchant_channel_id: e.target.value ? Number(e.target.value) : null })}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                 >
                   <option value="">— None —</option>
                   {merchants.map((m) => (
@@ -1142,7 +1223,7 @@ function FormModal({
 
             {/* ── Integration Types (multi-select chips) ── */}
             <div>
-              <label className="block text-xs text-gray-500 mb-2">Integration Types</label>
+              <label className="block text-xs text-gray-400 mb-2">Integration Types</label>
               <div className="flex flex-wrap gap-2">
                 {INTEGRATION_TYPES.map((t) => {
                   const selected = form.integration_types.includes(t);
@@ -1159,7 +1240,7 @@ function FormModal({
                       className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
                         selected
                           ? "bg-violet-100 border-violet-300 text-violet-700 font-medium"
-                          : "bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700"
+                          : "bg-white border-gray-100 text-gray-400 hover:border-gray-200 hover:text-gray-600"
                       }`}
                     >
                       {t}
@@ -1171,7 +1252,7 @@ function FormModal({
 
             {/* ── Features (multi-select chips) ── */}
             <div>
-              <label className="block text-xs text-gray-500 mb-2">Features</label>
+              <label className="block text-xs text-gray-400 mb-2">Features</label>
               <div className="flex flex-wrap gap-2">
                 {FEATURES.map((f) => {
                   const selected = form.features.includes(f);
@@ -1188,7 +1269,7 @@ function FormModal({
                       className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
                         selected
                           ? "bg-emerald-100 border-emerald-300 text-emerald-700 font-medium"
-                          : "bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700"
+                          : "bg-white border-gray-100 text-gray-400 hover:border-gray-200 hover:text-gray-600"
                       }`}
                     >
                       {f}
@@ -1202,14 +1283,14 @@ function FormModal({
           <div className="flex justify-end gap-3 mt-6">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+              className="px-4 py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={onSave}
               disabled={saving || !form.name.trim()}
-              className="px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
             >
               {saving ? "Saving..." : editingId ? "Update" : "Create"}
             </button>
@@ -1262,41 +1343,36 @@ function PhaseSection({
 
   const [expanded, setExpanded] = useState(isCurrent || status === "in_progress");
 
-  const dotColor =
-    status === "completed"
-      ? "bg-emerald-500 border-emerald-500"
-      : status === "in_progress"
-      ? "bg-violet-500 border-violet-500"
-      : "bg-gray-200 border-gray-300";
-
-  const lineColor = status === "completed" ? "bg-emerald-200" : "bg-gray-200";
-
-  const countColor =
-    status === "completed"
-      ? "text-emerald-600 bg-emerald-50"
-      : status === "in_progress"
-      ? "text-violet-600 bg-violet-50"
-      : "text-gray-400 bg-gray-50";
-
   return (
     <div className="relative pl-8">
+      {/* Connecting line */}
       {!isLast && (
-        <div className={`absolute left-[11px] top-6 bottom-0 w-0.5 ${lineColor}`} />
+        <div className={`absolute left-[11px] top-6 bottom-0 w-px ${
+          status === "completed" ? "bg-emerald-300" : "bg-gray-200"
+        }`} />
       )}
 
-      <div
-        className={`absolute left-1.5 top-1.5 w-4 h-4 rounded-full border-2 ${dotColor} ${
-          isCurrent && status !== "completed" ? "animate-pulse" : ""
-        }`}
-      >
-        {status === "completed" && (
-          <svg className="w-2.5 h-2.5 text-white absolute top-[1px] left-[1px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={4}>
-            <path d="M5 13l4 4L19 7" />
-          </svg>
+      {/* Phase dot */}
+      <div className="absolute left-1 top-1">
+        {status === "completed" ? (
+          /* Completed: emerald filled with checkmark */
+          <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+            <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.5}>
+              <path d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+        ) : status === "in_progress" ? (
+          /* Active: violet ring with inner dot */
+          <div className="w-5 h-5 rounded-full border-2 border-violet-500 bg-white flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-violet-500" />
+          </div>
+        ) : (
+          /* Pending: hollow gray */
+          <div className="w-5 h-5 rounded-full border-2 border-gray-200 bg-white" />
         )}
       </div>
 
-      <div className={`pb-6 ${isLast ? "pb-0" : ""}`}>
+      <div className={`pb-6 ${isLast ? "pb-0" : ""} ${isCurrent && status !== "completed" ? "bg-violet-50/40 -mx-3 px-3 rounded-lg" : ""}`}>
         <button
           onClick={() => setExpanded(!expanded)}
           className="w-full flex items-center gap-2 text-left group"
@@ -1316,21 +1392,21 @@ function PhaseSection({
                 ? "text-emerald-700"
                 : status === "in_progress"
                 ? "text-gray-900"
-                : "text-gray-500"
+                : "text-gray-400"
             }`}
           >
             {phase.shortName} &mdash; {phase.name}
           </span>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${countColor}`}>
+          <span className="text-xs text-gray-400 tabular-nums">
             {checkedCount}/{effectiveItems.length}
           </span>
-          <span className="text-[11px] text-gray-400 hidden sm:inline ml-auto mr-2">
+          <span className="text-[11px] text-gray-300 hidden sm:inline ml-auto mr-2">
             {phase.owner}
           </span>
         </button>
 
         {phase.isBlocker && status !== "completed" && (
-          <div className="mt-2 ml-5 p-2.5 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
+          <div className="mt-2 ml-5 p-2.5 bg-amber-50 border border-amber-100 rounded-lg flex items-center gap-2">
             <svg className="w-4 h-4 text-amber-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
               <line x1="12" y1="9" x2="12" y2="13" />
@@ -1376,7 +1452,7 @@ function PhaseSection({
                       className="flex-1 text-sm px-2 py-0.5 border border-violet-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                     />
                   ) : (
-                    <span className={`text-sm flex-1 ${isChecked ? "text-gray-400 line-through" : "text-gray-700"}`}>
+                    <span className={`text-sm flex-1 ${isChecked ? "text-gray-300 line-through" : "text-gray-700"}`}>
                       {item.label}
                     </span>
                   )}
@@ -1454,7 +1530,7 @@ function PhaseSection({
             ) : (
               <button
                 onClick={() => { setAddingToPhase(phase.id); setNewItemLabel(""); }}
-                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-violet-600 py-1.5 px-2.5 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-violet-600 py-1.5 px-2.5 transition-colors"
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                   <path d="M12 5v14M5 12h14" />
@@ -1469,12 +1545,24 @@ function PhaseSection({
   );
 }
 
+/* ─── Badge Components ─── */
+
 function PriorityBadge({ priority }: { priority: string }) {
-  const opt = PRIORITY_OPTIONS.find((p) => p.value === priority);
-  if (!opt || opt.value === "normal") return null;
+  if (priority === "normal" || !priority) return null;
+  const colors: Record<string, string> = {
+    urgent: "bg-red-500",
+    high: "bg-orange-500",
+    low: "bg-blue-400",
+  };
+  const labels: Record<string, string> = {
+    urgent: "Urgent",
+    high: "High",
+    low: "Low",
+  };
   return (
-    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${opt.color}`}>
-      {opt.label}
+    <span className="inline-flex items-center gap-1 text-[10px] text-gray-500 font-medium">
+      <span className={`w-1.5 h-1.5 rounded-sm ${colors[priority] || "bg-gray-300"}`} />
+      {labels[priority] || priority}
     </span>
   );
 }
@@ -1482,8 +1570,8 @@ function PriorityBadge({ priority }: { priority: string }) {
 function TypeBadge({ type }: { type: "merchant" | "partner" }) {
   const style =
     type === "merchant"
-      ? "bg-violet-50 text-violet-700"
-      : "bg-red-50 text-red-600";
+      ? "bg-gray-100 text-gray-500"
+      : "bg-rose-50 text-rose-500";
   return (
     <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium capitalize ${style}`}>
       {type}
@@ -1492,10 +1580,10 @@ function TypeBadge({ type }: { type: "merchant" | "partner" }) {
 }
 
 function StatusBadge({ status }: { status: "not_started" | "in_progress" | "completed" }) {
-  const styles: Record<string, string> = {
-    not_started: "bg-gray-100 text-gray-500",
-    in_progress: "bg-blue-100 text-blue-700",
-    completed: "bg-emerald-100 text-emerald-700",
+  const dots: Record<string, string> = {
+    not_started: "bg-gray-300",
+    in_progress: "bg-blue-500",
+    completed: "bg-emerald-500",
   };
   const labels: Record<string, string> = {
     not_started: "Not Started",
@@ -1503,7 +1591,8 @@ function StatusBadge({ status }: { status: "not_started" | "in_progress" | "comp
     completed: "Completed",
   };
   return (
-    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${styles[status] || styles.not_started}`}>
+    <span className="inline-flex items-center gap-1.5 text-xs text-gray-600">
+      <span className={`w-1.5 h-1.5 rounded-full ${dots[status] || dots.not_started}`} />
       {labels[status] || status}
     </span>
   );
