@@ -186,9 +186,9 @@ export function initScheduler(slackClient: WebClient): void {
   );
   logger.info("Linear EOD review scheduled (daily 4:59 PM Mexico City)");
 
-  // Account Creation PROD label alert — every 2h, 8am-8pm Mon-Fri
+  // Account Creation PROD label alert — daily 10am Mon-Fri
   accountCreationTask = cron.schedule(
-    "0 8,10,12,14,16,18,20 * * 1-5",
+    "0 10 * * 1-5",
     async () => {
       try {
         await sendAccountCreationAlert(slackClient);
@@ -199,7 +199,7 @@ export function initScheduler(slackClient: WebClient): void {
     },
     { timezone: "America/Mexico_City" }
   );
-  logger.info("Account Creation PROD alert scheduled (every 2h, 8am-8pm Mon-Fri)");
+  logger.info("Account Creation PROD alert scheduled (daily 10am Mon-Fri)");
 
   logger.info("Scheduler initialized — syncing scheduled reports from Postgres");
 }
