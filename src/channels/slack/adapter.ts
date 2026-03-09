@@ -305,6 +305,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
     const ticketReactionProcessed = new Set<string>();
 
     this.app.event("reaction_added", async ({ event, client }) => {
+      logger.info({ reaction: event.reaction, user: event.user, itemType: event.item.type }, "reaction_added received");
       if (event.reaction !== "ticket") return;
       if (event.item.type !== "message") return;
 
