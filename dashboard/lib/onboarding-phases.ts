@@ -325,7 +325,7 @@ export const TEAM_LABELS: Record<TeamKey, { name: string; description: string }>
     description: "Commercial, compliance & legal phases",
   },
   int: {
-    name: "INT Onboarding",
+    name: "Integrations",
     description: "Integration, certification & go-live phases",
   },
 };
