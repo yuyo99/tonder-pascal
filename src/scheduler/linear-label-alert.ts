@@ -17,21 +17,17 @@ const FINANCE_CONSOLE_URL =
 
 const DEDUP_COLLECTION = "pascal-alerted-issues";
 
-// ── Dedup via MongoDB ───────────────────────────────────────────────
+// ── Atomic dedup via MongoDB ─────────────────────────────────────────
 
-async function getAlertedIds(): Promise<Set<string>> {
+/** Atomically claim an issue ID. Returns true only for the first caller. */
+async function tryClaimIssue(issueId: string): Promise<boolean> {
   const col = getCollection(DEDUP_COLLECTION);
-  const docs = await col.find({}, { projection: { issueId: 1, _id: 0 } }).toArray();
-  return new Set(docs.map((d) => d.issueId as string));
-}
-
-async function markAlerted(issueIds: string[]): Promise<void> {
-  if (issueIds.length === 0) return;
-  const col = getCollection(DEDUP_COLLECTION);
-  await col.insertMany(
-    issueIds.map((id) => ({ issueId: id, alertedAt: new Date() })),
-    { ordered: false },
+  const existing = await col.findOneAndUpdate(
+    { issueId },
+    { $setOnInsert: { issueId, alertedAt: new Date() } },
+    { upsert: true },
   );
+  return existing === null; // null = was inserted (new), non-null = already existed
 }
 
 // ── Cached FinOps IDs (resolved once) ────────────────────────────────
@@ -207,9 +203,13 @@ function buildBatchBlocks(issues: LabelIssue[]): KnownBlock[] {
 
 export async function sendAccountCreationAlert(slackClient: WebClient): Promise<void> {
   const issues = await fetchAccountCreationIssues();
-  const alreadyAlerted = await getAlertedIds();
 
-  const newIssues = issues.filter((i) => !alreadyAlerted.has(i.id));
+  // Atomically claim each issue — only issues we successfully claim are new
+  const newIssues: LabelIssue[] = [];
+  for (const issue of issues) {
+    const claimed = await tryClaimIssue(issue.id);
+    if (claimed) newIssues.push(issue);
+  }
 
   if (newIssues.length === 0) {
     logger.debug("No new Account Creation PROD issues");
@@ -242,9 +242,6 @@ export async function sendAccountCreationAlert(slackClient: WebClient): Promise<
       text: `:clipboard: FinOps tickets:\n${ticketLines.join("\n")}`,
     });
   }
-
-  // Persist dedup to MongoDB
-  await markAlerted(newIssues.map((i) => i.id));
 
   logger.info(
     { count: newIssues.length, channel: ALERT_CHANNEL },
