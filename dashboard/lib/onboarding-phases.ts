@@ -54,6 +54,7 @@ export const INTEGRATION_MODELS = [
   "White Label",
   "Withdrawals Only",
   "Full Stack",
+  "Hybrid",
 ] as const;
 
 export const INTEGRATION_TYPES = [
@@ -70,6 +71,9 @@ export const FEATURES = [
   "OXXO Pay",
   "Safety Pay",
   "Raw Card Data",
+  "Tokenization",
+  "Mercado Pago",
+  "SPEI Frictionless",
 ] as const;
 
 /* ─── Phase Definitions ─── */
