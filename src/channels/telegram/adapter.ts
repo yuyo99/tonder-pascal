@@ -239,10 +239,10 @@ export class TelegramChannelAdapter implements ChannelAdapter {
           "Content fallback: partner channel detected but deposit ticket parse failed");
       }
 
-      // Username matched but content didn't parse — ignore silently
+      // Username matched but content didn't parse — pass through to normal handler
       if (partnerUsername) {
-        logger.debug({ chatId, label }, `Partner bot ${eventType} did not match deposit ticket format — ignoring`);
-        return true;
+        logger.info({ chatId, label, text: text.slice(0, 100) }, `Partner bot ${eventType} did not match deposit ticket format — passing through`);
+        return false;
       }
       // Content-based fallback didn't match — fall through
       return false;
