@@ -313,9 +313,9 @@ export class TelegramChannelAdapter implements ChannelAdapter {
           if (!merchantCtx) return;
 
           const userId = String(ctx.message.from.id);
-          const senderName = getTeamMemberName(userId) ||
+          const senderName = (await getTeamMemberName(userId)) ||
             ctx.message.from.first_name + (ctx.message.from.last_name ? ` ${ctx.message.from.last_name}` : "");
-          const isTonder = isTonderTeamMember(userId);
+          const isTonder = await isTonderTeamMember(userId);
 
           // Build minimal context from reply chain
           const threadContext: string[] = [];

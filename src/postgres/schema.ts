@@ -169,6 +169,30 @@ AND NOT EXISTS (
   WHERE pb.channel_id = mc.id AND pb.username = 'tonder_operator'
 );
 
+-- ═══ People Knowledge Base ═══
+CREATE TABLE IF NOT EXISTS pascal_people (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type                TEXT NOT NULL CHECK (type IN ('tonder_team', 'merchant_contact')),
+  name                TEXT NOT NULL,
+  role                TEXT DEFAULT '',
+  company             TEXT DEFAULT '',
+  slack_user_id       TEXT,
+  telegram_user_id    TEXT,
+  email               TEXT DEFAULT '',
+  domain              TEXT DEFAULT '',
+  topics              TEXT[] DEFAULT '{}',
+  escalation_notes    TEXT DEFAULT '',
+  merchant_channel_id INTEGER REFERENCES pascal_merchant_channels(id) ON DELETE SET NULL,
+  account_manager_id  UUID REFERENCES pascal_people(id) ON DELETE SET NULL,
+  notes               TEXT DEFAULT '',
+  is_active           BOOLEAN DEFAULT true,
+  created_at          TIMESTAMPTZ DEFAULT now(),
+  updated_at          TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pascal_people_type ON pascal_people(type) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_pascal_people_slack ON pascal_people(slack_user_id) WHERE slack_user_id IS NOT NULL AND slack_user_id != '';
+CREATE INDEX IF NOT EXISTS idx_pascal_people_telegram ON pascal_people(telegram_user_id) WHERE telegram_user_id IS NOT NULL AND telegram_user_id != '';
+
 -- ═══ Seed: Integration Knowledge Base Entries ═══
 ` +
 `

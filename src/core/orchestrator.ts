@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config";
-import { buildSystemPrompt, buildAmbientSupplement } from "./prompts";
+import { buildSystemPrompt, buildAmbientSupplement, buildPeopleContext } from "./prompts";
+import { getTeamDirectory } from "./tonder-team";
 import { toolDefinitions, executeTool } from "./tools";
 import { sanitizeToolOutput, auditResponse } from "./provider-mask";
 import { resolveMerchantContext } from "../merchants/context";
@@ -64,7 +65,17 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<strin
     );
   }
 
-  // Step 2c: Inject ambient mode supplement if applicable
+  // Step 2c: Inject people/team context
+  try {
+    const teamDirectory = await getTeamDirectory();
+    if (teamDirectory.length > 0) {
+      systemPrompt += buildPeopleContext(teamDirectory);
+    }
+  } catch (err) {
+    logger.warn({ err }, "Failed to load team directory for prompt — non-fatal");
+  }
+
+  // Step 2d: Inject ambient mode supplement if applicable
   if (msg.ambient) {
     systemPrompt += buildAmbientSupplement(msg.threadContext ?? []);
   }

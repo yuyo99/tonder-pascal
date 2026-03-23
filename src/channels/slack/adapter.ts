@@ -342,8 +342,8 @@ export class SlackChannelAdapter implements ChannelAdapter {
       const threadContext = await fetchSlackContext(client, msg.channel, msg.thread_ts);
 
       // Run triage
-      const senderName = getTeamMemberName(msg.user) || msg.user;
-      const isTonder = isTonderTeamMember(msg.user);
+      const senderName = (await getTeamMemberName(msg.user)) || msg.user;
+      const isTonder = await isTonderTeamMember(msg.user);
       let triage: TriageResult;
 
       try {

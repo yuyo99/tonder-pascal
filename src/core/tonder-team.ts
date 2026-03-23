@@ -1,35 +1,97 @@
 /**
  * Tonder team member identification.
- * Maps Slack + Telegram user IDs to team member info.
+ * Loads from pascal_people DB table with 10-minute cache.
+ * Falls back to hardcoded entries if DB is unavailable.
  * Used by ambient mode to distinguish Tonder staff from merchants.
  */
 
-interface TeamMember {
+import { pgQuery } from "../postgres/connection";
+import { logger } from "../utils/logger";
+
+export interface TeamMemberInfo {
+  id: string;
   name: string;
   role: string;
+  domain: string;
+  topics: string[];
+  escalation_notes: string;
+  email: string;
+  slack_user_id: string | null;
+  telegram_user_id: string | null;
 }
 
-// Slack user IDs → team member
-const SLACK_TEAM: Record<string, TeamMember> = {
+// ── Cache ──
+
+let teamCache: TeamMemberInfo[] = [];
+let slackIndex = new Map<string, TeamMemberInfo>();
+let telegramIndex = new Map<string, TeamMemberInfo>();
+let lastLoaded = 0;
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+// Hardcoded fallback (used before DB is available)
+const FALLBACK_SLACK: Record<string, { name: string; role: string }> = {
   "U091BLCSUMC": { name: "Roberto", role: "FinOps" },
-  // Add more Slack user IDs here as needed
 };
 
-// Telegram user IDs → team member
-const TELEGRAM_TEAM: Record<string, TeamMember> = {
-  // Add Telegram user IDs here as needed
-};
+async function loadTeam(): Promise<void> {
+  try {
+    const result = await pgQuery(
+      `SELECT id, name, role, domain, topics, escalation_notes, email,
+              slack_user_id, telegram_user_id
+       FROM pascal_people
+       WHERE type = 'tonder_team' AND is_active = true
+       ORDER BY name ASC`
+    );
+    teamCache = result.rows;
+    lastLoaded = Date.now();
 
-const COMBINED = { ...SLACK_TEAM, ...TELEGRAM_TEAM };
+    // Rebuild indexes
+    slackIndex = new Map();
+    telegramIndex = new Map();
+    for (const m of teamCache) {
+      if (m.slack_user_id) slackIndex.set(m.slack_user_id, m);
+      if (m.telegram_user_id) telegramIndex.set(m.telegram_user_id, m);
+    }
 
-export function isTonderTeamMember(userId: string): boolean {
-  return userId in COMBINED;
+    if (teamCache.length > 0) {
+      logger.info({ count: teamCache.length }, "Tonder team loaded from DB");
+    }
+  } catch (err) {
+    logger.warn({ err }, "Failed to load team from DB — using fallback");
+  }
 }
 
-export function getTeamMemberName(userId: string): string | null {
-  return COMBINED[userId]?.name ?? null;
+async function ensureLoaded(): Promise<void> {
+  if (Date.now() - lastLoaded > CACHE_TTL) {
+    await loadTeam();
+  }
 }
 
-export function getTeamMemberRole(userId: string): string | null {
-  return COMBINED[userId]?.role ?? null;
+// ── Public API ──
+
+export async function isTonderTeamMember(userId: string): Promise<boolean> {
+  await ensureLoaded();
+  if (slackIndex.has(userId) || telegramIndex.has(userId)) return true;
+  // Fallback check
+  return userId in FALLBACK_SLACK;
+}
+
+export async function getTeamMemberName(userId: string): Promise<string | null> {
+  await ensureLoaded();
+  const member = slackIndex.get(userId) ?? telegramIndex.get(userId);
+  if (member) return member.name;
+  return FALLBACK_SLACK[userId]?.name ?? null;
+}
+
+export async function getTeamMemberRole(userId: string): Promise<string | null> {
+  await ensureLoaded();
+  const member = slackIndex.get(userId) ?? telegramIndex.get(userId);
+  if (member) return member.role;
+  return FALLBACK_SLACK[userId]?.role ?? null;
+}
+
+/** Get all team members for prompt injection */
+export async function getTeamDirectory(): Promise<TeamMemberInfo[]> {
+  await ensureLoaded();
+  return teamCache;
 }

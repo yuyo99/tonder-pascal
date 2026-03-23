@@ -1,4 +1,5 @@
 import { MerchantContext } from "../merchants/types";
+import { TeamMemberInfo } from "./tonder-team";
 
 const today = new Date().toISOString().slice(0, 10);
 const dayOfWeek = new Date().toLocaleDateString("en-US", { weekday: "long" });
@@ -131,4 +132,26 @@ CRITICAL BEHAVIOR:
 - Don't be overly eager or robotic
 - Sound like a helpful colleague, not a chatbot
 ${contextBlock}`;
+}
+
+/**
+ * Build a people context section for the system prompt.
+ * Includes Tonder team directory so Pascal knows who handles what.
+ */
+export function buildPeopleContext(team: TeamMemberInfo[]): string {
+  if (team.length === 0) return "";
+
+  const lines = team.map((m) => {
+    const parts = [`- **${m.name}**`];
+    if (m.role) parts.push(`(${m.role})`);
+    if (m.domain) parts.push(`— Domain: ${m.domain}`);
+    if (m.topics && m.topics.length > 0) parts.push(`| Topics: ${m.topics.join(", ")}`);
+    if (m.escalation_notes) parts.push(`\n  _Escalation: ${m.escalation_notes}_`);
+    return parts.join(" ");
+  });
+
+  return `\n\n## Tonder Team Directory
+You know the Tonder team. When a merchant asks about a topic, you can reference who handles it. If an issue needs human attention, suggest the right person.
+
+${lines.join("\n")}`;
 }
