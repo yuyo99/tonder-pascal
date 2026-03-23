@@ -34,5 +34,10 @@ export const config = {
   postgres: {
     url: process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL || "",
   },
+  ambient: {
+    enabled: process.env.AMBIENT_ENABLED === "true",
+    // Channels where ambient mode is active (comma-separated). Empty = all mapped channels.
+    allowedChannels: (process.env.AMBIENT_CHANNELS || "").split(",").filter(Boolean),
+  },
   logLevel: process.env.LOG_LEVEL || "info",
 };

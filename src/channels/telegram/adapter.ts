@@ -1,9 +1,12 @@
 import { Telegraf } from "telegraf";
 import { ChannelAdapter, IncomingMessage, OutgoingMessage } from "../types";
-import { createSupportTicket, CommandType } from "../../linear/client";
+import { createSupportTicket, createTeamTicket, CommandType } from "../../linear/client";
 import { resolveMerchantContext, isPartnerBot, hasPartnerBots } from "../../merchants/context";
 import { trackInteraction } from "../../scheduler/daily-report";
 import { parseDepositTicket, isValidTxid, buildTicketLookupPrompt } from "./partner-bot";
+import { triageMessage, TriageResult } from "../../core/triage";
+import { isTonderTeamMember, getTeamMemberName } from "../../core/tonder-team";
+import { config } from "../../config";
 import { logger } from "../../utils/logger";
 import { storeErrorFromCatch, storeError } from "../../utils/error-store";
 
@@ -67,6 +70,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
   private bot: Telegraf;
   private messageHandler?: (msg: IncomingMessage) => Promise<string>;
   private botInfo: { username: string; id: number } | null = null;
+  private ambientRateLimit = new Map<string, number>();
 
   constructor(telegramConfig: TelegramConfig) {
     this.bot = new Telegraf(telegramConfig.botToken);
@@ -286,7 +290,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       );
       if (wasPartnerBot) return;
 
-      // In groups/supergroups, only respond when bot is mentioned or replied to
+      // In groups/supergroups, check if mentioned/replied or try ambient mode
       if (ctx.chat.type !== "private") {
         if (!this.botInfo) {
           logger.error({ chatId }, "Bot identity not resolved — cannot check mentions");
@@ -297,7 +301,85 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         const isReply = ctx.message.reply_to_message?.from?.id === this.botInfo.id;
 
         if (!isMentioned && !isReply) {
-          logger.debug({ chatId, isMentioned, isReply, botUsername: this.botInfo.username }, "Ignored Telegram group message (not mentioned/replied)");
+          // Not tagged — try ambient mode
+          if (!config.ambient.enabled) return;
+          if (config.ambient.allowedChannels.length > 0 && !config.ambient.allowedChannels.includes(chatId)) return;
+
+          // Rate limit
+          const lastResponse = this.ambientRateLimit.get(chatId) ?? 0;
+          if (Date.now() - lastResponse < 5 * 60 * 1000) return;
+
+          const merchantCtx = await resolveMerchantContext(chatId, "telegram");
+          if (!merchantCtx) return;
+
+          const userId = String(ctx.message.from.id);
+          const senderName = getTeamMemberName(userId) ||
+            ctx.message.from.first_name + (ctx.message.from.last_name ? ` ${ctx.message.from.last_name}` : "");
+          const isTonder = isTonderTeamMember(userId);
+
+          // Build minimal context from reply chain
+          const threadContext: string[] = [];
+          if (ctx.message.reply_to_message && "text" in ctx.message.reply_to_message) {
+            const replyFrom = (ctx.message.reply_to_message as any).from;
+            const replyName = replyFrom?.first_name || "Unknown";
+            threadContext.push(`${replyName}: ${(ctx.message.reply_to_message as any).text?.slice(0, 300)}`);
+          }
+
+          let triage: TriageResult;
+          try {
+            triage = await triageMessage({
+              message: text,
+              senderName,
+              isTonderTeam: isTonder,
+              threadContext,
+              merchantName: merchantCtx.businessName,
+              platform: "telegram",
+            });
+          } catch (err) {
+            logger.error({ err }, "Telegram ambient triage failed");
+            return;
+          }
+
+          if (triage.action === "silent") return;
+
+          this.ambientRateLimit.set(chatId, Date.now());
+
+          if (triage.action === "create_ticket" && triage.ticketTeam) {
+            try {
+              const title = text.length > 80 ? text.slice(0, 77) + "..." : text;
+              const ticket = await createTeamTicket({
+                team: triage.ticketTeam,
+                title: `[Ambient] ${title}`,
+                description: `**Detected in:** ${merchantCtx.businessName} Telegram group\n**Reported by:** ${senderName}\n**Triage reason:** ${triage.reason}\n\n---\n\n${text}`,
+                priority: 2,
+                merchantCtx,
+              });
+              await ctx.reply(
+                `I've created a ticket for this: ${ticket.identifier} (${ticket.url}). The team will follow up.`,
+                { reply_parameters: { message_id: ctx.message.message_id } }
+              );
+            } catch (err) {
+              logger.error({ err }, "Failed to create Telegram ambient ticket");
+            }
+            return;
+          }
+
+          // Ambient answer
+          try {
+            const answer = await handler({
+              channelId: chatId,
+              platform: "telegram",
+              userId,
+              userName: senderName,
+              text,
+              rawEvent: ctx.message,
+              ambient: true,
+              threadContext,
+            });
+            await ctx.reply(answer, { reply_parameters: { message_id: ctx.message.message_id } });
+          } catch (err) {
+            logger.error({ err }, "Telegram ambient response failed");
+          }
           return;
         }
       }

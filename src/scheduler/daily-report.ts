@@ -21,6 +21,7 @@ export interface InteractionRecord {
   answered: boolean;
   ticketId?: string;
   timestamp: Date;
+  ambient?: boolean;
 }
 
 let dailyInteractions: InteractionRecord[] = [];

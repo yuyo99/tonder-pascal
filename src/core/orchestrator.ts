@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config";
-import { buildSystemPrompt } from "./prompts";
+import { buildSystemPrompt, buildAmbientSupplement } from "./prompts";
 import { toolDefinitions, executeTool } from "./tools";
 import { sanitizeToolOutput, auditResponse } from "./provider-mask";
 import { resolveMerchantContext } from "../merchants/context";
@@ -64,6 +64,11 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<strin
     );
   }
 
+  // Step 2c: Inject ambient mode supplement if applicable
+  if (msg.ambient) {
+    systemPrompt += buildAmbientSupplement(msg.threadContext ?? []);
+  }
+
   // Step 3: Run Claude tool-use loop
   let result: ToolLoopResult;
   let error: string | undefined;
@@ -116,6 +121,7 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<strin
     question: msg.text,
     answered: !error,
     timestamp: new Date(),
+    ambient: msg.ambient,
   });
 
   // Step 6: Update knowledge hit counts (fire-and-forget)

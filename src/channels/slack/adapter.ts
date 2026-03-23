@@ -1,10 +1,14 @@
 import { App } from "@slack/bolt";
 import { ChannelAdapter, IncomingMessage, OutgoingMessage } from "../types";
 import { formatResponse, formatError, formatThinking } from "./formatter";
-import { createSupportTicket, createTriageTicket, CommandType } from "../../linear/client";
+import { createSupportTicket, createTriageTicket, createTeamTicket, CommandType } from "../../linear/client";
 import { resolveMerchantContext } from "../../merchants/context";
 import { trackInteraction } from "../../scheduler/daily-report";
 import { handleFeedbackMessage } from "../../knowledge/feedback";
+import { triageMessage, TriageResult } from "../../core/triage";
+import { isTonderTeamMember, getTeamMemberName } from "../../core/tonder-team";
+import { fetchSlackContext } from "./context";
+import { config } from "../../config";
 import { logger } from "../../utils/logger";
 import { storeErrorFromCatch } from "../../utils/error-store";
 
@@ -298,6 +302,142 @@ export class SlackChannelAdapter implements ChannelAdapter {
           blocks: formatError(errorMsg),
           text: `Error: ${errorMsg}`,
         });
+      }
+    });
+
+    // ── Ambient mode: listen to channel messages without being tagged ──
+    const ambientRateLimit = new Map<string, number>(); // channelId → last response timestamp
+    const AMBIENT_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes per channel
+
+    this.app.event("message", async ({ event, client }) => {
+      if (!config.ambient.enabled) return;
+
+      const msg = event as {
+        channel_type?: string; text?: string; user?: string;
+        ts?: string; subtype?: string; channel?: string;
+        thread_ts?: string; bot_id?: string;
+      };
+
+      // Only handle channel/group messages (not DMs — those are handled above)
+      if (msg.channel_type === "im") return;
+      // Skip bot messages, subtypes (joins, leaves, etc.), empty text
+      if (msg.subtype || msg.bot_id || !msg.text || !msg.channel || !msg.user) return;
+      // Skip if this is an @mention (already handled by app_mention)
+      if (msg.text.includes(`<@`) && msg.text.match(/<@[A-Z0-9]+>/)) return;
+      // Skip if already processed as a different event
+      if (this.processedEvents.has(msg.ts!)) return;
+
+      // Check if this channel is allowed for ambient mode
+      if (config.ambient.allowedChannels.length > 0 && !config.ambient.allowedChannels.includes(msg.channel)) return;
+
+      // Rate limit: max 1 ambient response per channel per 5 minutes
+      const lastResponse = ambientRateLimit.get(msg.channel) ?? 0;
+      if (Date.now() - lastResponse < AMBIENT_COOLDOWN_MS) return;
+
+      // Resolve merchant context — skip if channel isn't mapped
+      const merchantCtx = await resolveMerchantContext(msg.channel, "slack");
+      if (!merchantCtx) return;
+
+      // Fetch thread/channel context for triage
+      const threadContext = await fetchSlackContext(client, msg.channel, msg.thread_ts);
+
+      // Run triage
+      const senderName = getTeamMemberName(msg.user) || msg.user;
+      const isTonder = isTonderTeamMember(msg.user);
+      let triage: TriageResult;
+
+      try {
+        triage = await triageMessage({
+          message: msg.text,
+          senderName,
+          isTonderTeam: isTonder,
+          threadContext,
+          merchantName: merchantCtx.businessName,
+          platform: "slack",
+        });
+      } catch (err) {
+        logger.error({ err }, "Ambient triage failed");
+        return;
+      }
+
+      if (triage.action === "silent") return;
+
+      // Mark rate limit
+      ambientRateLimit.set(msg.channel, Date.now());
+      // Clean old entries
+      if (ambientRateLimit.size > 200) {
+        const now = Date.now();
+        for (const [ch, ts] of ambientRateLimit) {
+          if (now - ts > AMBIENT_COOLDOWN_MS * 2) ambientRateLimit.delete(ch);
+        }
+      }
+
+      if (triage.action === "create_ticket" && triage.ticketTeam) {
+        // Create a ticket instead of answering
+        try {
+          const title = msg.text.length > 80 ? msg.text.slice(0, 77) + "..." : msg.text;
+          const ticket = await createTeamTicket({
+            team: triage.ticketTeam,
+            title: `[Ambient] ${title}`,
+            description: [
+              `**Detected in:** ${merchantCtx.businessName} Slack channel`,
+              `**Reported by:** ${senderName}`,
+              `**Triage reason:** ${triage.reason}`,
+              "",
+              "---",
+              "",
+              msg.text,
+            ].join("\n"),
+            priority: 2,
+            merchantCtx,
+          });
+
+          await client.chat.postMessage({
+            channel: msg.channel,
+            thread_ts: msg.thread_ts || msg.ts,
+            text: `I've created a ticket for this: <${ticket.url}|${ticket.identifier}>. The team will follow up.`,
+          });
+
+          logger.info(
+            { ticket: ticket.identifier, team: triage.ticketTeam, merchant: merchantCtx.businessName },
+            "Ambient ticket created"
+          );
+        } catch (err) {
+          logger.error({ err }, "Failed to create ambient ticket");
+          storeErrorFromCatch("slack", err, { channel: msg.channel, action: "ambient_ticket" });
+        }
+        return;
+      }
+
+      // action === "answer" — run full orchestrator
+      try {
+        const answer = await handler({
+          channelId: msg.channel,
+          platform: "slack",
+          userId: msg.user,
+          userName: senderName,
+          text: msg.text,
+          threadId: msg.thread_ts || msg.ts,
+          rawEvent: event,
+          ambient: true,
+          threadContext,
+        });
+
+        // Post as a natural reply (no "thinking" indicator)
+        await client.chat.postMessage({
+          channel: msg.channel,
+          thread_ts: msg.thread_ts || msg.ts,
+          text: answer,
+        });
+
+        logger.info(
+          { merchant: merchantCtx.businessName, user: senderName },
+          "Ambient response sent"
+        );
+      } catch (err) {
+        logger.error({ err }, "Ambient response failed");
+        storeErrorFromCatch("slack", err, { channel: msg.channel, action: "ambient_answer" });
+        // Silently fail — don't post error messages in ambient mode
       }
     });
 

@@ -143,6 +143,94 @@ export async function createSupportTicket(
   };
 }
 
+/* ─── Team-routed ticket (for ambient mode ticket creation) ─── */
+
+// Known team IDs
+const TEAM_IDS: Record<string, string> = {
+  sos: "", // resolved dynamically via resolveTeamAndState
+  finops: "f3175c22-9085-4d04-b0d0-f95e2e678cdd",
+  int: "d2479bda-f447-4389-9ea2-5ed1038aec5f",
+};
+
+// Cache triage state IDs per team
+const cachedTeamTriageStates = new Map<string, string>();
+
+async function resolveTeamTriageState(teamId: string): Promise<string | undefined> {
+  const cached = cachedTeamTriageStates.get(teamId);
+  if (cached) return cached;
+
+  const client = getLinearClient();
+  const statesResult = await client.client.rawRequest(
+    `query($teamId: String!) { team(id: $teamId) { states { nodes { id name } } } }`,
+    { teamId },
+  );
+  const stateNodes = (statesResult as any).data.team.states.nodes as Array<{
+    id: string;
+    name: string;
+  }>;
+  const triage = stateNodes.find((s) => s.name === "Triage");
+  if (triage) cachedTeamTriageStates.set(teamId, triage.id);
+  return triage?.id;
+}
+
+export async function createTeamTicket(params: {
+  team: "sos" | "finops" | "int";
+  title: string;
+  description: string;
+  priority?: number;
+  merchantCtx?: MerchantContext;
+}): Promise<TicketResult> {
+  const client = getLinearClient();
+
+  let teamId: string;
+  if (params.team === "sos") {
+    // SOS team is resolved dynamically
+    await resolveTeamAndState();
+    teamId = cachedTeamId!;
+  } else {
+    teamId = TEAM_IDS[params.team];
+  }
+
+  const stateId = await resolveTeamTriageState(teamId);
+
+  const fullDescription = params.merchantCtx
+    ? [
+        `**Merchant:** ${params.merchantCtx.businessName} (ID: ${params.merchantCtx.businessId})`,
+        `**Platform:** ${params.merchantCtx.platform}`,
+        `**Channel:** ${params.merchantCtx.channelId}`,
+        `**Created by:** Pascal (ambient detection)`,
+        "",
+        "---",
+        "",
+        params.description,
+      ].join("\n")
+    : params.description;
+
+  const issuePayload = await client.createIssue({
+    teamId,
+    title: params.title,
+    description: fullDescription,
+    priority: params.priority ?? 3,
+    stateId: stateId || undefined,
+  });
+
+  const issue = await issuePayload.issue;
+  if (!issue) {
+    throw new Error(`Failed to create ${params.team.toUpperCase()} ticket`);
+  }
+
+  logger.info(
+    { identifier: issue.identifier, team: params.team, title: params.title },
+    "Linear team ticket created (ambient)"
+  );
+
+  return {
+    id: issue.id,
+    identifier: issue.identifier,
+    url: issue.url,
+  };
+}
+
 /* ─── Lightweight triage ticket (no MerchantContext required) ─── */
 
 async function resolveUserByEmail(email: string): Promise<string | null> {

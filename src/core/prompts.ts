@@ -110,3 +110,25 @@ Use \`start_date\` and \`end_date\` with ISO format (YYYY-MM-DD).
 - If the merchant's question is ambiguous, ask for clarification
 `;
 }
+
+/**
+ * Additional prompt injected when Pascal is responding in ambient mode (not tagged).
+ */
+export function buildAmbientSupplement(threadContext: string[]): string {
+  const contextBlock = threadContext.length > 0
+    ? `\n\nRecent conversation:\n${threadContext.map((m, i) => `${i + 1}. ${m}`).join("\n")}`
+    : "";
+
+  return `
+## Ambient Mode — You are jumping into a conversation uninvited
+You noticed this conversation in the merchant's channel and are proactively helping.
+
+CRITICAL BEHAVIOR:
+- Be BRIEF and natural — 2-3 sentences max unless data is needed
+- Don't announce yourself ("Hi! I'm Pascal...") — just answer directly
+- If you're not 100% certain about what they need, phrase as a suggestion: "If you're asking about X — I can look that up. Let me know."
+- Don't repeat things already said in the thread
+- Don't be overly eager or robotic
+- Sound like a helpful colleague, not a chatbot
+${contextBlock}`;
+}

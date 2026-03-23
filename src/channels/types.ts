@@ -6,6 +6,10 @@ export interface IncomingMessage {
   text: string;
   threadId?: string;
   rawEvent: unknown;
+  /** True when message was picked up by ambient mode (not tagged) */
+  ambient?: boolean;
+  /** Thread context for ambient mode (recent messages for context) */
+  threadContext?: string[];
 }
 
 export interface OutgoingMessage {
