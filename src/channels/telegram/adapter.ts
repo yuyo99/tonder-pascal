@@ -309,8 +309,22 @@ export class TelegramChannelAdapter implements ChannelAdapter {
           const lastResponse = this.ambientRateLimit.get(chatId) ?? 0;
           if (Date.now() - lastResponse < 5 * 60 * 1000) return;
 
-          const merchantCtx = await resolveMerchantContext(chatId, "telegram");
-          if (!merchantCtx) return;
+          let merchantCtx = await resolveMerchantContext(chatId, "telegram");
+          if (!merchantCtx) {
+            if (config.ambient.allowedChannels.includes(chatId)) {
+              merchantCtx = {
+                businessId: 0,
+                businessIdStr: "",
+                businessIds: [],
+                businessIdStrs: [],
+                businessName: "Training (all merchants)",
+                platform: "telegram",
+                channelId: chatId,
+              };
+            } else {
+              return;
+            }
+          }
 
           const userId = String(ctx.message.from.id);
           const senderName = (await getTeamMemberName(userId)) ||
@@ -330,7 +344,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
             triage = await triageMessage({
               message: text,
               senderName,
-              isTonderTeam: isTonder,
+              isTonderTeam: merchantCtx.businessId === 0 ? false : isTonder, // Training channels: don't skip Tonder team
               threadContext,
               merchantName: merchantCtx.businessName,
               platform: "telegram",

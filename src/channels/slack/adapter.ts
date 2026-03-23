@@ -339,9 +339,24 @@ export class SlackChannelAdapter implements ChannelAdapter {
       const lastResponse = ambientRateLimit.get(msg.channel) ?? 0;
       if (Date.now() - lastResponse < AMBIENT_COOLDOWN_MS) return;
 
-      // Resolve merchant context — skip if channel isn't mapped
-      const merchantCtx = await resolveMerchantContext(msg.channel, "slack");
-      if (!merchantCtx) return;
+      // Resolve merchant context — allow unmapped channels that are in AMBIENT_CHANNELS (e.g. training)
+      let merchantCtx = await resolveMerchantContext(msg.channel, "slack");
+      if (!merchantCtx) {
+        // Training/internal channels: no merchant restriction
+        if (config.ambient.allowedChannels.includes(msg.channel)) {
+          merchantCtx = {
+            businessId: 0,
+            businessIdStr: "",
+            businessIds: [],
+            businessIdStrs: [],
+            businessName: "Training (all merchants)",
+            platform: "slack",
+            channelId: msg.channel,
+          };
+        } else {
+          return;
+        }
+      }
 
       // Fetch thread/channel context for triage
       const threadContext = await fetchSlackContext(client, msg.channel, msg.thread_ts);
@@ -355,7 +370,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
         triage = await triageMessage({
           message: msg.text,
           senderName,
-          isTonderTeam: isTonder,
+          isTonderTeam: merchantCtx.businessId === 0 ? false : isTonder, // Training channels: don't skip Tonder team
           threadContext,
           merchantName: merchantCtx.businessName,
           platform: "slack",
