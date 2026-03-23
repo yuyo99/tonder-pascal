@@ -310,8 +310,6 @@ export class SlackChannelAdapter implements ChannelAdapter {
     const AMBIENT_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes per channel
 
     this.app.event("message", async ({ event, client }) => {
-      if (!config.ambient.enabled) return;
-
       const msg = event as {
         channel_type?: string; text?: string; user?: string;
         ts?: string; subtype?: string; channel?: string;
@@ -320,6 +318,13 @@ export class SlackChannelAdapter implements ChannelAdapter {
 
       // Only handle channel/group messages (not DMs — those are handled above)
       if (msg.channel_type === "im") return;
+
+      logger.info(
+        { channel: msg.channel, channelType: msg.channel_type, ambientEnabled: config.ambient.enabled, text: msg.text?.slice(0, 60) },
+        "Ambient listener: channel message received"
+      );
+
+      if (!config.ambient.enabled) return;
       // Skip bot messages, subtypes (joins, leaves, etc.), empty text
       if (msg.subtype || msg.bot_id || !msg.text || !msg.channel || !msg.user) return;
       // Skip if this is an @mention (already handled by app_mention)
