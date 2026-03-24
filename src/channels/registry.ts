@@ -1,5 +1,5 @@
 import { config } from "../config";
-import { ChannelAdapter, IncomingMessage } from "./types";
+import { ChannelAdapter, IncomingMessage, MessageResponse } from "./types";
 import { SlackChannelAdapter } from "./slack/adapter";
 import { TelegramChannelAdapter } from "./telegram/adapter";
 import { logger } from "../utils/logger";
@@ -10,7 +10,7 @@ import { storeErrorFromCatch } from "../utils/error-store";
  * Returns the list of active adapters.
  */
 export async function bootChannels(
-  messageHandler: (msg: IncomingMessage) => Promise<string>
+  messageHandler: (msg: IncomingMessage) => Promise<MessageResponse>
 ): Promise<ChannelAdapter[]> {
   const adapters: ChannelAdapter[] = [];
 

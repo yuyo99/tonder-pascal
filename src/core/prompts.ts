@@ -109,6 +109,9 @@ Use \`start_date\` and \`end_date\` with ISO format (YYYY-MM-DD).
 - Default date range is "today" if the merchant doesn't specify one
 - Keep responses concise and use bullet points for multiple metrics
 - If the merchant's question is ambiguous, ask for clarification
+
+## Refund Receipts
+When a merchant asks for a refund receipt, first use lookup_by_id to get the transaction details, then use generate_refund_receipt to create and send a PDF receipt. Always look up the transaction first — never fabricate receipt data.
 `;
 }
 

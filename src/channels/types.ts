@@ -19,6 +19,11 @@ export interface OutgoingMessage {
   richText?: unknown;
 }
 
+export interface MessageResponse {
+  text: string;
+  attachments?: { buffer: Buffer; filename: string }[];
+}
+
 export interface ChannelAdapter {
   platform: "slack" | "telegram" | "whatsapp";
   start(): Promise<void>;
@@ -28,6 +33,6 @@ export interface ChannelAdapter {
     msg: OutgoingMessage & { messageId: string }
   ): Promise<void>;
   onMessage(
-    handler: (msg: IncomingMessage) => Promise<string>
+    handler: (msg: IncomingMessage) => Promise<MessageResponse>
   ): void;
 }

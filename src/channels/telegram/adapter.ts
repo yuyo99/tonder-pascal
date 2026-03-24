@@ -1,5 +1,5 @@
 import { Telegraf } from "telegraf";
-import { ChannelAdapter, IncomingMessage, OutgoingMessage } from "../types";
+import { ChannelAdapter, IncomingMessage, OutgoingMessage, MessageResponse } from "../types";
 import { createSupportTicket, createTeamTicket, CommandType } from "../../linear/client";
 import { resolveMerchantContext, isPartnerBot, hasPartnerBots } from "../../merchants/context";
 import { trackInteraction } from "../../scheduler/daily-report";
@@ -23,7 +23,7 @@ async function tryHandleDepositTicket(
   chatId: string,
   userId: string,
   userName: string,
-  handler: (msg: IncomingMessage) => Promise<string>,
+  handler: (msg: IncomingMessage) => Promise<MessageResponse>,
   replyFn: (answer: string) => Promise<void>,
   rawEvent: unknown,
   logLabel: string
@@ -45,7 +45,7 @@ async function tryHandleDepositTicket(
   logger.info({ chatId, orderId: ticket.orderId, txid: ticket.txid },
     `${logLabel}: calling orchestrator for deposit ticket lookup`);
   try {
-    const answer = await handler({
+    const response = await handler({
       channelId: chatId,
       platform: "telegram",
       userId,
@@ -53,7 +53,7 @@ async function tryHandleDepositTicket(
       text: lookupPrompt,
       rawEvent,
     });
-    await replyFn(answer);
+    await replyFn(response.text);
   } catch (err) {
     logger.error(
       { err, chatId, userName, orderId: ticket.orderId },
@@ -68,7 +68,7 @@ async function tryHandleDepositTicket(
 export class TelegramChannelAdapter implements ChannelAdapter {
   platform = "telegram" as const;
   private bot: Telegraf;
-  private messageHandler?: (msg: IncomingMessage) => Promise<string>;
+  private messageHandler?: (msg: IncomingMessage) => Promise<MessageResponse>;
   private botInfo: { username: string; id: number } | null = null;
   private ambientRateLimit = new Map<string, number>();
 
@@ -76,7 +76,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
     this.bot = new Telegraf(telegramConfig.botToken);
   }
 
-  onMessage(handler: (msg: IncomingMessage) => Promise<string>): void {
+  onMessage(handler: (msg: IncomingMessage) => Promise<MessageResponse>): void {
     this.messageHandler = handler;
   }
 
@@ -394,7 +394,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
             ? `Look up this ID and respond with its full status and details: ${text.trim()}`
             : text;
           try {
-            const answer = await handler({
+            const response = await handler({
               channelId: chatId,
               platform: "telegram",
               userId,
@@ -404,7 +404,12 @@ export class TelegramChannelAdapter implements ChannelAdapter {
               ambient: true,
               threadContext,
             });
-            await ctx.reply(answer, { reply_parameters: { message_id: ctx.message.message_id } });
+            await ctx.reply(response.text, { reply_parameters: { message_id: ctx.message.message_id } });
+            if (response.attachments?.length) {
+              for (const att of response.attachments) {
+                await ctx.replyWithDocument({ source: att.buffer, filename: att.filename }, { reply_parameters: { message_id: ctx.message.message_id } });
+              }
+            }
           } catch (err) {
             logger.error({ err }, "Telegram ambient response failed");
           }
@@ -447,7 +452,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       const thinkingMsg = await ctx.reply("Let me look into that... ⏳");
 
       try {
-        const answer = await handler({
+        const response = await handler({
           channelId: chatId,
           platform: "telegram",
           userId: String(ctx.message.from.id),
@@ -462,12 +467,17 @@ export class TelegramChannelAdapter implements ChannelAdapter {
             ctx.chat.id,
             thinkingMsg.message_id,
             undefined,
-            answer,
+            response.text,
             { parse_mode: undefined }
           );
         } catch {
-          // If edit fails (message too long, etc.), send as new message
-          await ctx.reply(answer);
+          await ctx.reply(response.text);
+        }
+
+        if (response.attachments?.length) {
+          for (const att of response.attachments) {
+            await ctx.replyWithDocument({ source: att.buffer, filename: att.filename });
+          }
         }
       } catch (err) {
         logger.error({ err }, "Failed to answer Telegram message");
@@ -591,7 +601,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       const thinkingMsg = await ctx.reply("Let me look into that... ⏳");
 
       try {
-        const answer = await handler({
+        const response = await handler({
           channelId: chatId,
           platform: "telegram",
           userId: "channel",
@@ -605,11 +615,17 @@ export class TelegramChannelAdapter implements ChannelAdapter {
             ctx.chat.id,
             thinkingMsg.message_id,
             undefined,
-            answer,
+            response.text,
             { parse_mode: undefined }
           );
         } catch {
-          await ctx.reply(answer);
+          await ctx.reply(response.text);
+        }
+
+        if (response.attachments?.length) {
+          for (const att of response.attachments) {
+            await ctx.replyWithDocument({ source: att.buffer, filename: att.filename });
+          }
         }
       } catch (err) {
         logger.error({ err }, "Failed to answer Telegram channel post");

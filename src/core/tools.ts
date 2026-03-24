@@ -2,9 +2,20 @@ import Anthropic from "@anthropic-ai/sdk";
 import { parseDateRange, buildDateRange, DateRange } from "../utils/dates";
 import { MerchantContext } from "../merchants/types";
 import * as queries from "../mongodb/queries";
+import { generateRefundReceipt } from "./receipt-generator";
 
 import { logger } from "../utils/logger";
 import { storeErrorFromCatch } from "../utils/error-store";
+
+// Pending file attachments from tool execution (keyed by receipt ID)
+const pendingAttachments = new Map<string, { buffer: Buffer; filename: string }>();
+let receiptCounter = 0;
+
+export function consumePendingAttachments(): { buffer: Buffer; filename: string }[] {
+  const attachments = [...pendingAttachments.values()];
+  pendingAttachments.clear();
+  return attachments;
+}
 
 // Shared date parameter definitions
 const dateParams = {
@@ -139,6 +150,25 @@ export const toolDefinitions: Anthropic.Tool[] = [
       required: [] as string[],
     },
   },
+  {
+    name: "generate_refund_receipt",
+    description:
+      "Generate a PDF refund receipt for a transaction. Use lookup_by_id FIRST to get the transaction details, then call this tool with the data. The PDF will be automatically sent as a file attachment in the channel.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        payment_id: { type: "string" as const, description: "Transaction/payment ID" },
+        order_id: { type: "string" as const, description: "Order ID" },
+        amount: { type: "number" as const, description: "Refund amount" },
+        currency: { type: "string" as const, description: "Currency code (default MXN)" },
+        status: { type: "string" as const, description: "Transaction status" },
+        payment_method: { type: "string" as const, description: "Payment method display name" },
+        customer_email: { type: "string" as const, description: "Customer email" },
+        created_at: { type: "string" as const, description: "Transaction creation date" },
+      },
+      required: ["payment_id", "amount", "status"] as string[],
+    },
+  },
 ];
 
 // Tool input types
@@ -151,6 +181,13 @@ interface ToolInput {
   status?: string;
   amount?: number;
   reference?: string;
+  // Receipt fields
+  payment_id?: string;
+  order_id?: string;
+  currency?: string;
+  payment_method?: string;
+  customer_email?: string;
+  created_at?: string;
 }
 
 function resolveDateRange(input: ToolInput): DateRange {
@@ -301,6 +338,33 @@ export async function executeTool(
           count: result.length,
           dateRange: dateRange.label,
           merchant: merchantCtx.businessName,
+        });
+      }
+
+      case "generate_refund_receipt": {
+        if (!input.payment_id || !input.amount || !input.status) {
+          return "Error: payment_id, amount, and status are required";
+        }
+        const pdfBuffer = await generateRefundReceipt({
+          paymentId: input.payment_id,
+          orderId: input.order_id,
+          amount: input.amount,
+          currency: input.currency || "MXN",
+          status: input.status,
+          paymentMethod: input.payment_method,
+          customerEmail: input.customer_email,
+          merchantName: merchantCtx.businessName,
+          createdAt: input.created_at || new Date().toISOString(),
+        });
+        const receiptId = `receipt_${++receiptCounter}`;
+        const filename = `refund_receipt_${input.payment_id.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
+        pendingAttachments.set(receiptId, { buffer: pdfBuffer, filename });
+        logger.info({ receiptId, filename, merchant: merchantCtx.businessName }, "Refund receipt PDF generated");
+        return JSON.stringify({
+          success: true,
+          receiptId,
+          filename,
+          message: "PDF receipt generated and will be sent as a file attachment.",
         });
       }
 

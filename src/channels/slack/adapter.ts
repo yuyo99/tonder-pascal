@@ -1,5 +1,5 @@
 import { App } from "@slack/bolt";
-import { ChannelAdapter, IncomingMessage, OutgoingMessage } from "../types";
+import { ChannelAdapter, IncomingMessage, OutgoingMessage, MessageResponse } from "../types";
 import { formatResponse, formatError, formatThinking } from "./formatter";
 import { createSupportTicket, createTriageTicket, createTeamTicket, CommandType } from "../../linear/client";
 import { resolveMerchantContext } from "../../merchants/context";
@@ -23,7 +23,7 @@ interface SlackConfig {
 export class SlackChannelAdapter implements ChannelAdapter {
   platform = "slack" as const;
   private app: App;
-  private messageHandler?: (msg: IncomingMessage) => Promise<string>;
+  private messageHandler?: (msg: IncomingMessage) => Promise<MessageResponse>;
   private processedEvents = new Set<string>();
 
   constructor(slackConfig: SlackConfig) {
@@ -35,7 +35,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
     });
   }
 
-  onMessage(handler: (msg: IncomingMessage) => Promise<string>): void {
+  onMessage(handler: (msg: IncomingMessage) => Promise<MessageResponse>): void {
     this.messageHandler = handler;
   }
 
@@ -227,7 +227,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
       });
 
       try {
-        const answer = await handler({
+        const response = await handler({
           channelId: event.channel,
           platform: "slack",
           userId: event.user || "",
@@ -240,9 +240,22 @@ export class SlackChannelAdapter implements ChannelAdapter {
         await client.chat.update({
           channel: event.channel,
           ts: thinking.ts!,
-          blocks: formatResponse(answer),
-          text: answer,
+          blocks: formatResponse(response.text),
+          text: response.text,
         });
+
+        // Upload file attachments (e.g. PDF receipts)
+        if (response.attachments?.length) {
+          for (const att of response.attachments) {
+            await client.filesUploadV2({
+              channel_id: event.channel,
+              thread_ts: event.ts,
+              file: att.buffer,
+              filename: att.filename,
+              title: att.filename.replace(/_/g, " ").replace(".pdf", ""),
+            });
+          }
+        }
       } catch (err) {
         logger.error({ err }, "Failed to answer Slack @mention");
         storeErrorFromCatch("slack", err, { channel: event.channel, user: event.user, action: "app_mention" });
@@ -277,7 +290,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
       });
 
       try {
-        const answer = await handler({
+        const response = await handler({
           channelId: msg.channel!,
           platform: "slack",
           userId: msg.user || "",
@@ -289,9 +302,20 @@ export class SlackChannelAdapter implements ChannelAdapter {
         await client.chat.update({
           channel: msg.channel!,
           ts: thinking.ts!,
-          blocks: formatResponse(answer),
-          text: answer,
+          blocks: formatResponse(response.text),
+          text: response.text,
         });
+
+        if (response.attachments?.length) {
+          for (const att of response.attachments) {
+            await client.filesUploadV2({
+              channel_id: msg.channel!,
+              file: att.buffer,
+              filename: att.filename,
+              title: att.filename.replace(/_/g, " ").replace(".pdf", ""),
+            });
+          }
+        }
       } catch (err) {
         logger.error({ err }, "Failed to answer Slack DM");
         storeErrorFromCatch("slack", err, { channel: msg.channel!, user: msg.user, action: "dm" });
@@ -445,7 +469,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
         ? `Look up this ID and respond with its full status and details: ${msg.text.trim()}`
         : msg.text;
       try {
-        const answer = await handler({
+        const response = await handler({
           channelId: msg.channel,
           platform: "slack",
           userId: msg.user,
@@ -461,8 +485,21 @@ export class SlackChannelAdapter implements ChannelAdapter {
         await client.chat.postMessage({
           channel: msg.channel,
           thread_ts: msg.thread_ts || msg.ts,
-          text: answer,
+          text: response.text,
         });
+
+        if (response.attachments?.length) {
+          for (const att of response.attachments) {
+            const uploadArgs: Record<string, unknown> = {
+              channel_id: msg.channel,
+              file: att.buffer,
+              filename: att.filename,
+              title: att.filename.replace(/_/g, " ").replace(".pdf", ""),
+            };
+            if (msg.thread_ts || msg.ts) uploadArgs.thread_ts = msg.thread_ts || msg.ts;
+            await client.filesUploadV2(uploadArgs as unknown as Parameters<typeof client.filesUploadV2>[0]);
+          }
+        }
 
         logger.info(
           { merchant: merchantCtx.businessName, user: senderName },
