@@ -342,10 +342,12 @@ export class TelegramChannelAdapter implements ChannelAdapter {
           // Fast-path: deposit ticket / transaction inquiry — always respond, skip triage
           const isDepositTicket = /(?:txid|orderId|payment_id|transaction.?id)\s*[:=]?\s*\w+/i.test(text)
             && /(?:status|check|deposit|ticket|amount|currency)/i.test(text);
+          // Fast-path: bare Tonder ID (ord_, pay_, UUID, or long alphanumeric) — always look it up
+          const isBareId = /^\s*(ord_[a-zA-Z0-9]+|pay_[a-zA-Z0-9]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-zA-Z0-9_-]{15,})\s*$/i.test(text.trim());
 
           let triage: TriageResult;
-          if (isDepositTicket) {
-            logger.info({ chatId, user: senderName }, "Telegram ambient fast-path: deposit ticket detected");
+          if (isDepositTicket || isBareId) {
+            logger.info({ chatId, user: senderName, isBareId }, "Telegram ambient fast-path: transaction ID detected");
             triage = { shouldRespond: true, confidence: 0.99, reason: "deposit ticket / transaction inquiry", action: "answer", ticketTeam: null };
           } else {
             try {
@@ -388,13 +390,16 @@ export class TelegramChannelAdapter implements ChannelAdapter {
           }
 
           // Ambient answer
+          const queryText = isBareId
+            ? `Look up this ID and respond with its full status and details: ${text.trim()}`
+            : text;
           try {
             const answer = await handler({
               channelId: chatId,
               platform: "telegram",
               userId,
               userName: senderName,
-              text,
+              text: queryText,
               rawEvent: ctx.message,
               ambient: true,
               threadContext,

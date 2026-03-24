@@ -361,6 +361,8 @@ export class SlackChannelAdapter implements ChannelAdapter {
       // Fast-path: deposit ticket / transaction inquiry — always respond, skip triage
       const isDepositTicket = /(?:txid|orderId|payment_id|transaction.?id)\s*[:=]?\s*\w+/i.test(msg.text)
         && /(?:status|check|deposit|ticket|amount|currency)/i.test(msg.text);
+      // Fast-path: bare Tonder ID (ord_, pay_, UUID, or long alphanumeric) — always look it up
+      const isBareId = /^\s*(ord_[a-zA-Z0-9]+|pay_[a-zA-Z0-9]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-zA-Z0-9_-]{15,})\s*$/i.test(msg.text.trim());
 
       // Fetch thread/channel context for triage
       const threadContext = await fetchSlackContext(client, msg.channel, msg.thread_ts);
@@ -370,8 +372,8 @@ export class SlackChannelAdapter implements ChannelAdapter {
       const isTonder = await isTonderTeamMember(msg.user);
       let triage: TriageResult;
 
-      if (isDepositTicket) {
-        logger.info({ channel: msg.channel, user: senderName }, "Ambient fast-path: deposit ticket detected");
+      if (isDepositTicket || isBareId) {
+        logger.info({ channel: msg.channel, user: senderName, isBareId }, "Ambient fast-path: transaction ID detected");
         triage = { shouldRespond: true, confidence: 0.99, reason: "deposit ticket / transaction inquiry", action: "answer", ticketTeam: null };
       } else {
         try {
@@ -439,13 +441,16 @@ export class SlackChannelAdapter implements ChannelAdapter {
       }
 
       // action === "answer" — run full orchestrator
+      const queryText = isBareId
+        ? `Look up this ID and respond with its full status and details: ${msg.text.trim()}`
+        : msg.text;
       try {
         const answer = await handler({
           channelId: msg.channel,
           platform: "slack",
           userId: msg.user,
           userName: senderName,
-          text: msg.text,
+          text: queryText,
           threadId: msg.thread_ts || msg.ts,
           rawEvent: event,
           ambient: true,
