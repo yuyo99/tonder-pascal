@@ -42,6 +42,8 @@ export async function loadConfigs(): Promise<void> {
 
   const newIndex = new Map<string, MerchantMapping>();
 
+  logger.info({ rowCount: result.rows.length, channels: result.rows.map((r: any) => `${r.platform}:${r.channel_id}`) }, "Raw rows from pascal_merchant_channels");
+
   for (const row of result.rows) {
     const businessIds: number[] = row.business_ids;
     const partnerBots: PartnerBotConfig[] = row.partner_bots || [];
