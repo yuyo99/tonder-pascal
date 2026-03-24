@@ -80,13 +80,23 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<strin
     systemPrompt += buildAmbientSupplement(msg.threadContext ?? []);
   }
 
+  // Step 2e: Load conversation history for multi-turn context
+  const history = await loadConversationHistory(msg.channelId, msg.platform, 5);
+  if (history.length > 0) {
+    systemPrompt += `\n\n## Conversation History\nYou have access to recent messages in this channel. Use them for context (pronouns like "it", "that transaction", "yesterday's issue" refer to prior messages). Don't repeat information already given unless asked.`;
+    logger.info(
+      { turns: history.length / 2, merchant: merchantCtx.businessName },
+      "Conversation history loaded"
+    );
+  }
+
   // Step 3: Run Claude tool-use loop
   let result: ToolLoopResult;
   let error: string | undefined;
 
   try {
     result = await Promise.race([
-      runToolLoop(msg.text, systemPrompt, merchantCtx),
+      runToolLoop(msg.text, systemPrompt, merchantCtx, history),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("Handler timeout: response took too long")), HANDLER_TIMEOUT_MS)
       ),
@@ -221,12 +231,39 @@ async function callClaude(
   }
 }
 
+async function loadConversationHistory(
+  channelId: string,
+  platform: string,
+  limit: number = 5
+): Promise<Anthropic.MessageParam[]> {
+  try {
+    const result = await pgQuery(
+      `SELECT question, answer FROM pascal_conversation_log
+       WHERE channel_id = $1 AND platform = $2 AND error IS NULL
+       ORDER BY created_at DESC LIMIT $3`,
+      [channelId, platform, limit]
+    );
+    const rows = result.rows.reverse(); // newest-first → chronological
+    const messages: Anthropic.MessageParam[] = [];
+    for (const row of rows) {
+      messages.push({ role: "user", content: row.question });
+      messages.push({ role: "assistant", content: row.answer });
+    }
+    return messages;
+  } catch (err) {
+    logger.warn({ err }, "Failed to load conversation history — non-fatal");
+    return [];
+  }
+}
+
 async function runToolLoop(
   question: string,
   systemPrompt: string,
-  merchantCtx: MerchantContext
+  merchantCtx: MerchantContext,
+  history: Anthropic.MessageParam[] = []
 ): Promise<ToolLoopResult> {
   const messages: Anthropic.MessageParam[] = [
+    ...history,
     { role: "user", content: question },
   ];
 
