@@ -1,4 +1,5 @@
 import { App } from "@slack/bolt";
+import { Readable } from "stream";
 import { ChannelAdapter, IncomingMessage, OutgoingMessage, MessageResponse } from "../types";
 import { formatResponse, formatError, formatThinking } from "./formatter";
 import { createSupportTicket, createTriageTicket, createTeamTicket, CommandType } from "../../linear/client";
@@ -251,7 +252,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
               await client.filesUploadV2({
                 channel_id: event.channel,
                 thread_ts: event.ts,
-                file: att.buffer as unknown as string,
+                file: Readable.from(att.buffer),
                 filename: att.filename,
                 title: att.filename.replace(/_/g, " ").replace(".pdf", ""),
               });
@@ -316,7 +317,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
             try {
               await client.filesUploadV2({
                 channel_id: msg.channel!,
-                file: att.buffer as unknown as string,
+                file: Readable.from(att.buffer),
                 filename: att.filename,
                 title: att.filename.replace(/_/g, " ").replace(".pdf", ""),
               });
@@ -502,7 +503,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
             try {
               const uploadArgs: Record<string, unknown> = {
                 channel_id: msg.channel,
-                file: att.buffer as unknown as string,
+                file: Readable.from(att.buffer),
                 filename: att.filename,
                 title: att.filename.replace(/_/g, " ").replace(".pdf", ""),
               };
