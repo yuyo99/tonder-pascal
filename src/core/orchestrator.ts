@@ -164,6 +164,11 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
   const latencyMs = Date.now() - startTime;
   logConversation(merchantCtx, msg, result, latencyMs, error, knowledgeMatches);
 
+  logger.info(
+    { hasAttachments: attachments.length > 0, attachmentCount: attachments.length, filenames: attachments.map(a => a.filename), bufferSizes: attachments.map(a => a.buffer?.length ?? 0) },
+    "Orchestrator returning response"
+  );
+
   return {
     text: result.answer,
     attachments: attachments.length > 0 ? attachments : undefined,

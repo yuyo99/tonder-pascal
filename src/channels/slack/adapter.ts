@@ -246,8 +246,10 @@ export class SlackChannelAdapter implements ChannelAdapter {
         });
 
         // Upload file attachments (e.g. PDF receipts)
+        logger.info({ hasAttachments: !!response.attachments?.length, count: response.attachments?.length ?? 0 }, "Slack: checking for attachments");
         if (response.attachments?.length) {
           for (const att of response.attachments) {
+            logger.info({ filename: att.filename, bufferSize: att.buffer?.length ?? 0, bufferType: typeof att.buffer }, "Slack: attempting PDF upload");
             try {
               await (client as any).files.upload({
                 channels: event.channel,
