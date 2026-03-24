@@ -117,12 +117,11 @@ export const ONBOARDING_PHASES: PhaseDefinition[] = [
   },
   {
     id: "phase_2",
-    name: "Sandbox Integration",
+    name: "Sandbox",
     shortName: "Phase 2",
-    owner: "Geraldine Sprockel",
+    owner: "Sandy Sosa",
     items: [
       { id: "sandbox_credentials", label: "Sandbox credentials delivered" },
-      { id: "technical_docs_shared", label: "Technical documentation shared" },
     ],
   },
   {
@@ -132,9 +131,6 @@ export const ONBOARDING_PHASES: PhaseDefinition[] = [
     owner: "Arturo Torres, Guillermo Quintero",
     items: [
       { id: "integration_type_defined", label: "Integration type defined (API / Checkout / Withdrawals)" },
-      { id: "technical_errors_fixed", label: "Technical errors fixed" },
-      { id: "status_handling", label: "Proper status handling implemented" },
-      { id: "retries_expirations", label: "Retries and expirations validated" },
       { id: "webhooks_callbacks", label: "Webhooks and callbacks working correctly" },
       { id: "integration_stable", label: "Integration stable without critical errors" },
       { id: "certification_checklist", label: "Certification checklist submitted" },
@@ -142,16 +138,13 @@ export const ONBOARDING_PHASES: PhaseDefinition[] = [
   },
   {
     id: "phase_4",
-    name: "Technical Certification (QA)",
+    name: "Technical Certification",
     shortName: "Phase 4",
-    owner: "Guillermo Quintero",
+    owner: "Sandy Sosa",
     items: [
       { id: "e2e_tests", label: "End-to-end tests executed" },
-      { id: "negative_cases", label: "Negative cases validated" },
       { id: "idempotency", label: "Idempotency validated" },
       { id: "basic_security", label: "Basic security validated" },
-      { id: "acceptable_performance", label: "Acceptable performance" },
-      { id: "technical_cert_approved", label: "Technical certification approved" },
     ],
   },
   {
@@ -173,13 +166,13 @@ export const ONBOARDING_PHASES: PhaseDefinition[] = [
     owner: "Guillermo Quintero, Roberto Lomelli",
     items: [
       { id: "prod_account_created", label: "Production account created" },
-      { id: "users_access_configured", label: "Users and access configured" },
+      { id: "users_configured_clerk", label: "Users configured in Clerk" },
       { id: "prod_payment_methods", label: "Production payment methods activated" },
-      { id: "qa_config_validated", label: "QA configuration validated" },
       { id: "in_fees_configured", label: "IN fees configured" },
       { id: "out_fees_configured", label: "OUT fees configured" },
       { id: "rolling_reserve", label: "Rolling reserve configured" },
       { id: "settlements_configured", label: "Settlements configured" },
+      { id: "prod_testing_trials", label: "Production testing trials" },
     ],
   },
   {
@@ -190,9 +183,6 @@ export const ONBOARDING_PHASES: PhaseDefinition[] = [
     items: [
       { id: "bank_details_received", label: "Bank details received" },
       { id: "bank_details_validated", label: "Bank details validated" },
-      { id: "bank_account_registered", label: "Bank account registered" },
-      { id: "test_transfer", label: "Test transfer executed" },
-      { id: "transfer_confirmed", label: "Transfer confirmed" },
     ],
   },
   {
@@ -203,10 +193,6 @@ export const ONBOARDING_PHASES: PhaseDefinition[] = [
     items: [
       { id: "daily_monitoring", label: "Daily monitoring activated" },
       { id: "first_txns_reviewed", label: "First transactions reviewed" },
-      { id: "approval_rates_reviewed", label: "Approval rates reviewed" },
-      { id: "errors_pending_analyzed", label: "Errors and pending issues analyzed" },
-      { id: "initial_report_cs", label: "Initial report sent to CS" },
-      { id: "stable_operation", label: "Stable operation confirmed" },
     ],
   },
 ];
