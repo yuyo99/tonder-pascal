@@ -22,6 +22,10 @@ Your ONLY job: decide if Pascal should respond to a message in a merchant channe
 - Message sender: ${senderLabel}
 - Platform: ${params.platform}
 
+## ALWAYS RESPOND (action: "answer", confidence: 0.99) when:
+- The message contains a deposit ticket or transaction inquiry with fields like orderId, txid, amount, currency, or asks to "check the transaction status"
+- The message asks about a specific transaction ID, payment ID, or order ID
+
 ## RESPOND (action: "answer") when ALL of these are true:
 - The message is a question or request about payments, transactions, integrations, withdrawals, SPEI, errors, statuses, or anything Tonder-related
 - The message is directed at the channel generally (not specifically at a named person)

@@ -358,6 +358,10 @@ export class SlackChannelAdapter implements ChannelAdapter {
         }
       }
 
+      // Fast-path: deposit ticket / transaction inquiry — always respond, skip triage
+      const isDepositTicket = /(?:txid|orderId|payment_id|transaction.?id)\s*[:=]?\s*\w+/i.test(msg.text)
+        && /(?:status|check|deposit|ticket|amount|currency)/i.test(msg.text);
+
       // Fetch thread/channel context for triage
       const threadContext = await fetchSlackContext(client, msg.channel, msg.thread_ts);
 
@@ -366,18 +370,23 @@ export class SlackChannelAdapter implements ChannelAdapter {
       const isTonder = await isTonderTeamMember(msg.user);
       let triage: TriageResult;
 
-      try {
-        triage = await triageMessage({
-          message: msg.text,
-          senderName,
-          isTonderTeam: merchantCtx.businessId === 0 ? false : isTonder, // Training channels: don't skip Tonder team
-          threadContext,
-          merchantName: merchantCtx.businessName,
-          platform: "slack",
-        });
-      } catch (err) {
-        logger.error({ err }, "Ambient triage failed");
-        return;
+      if (isDepositTicket) {
+        logger.info({ channel: msg.channel, user: senderName }, "Ambient fast-path: deposit ticket detected");
+        triage = { shouldRespond: true, confidence: 0.99, reason: "deposit ticket / transaction inquiry", action: "answer", ticketTeam: null };
+      } else {
+        try {
+          triage = await triageMessage({
+            message: msg.text,
+            senderName,
+            isTonderTeam: merchantCtx.businessId === 0 ? false : isTonder, // Training channels: don't skip Tonder team
+            threadContext,
+            merchantName: merchantCtx.businessName,
+            platform: "slack",
+          });
+        } catch (err) {
+          logger.error({ err }, "Ambient triage failed");
+          return;
+        }
       }
 
       if (triage.action === "silent") return;
