@@ -43,8 +43,15 @@ export async function resolveMerchantContext(
   platform: "slack" | "telegram" | "whatsapp"
 ): Promise<MerchantContext | null> {
   const key = `${platform}:${channelId}`;
-  const mapping = getChannelIndex().get(key);
-  if (!mapping) return null;
+  const index = getChannelIndex();
+  const mapping = index.get(key);
+  if (!mapping) {
+    logger.warn(
+      { key, indexSize: index.size, knownKeys: Array.from(index.keys()).slice(0, 20) },
+      "Channel not found in index"
+    );
+    return null;
+  }
 
   await ensureFreshCache();
 
