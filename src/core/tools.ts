@@ -343,7 +343,9 @@ export async function executeTool(
       }
 
       case "generate_refund_receipt": {
+        logger.info({ payment_id: input.payment_id, amount: input.amount, status: input.status }, "generate_refund_receipt called");
         if (!input.payment_id || !input.amount || !input.status) {
+          logger.warn({ input }, "generate_refund_receipt missing required fields");
           return "Error: payment_id, amount, and status are required";
         }
         const pdfBuffer = await generateRefundReceipt({
@@ -360,7 +362,7 @@ export async function executeTool(
         const receiptId = `receipt_${++receiptCounter}`;
         const filename = `refund_receipt_${input.payment_id.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
         pendingAttachments.set(receiptId, { buffer: pdfBuffer, filename });
-        logger.info({ receiptId, filename, merchant: merchantCtx.businessName }, "Refund receipt PDF generated");
+        logger.info({ receiptId, filename, bufferSize: pdfBuffer.length, pendingCount: pendingAttachments.size, merchant: merchantCtx.businessName }, "Refund receipt PDF generated and stored in pendingAttachments");
         return JSON.stringify({
           success: true,
           receiptId,
