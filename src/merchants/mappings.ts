@@ -72,4 +72,10 @@ export const DEFAULT_MERCHANT_CONFIGS: MerchantMapping[] = [
     { username: "bcgame_ticket_bot", label: "BcgameTicketBot" },
     { username: "tonder_operator", label: "Tonder Operator (test)" },
   ]),
+
+  // ── Vitau ──
+  single("C05QW7660LS", "slack", 82),
+
+  // ── Fun MX (Telegram) ──
+  single("-1002888921504", "telegram", 112),
 ];
