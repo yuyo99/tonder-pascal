@@ -251,12 +251,13 @@ export class SlackChannelAdapter implements ChannelAdapter {
           for (const att of response.attachments) {
             logger.info({ filename: att.filename, bufferSize: att.buffer?.length ?? 0, bufferType: typeof att.buffer }, "Slack: attempting PDF upload");
             try {
-              await client.filesUploadV2({
+              await (client.filesUploadV2 as any)({
                 channel_id: event.channel,
                 thread_ts: event.ts,
-                file: Readable.from(att.buffer),
+                file: att.buffer,
                 filename: att.filename,
                 title: att.filename.replace(/_/g, " ").replace(".pdf", ""),
+                length: att.buffer.length,
               });
               logger.info({ filename: att.filename, channel: event.channel }, "PDF uploaded to Slack");
             } catch (uploadErr) {
@@ -317,11 +318,12 @@ export class SlackChannelAdapter implements ChannelAdapter {
         if (response.attachments?.length) {
           for (const att of response.attachments) {
             try {
-              await client.filesUploadV2({
+              await (client.filesUploadV2 as any)({
                 channel_id: msg.channel!,
-                file: Readable.from(att.buffer),
+                file: att.buffer,
                 filename: att.filename,
                 title: att.filename.replace(/_/g, " ").replace(".pdf", ""),
+                length: att.buffer.length,
               });
             } catch (uploadErr) {
               logger.error({ err: uploadErr, filename: att.filename }, "Failed to upload PDF to Slack DM");
@@ -505,12 +507,13 @@ export class SlackChannelAdapter implements ChannelAdapter {
             try {
               const ambientUploadArgs: Record<string, unknown> = {
                 channel_id: msg.channel!,
-                file: Readable.from(att.buffer),
+                file: att.buffer,
                 filename: att.filename,
                 title: att.filename.replace(/_/g, " ").replace(".pdf", ""),
+                length: att.buffer.length,
               };
               if (msg.thread_ts || msg.ts) ambientUploadArgs.thread_ts = msg.thread_ts || msg.ts;
-              await client.filesUploadV2(ambientUploadArgs as unknown as Parameters<typeof client.filesUploadV2>[0]);
+              await (client.filesUploadV2 as any)(ambientUploadArgs);
               logger.info({ filename: att.filename, channel: msg.channel }, "PDF uploaded to Slack (ambient)");
             } catch (uploadErr) {
               logger.error({ err: uploadErr, filename: att.filename }, "Failed to upload PDF to Slack (ambient)");
