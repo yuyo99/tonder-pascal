@@ -6,6 +6,7 @@ import { sendLinearOverdueAlert, sendLinearEodReview } from "./linear-alert";
 import { sendAccountCreationAlert } from "./linear-label-alert";
 import { onConfigChange } from "../merchants/config-store";
 import { checkHeartbeat } from "../monitoring/heartbeat";
+import { runAllSyntheticChecks, cleanupOldResults } from "../monitoring/synthetic-checks";
 import { logger } from "../utils/logger";
 import { storeErrorFromCatch } from "../utils/error-store";
 
@@ -211,6 +212,25 @@ export function initScheduler(slackClient: WebClient): void {
     }
   });
   logger.info("Heartbeat checker scheduled (every 2 minutes)");
+
+  // Synthetic checks — every 10 minutes
+  const syntheticEnabled = process.env.PASCAL_SYNTHETIC_CHECKS_ENABLED !== "false";
+  const syntheticInterval = parseInt(process.env.PASCAL_SYNTHETIC_CHECK_INTERVAL_MIN || "10", 10);
+  if (syntheticEnabled) {
+    cron.schedule(`*/${syntheticInterval} * * * *`, async () => {
+      try {
+        await runAllSyntheticChecks();
+      } catch (err) {
+        logger.error({ err }, "Synthetic checks runner failed");
+      }
+    });
+    logger.info({ intervalMin: syntheticInterval }, "Synthetic checks scheduled");
+
+    // Cleanup old results daily at 3 AM
+    cron.schedule("0 3 * * *", async () => {
+      try { await cleanupOldResults(); } catch { /* non-fatal */ }
+    }, { timezone: "America/Mexico_City" });
+  }
 
   logger.info("Scheduler initialized — syncing scheduled reports from Postgres");
 }
