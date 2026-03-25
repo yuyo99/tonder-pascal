@@ -10,6 +10,7 @@ import { isTonderTeamMember, getTeamMemberName } from "../../core/tonder-team";
 import { config } from "../../config";
 import { logger } from "../../utils/logger";
 import { storeErrorFromCatch, storeError } from "../../utils/error-store";
+import { evaluateAndRecord } from "../../monitoring/self-qa";
 
 interface TelegramConfig {
   botToken: string;
@@ -45,6 +46,9 @@ async function tryHandleDepositTicket(
   const lookupPrompt = buildTicketLookupPrompt(ticket);
   logger.info({ chatId, orderId: ticket.orderId, txid: ticket.txid },
     `${logLabel}: calling orchestrator for deposit ticket lookup`);
+  const startTime = Date.now();
+  let responded = false;
+  let failureReason: string | null = null;
   try {
     const response = await handler({
       channelId: chatId,
@@ -55,14 +59,33 @@ async function tryHandleDepositTicket(
       rawEvent,
     });
     await replyFn(response.text);
+    responded = true;
   } catch (err) {
+    failureReason = err instanceof Error ? err.message : "unknown_error";
     logger.error(
       { err, chatId, userName, orderId: ticket.orderId },
       `${logLabel}: failed to process deposit ticket`
     );
     storeErrorFromCatch("telegram", err, { channel: chatId, user: userName, action: "deposit_ticket", orderId: ticket.orderId });
-    await replyFn("Sorry, I encountered an error looking up this deposit ticket.");
+    try { await replyFn("Sorry, I encountered an error looking up this deposit ticket."); responded = true; } catch { /* ignore reply failure */ }
   }
+
+  // Self-QA for deposit ticket flow
+  evaluateAndRecord({
+    platform: "telegram",
+    channelId: chatId,
+    merchantName: null, // resolved in orchestrator
+    businessId: null,
+    messageType: "deposit_ticket",
+    latencyMs: Date.now() - startTime,
+    responded,
+    fallbackUsed: !!failureReason,
+    failureReason,
+    rawInput: text.slice(0, 2000),
+    parseConfidence: 1.0, // successfully parsed
+    details: { orderId: ticket.orderId, txid: ticket.txid },
+  }).catch(() => {});
+
   return true;
 }
 

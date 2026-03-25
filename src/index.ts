@@ -9,6 +9,8 @@ import { bootChannels, findSlackAdapter } from "./channels/registry";
 import { handleIncomingMessage } from "./core/orchestrator";
 import { initScheduler, stopScheduler } from "./scheduler";
 import { loadKnowledgeBase } from "./knowledge/loader";
+import { startHeartbeatWriter, stopHeartbeatWriter } from "./monitoring/heartbeat";
+import { setAlertSlackClient } from "./monitoring/alert-router";
 import { logger } from "./utils/logger";
 import { storeErrorFromCatch } from "./utils/error-store";
 
@@ -42,10 +44,14 @@ async function main() {
   // 6. Initialize scheduler (daily report)
   const slackAdapter = findSlackAdapter(adapters);
   if (slackAdapter) {
+    setAlertSlackClient(slackAdapter.client);
     initScheduler(slackAdapter.client);
   } else {
     logger.warn("No Slack adapter — daily report scheduler not started");
   }
+
+  // 7. Start monitoring heartbeat
+  startHeartbeatWriter();
 
   // Graceful shutdown
   const shutdown = async (signal: string) => {
@@ -59,6 +65,7 @@ async function main() {
     forceTimer.unref();
 
     stopScheduler();
+    stopHeartbeatWriter();
     stopConfigPolling();
     for (const adapter of adapters) {
       await adapter.stop();

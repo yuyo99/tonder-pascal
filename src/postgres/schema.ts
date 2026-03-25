@@ -419,6 +419,66 @@ SELECT 'integration',
        'Explain the decline type and suggest next steps. For soft declines, mention retry possibility.',
        3, true
 WHERE NOT EXISTS (SELECT 1 FROM pascal_knowledge_base WHERE title = 'Decline Codes & Meanings');
+
+-- ═══ Monitoring: Heartbeat ═══
+CREATE TABLE IF NOT EXISTS pascal_health_heartbeats (
+  service_name   TEXT PRIMARY KEY,
+  last_seen_at   TIMESTAMPTZ NOT NULL,
+  meta           JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+-- ═══ Monitoring: Self-QA Events ═══
+CREATE TABLE IF NOT EXISTS pascal_self_qa_events (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  platform          TEXT NOT NULL,
+  channel_id        TEXT NOT NULL,
+  merchant_name     TEXT,
+  business_id       TEXT,
+  message_type      TEXT NOT NULL,
+  status            TEXT NOT NULL CHECK (status IN ('ok', 'warning', 'critical')),
+  latency_ms        INT,
+  parse_confidence  NUMERIC,
+  answer_confidence NUMERIC,
+  fallback_used     BOOLEAN NOT NULL DEFAULT false,
+  responded         BOOLEAN NOT NULL DEFAULT false,
+  failure_reason    TEXT,
+  raw_input         TEXT,
+  details           JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS idx_pascal_self_qa_created ON pascal_self_qa_events (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pascal_self_qa_status ON pascal_self_qa_events (status) WHERE status != 'ok';
+CREATE INDEX IF NOT EXISTS idx_pascal_self_qa_channel ON pascal_self_qa_events (channel_id);
+
+-- ═══ Monitoring: Incidents (deduped by fingerprint) ═══
+CREATE TABLE IF NOT EXISTS pascal_incidents (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  status          TEXT NOT NULL CHECK (status IN ('open', 'acknowledged', 'resolved')),
+  severity        TEXT NOT NULL CHECK (severity IN ('warning', 'critical')),
+  fingerprint     TEXT NOT NULL UNIQUE,
+  merchant_name   TEXT,
+  channel_id      TEXT,
+  first_seen_at   TIMESTAMPTZ NOT NULL,
+  last_seen_at    TIMESTAMPTZ NOT NULL,
+  occurrences     INT NOT NULL DEFAULT 1,
+  latest_details  JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS idx_pascal_incidents_status ON pascal_incidents (status) WHERE status = 'open';
+CREATE INDEX IF NOT EXISTS idx_pascal_incidents_fingerprint ON pascal_incidents (fingerprint);
+
+-- ═══ Monitoring: Synthetic Check Runs ═══
+CREATE TABLE IF NOT EXISTS pascal_synthetic_check_runs (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  check_name   TEXT NOT NULL,
+  status       TEXT NOT NULL CHECK (status IN ('pass', 'fail')),
+  latency_ms   INT,
+  details      JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS idx_pascal_synthetic_created ON pascal_synthetic_check_runs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pascal_synthetic_check ON pascal_synthetic_check_runs (check_name, created_at DESC);
 `;
 
 export async function ensureTables(): Promise<void> {

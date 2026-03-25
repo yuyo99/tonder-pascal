@@ -14,6 +14,7 @@ import { findRelevantKnowledge, KnowledgeEntry } from "../knowledge/loader";
 import { pgQuery } from "../postgres/connection";
 import { logger } from "../utils/logger";
 import { storeErrorFromCatch } from "../utils/error-store";
+import { evaluateAndRecord } from "../monitoring/self-qa";
 
 const client = new Anthropic({ apiKey: config.claude.apiKey, timeout: 60_000 });
 const MAX_TOOL_ROUNDS = 5;
@@ -173,6 +174,22 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
     { hasAttachments: attachments.length > 0, attachmentCount: attachments.length, filenames: attachments.map(a => a.filename), bufferSizes: attachments.map(a => a.buffer?.length ?? 0) },
     "Orchestrator returning response"
   );
+
+  // Self-QA: evaluate and record (fire-and-forget)
+  evaluateAndRecord({
+    platform: msg.platform,
+    channelId: msg.channelId,
+    merchantName: merchantCtx?.businessName ?? null,
+    businessId: merchantCtx ? String(merchantCtx.businessId) : null,
+    messageType: msg.ambient ? "ambient" : "mention",
+    latencyMs,
+    responded: !!result.answer,
+    fallbackUsed: !!error,
+    failureReason: error ? String(error) : null,
+    rawInput: msg.text?.slice(0, 2000) ?? "",
+    toolsCalled: result.toolCalls.map((t) => t.tool),
+    rounds: result.rounds,
+  }).catch((err) => logger.warn({ err }, "Self-QA fire-and-forget failed"));
 
   return {
     text: result.answer,

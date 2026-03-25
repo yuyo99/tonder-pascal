@@ -5,6 +5,7 @@ import { sendDailyReport } from "./daily-report";
 import { sendLinearOverdueAlert, sendLinearEodReview } from "./linear-alert";
 import { sendAccountCreationAlert } from "./linear-label-alert";
 import { onConfigChange } from "../merchants/config-store";
+import { checkHeartbeat } from "../monitoring/heartbeat";
 import { logger } from "../utils/logger";
 import { storeErrorFromCatch } from "../utils/error-store";
 
@@ -200,6 +201,16 @@ export function initScheduler(slackClient: WebClient): void {
     { timezone: "America/Mexico_City" }
   );
   logger.info("Account Creation PROD alert scheduled (daily 10am Mon-Fri)");
+
+  // Heartbeat health check — every 2 minutes
+  cron.schedule("*/2 * * * *", async () => {
+    try {
+      await checkHeartbeat();
+    } catch (err) {
+      logger.error({ err }, "Heartbeat check failed");
+    }
+  });
+  logger.info("Heartbeat checker scheduled (every 2 minutes)");
 
   logger.info("Scheduler initialized — syncing scheduled reports from Postgres");
 }
