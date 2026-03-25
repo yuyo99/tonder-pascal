@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import { App } from "@slack/bolt";
 import { ChannelAdapter, IncomingMessage, OutgoingMessage, MessageResponse } from "../types";
 import { formatResponse, formatError, formatThinking } from "./formatter";
@@ -272,6 +273,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
           });
         }
       } catch (err) {
+        Sentry.captureException(err);
         logger.error({ err }, "Failed to answer Slack @mention");
         storeErrorFromCatch("slack", err, { channel: event.channel, user: event.user, action: "app_mention" });
         const errorMsg = err instanceof Error ? err.message : "Unknown error";
@@ -333,6 +335,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
           }
         }
       } catch (err) {
+        Sentry.captureException(err);
         logger.error({ err }, "Failed to answer Slack DM");
         storeErrorFromCatch("slack", err, { channel: msg.channel!, user: msg.user, action: "dm" });
         const errorMsg = err instanceof Error ? err.message : "Unknown error";
@@ -522,6 +525,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
           "Ambient response sent"
         );
       } catch (err) {
+        Sentry.captureException(err);
         logger.error({ err }, "Ambient response failed");
         storeErrorFromCatch("slack", err, { channel: msg.channel, action: "ambient_answer" });
         // Silently fail — don't post error messages in ambient mode

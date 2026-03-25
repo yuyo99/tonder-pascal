@@ -1,3 +1,4 @@
+import "./instrument";
 import { config } from "./config";
 import { connectMongo, disconnectMongo } from "./mongodb/connection";
 import { ensureTables } from "./postgres/schema";

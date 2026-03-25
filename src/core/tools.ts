@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import Anthropic from "@anthropic-ai/sdk";
 import { parseDateRange, buildDateRange, DateRange } from "../utils/dates";
 import { MerchantContext } from "../merchants/types";
@@ -372,6 +373,7 @@ export async function executeTool(
         return `Unknown tool: ${toolName}`;
     }
   } catch (err) {
+    Sentry.captureException(err, { tags: { tool: toolName, merchant: merchantCtx.businessName } });
     logger.error({ err, toolName, input }, "Tool execution failed");
     storeErrorFromCatch("tool", err, { tool: toolName, merchant: merchantCtx.businessName, input: JSON.stringify(input).slice(0, 500) });
     return `Error executing ${toolName}: ${err instanceof Error ? err.message : "Unknown error"}`;

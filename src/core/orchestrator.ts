@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config";
 import { buildSystemPrompt, buildAmbientSupplement, buildPeopleContext } from "./prompts";
@@ -106,6 +107,7 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
       ),
     ]);
   } catch (err) {
+    Sentry.captureException(err, { tags: { merchant: merchantCtx.businessName, platform: msg.platform } });
     const errMsg = err instanceof Error ? err.message : String(err);
     const errType = err instanceof Error ? err.constructor.name : typeof err;
     logger.error({ err, errType, errMsg, merchant: merchantCtx.businessName }, "Orchestrator error");

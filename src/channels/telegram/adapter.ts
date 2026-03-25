@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import { Telegraf } from "telegraf";
 import { ChannelAdapter, IncomingMessage, OutgoingMessage, MessageResponse } from "../types";
 import { createSupportTicket, createTeamTicket, CommandType } from "../../linear/client";
@@ -411,6 +412,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
               }
             }
           } catch (err) {
+            Sentry.captureException(err);
             logger.error({ err }, "Telegram ambient response failed");
           }
           return;
@@ -480,6 +482,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
           }
         }
       } catch (err) {
+        Sentry.captureException(err);
         logger.error({ err }, "Failed to answer Telegram message");
         storeErrorFromCatch("telegram", err, { channel: chatId, action: "text_message" });
         try {
@@ -628,6 +631,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
           }
         }
       } catch (err) {
+        Sentry.captureException(err);
         logger.error({ err }, "Failed to answer Telegram channel post");
         storeErrorFromCatch("telegram", err, { channel: chatId, action: "channel_post" });
         try {
