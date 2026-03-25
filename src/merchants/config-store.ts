@@ -96,39 +96,53 @@ export async function loadConfigs(): Promise<void> {
 }
 
 /**
- * Seed the Postgres tables with the default hardcoded merchants
- * if the tables are currently empty.
+ * Upsert default hardcoded merchants into Postgres.
+ * Always runs — inserts missing channels and partner bots without
+ * touching existing rows (ON CONFLICT DO NOTHING).
  */
 export async function seedDefaults(): Promise<void> {
-  const { rows } = await pgQuery(
-    "SELECT COUNT(*)::int AS cnt FROM pascal_merchant_channels"
-  );
-  if (rows[0].cnt > 0) {
-    logger.info(
-      { existing: rows[0].cnt },
-      "Postgres already has merchant configs — skipping seed"
-    );
-    return;
-  }
-
-  logger.info("Seeding default merchant configs into Postgres...");
+  let seeded = 0;
 
   for (const mapping of DEFAULT_MERCHANT_CONFIGS) {
-    // Insert the merchant channel
+    // Upsert the merchant channel
     const insertResult = await pgQuery(
       `INSERT INTO pascal_merchant_channels (label, channel_id, platform, business_ids)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (platform, channel_id) DO NOTHING
        RETURNING id`,
       [
-        mapping.channelId, // label will be replaced by business name after boot
+        mapping.channelId,
         mapping.channelId,
         mapping.platform,
         mapping.businessIds,
       ]
     );
 
-    if (insertResult.rows.length === 0) continue;
+    if (insertResult.rows.length === 0) {
+      // Channel already exists — ensure partner bots are present
+      if (mapping.partnerBots?.length) {
+        const existing = await pgQuery(
+          `SELECT id FROM pascal_merchant_channels WHERE platform = $1 AND channel_id = $2`,
+          [mapping.platform, mapping.channelId]
+        );
+        if (existing.rows.length > 0) {
+          const channelDbId = existing.rows[0].id;
+          for (const bot of mapping.partnerBots) {
+            await pgQuery(
+              `INSERT INTO pascal_partner_bots (channel_id, username, label)
+               SELECT $1, $2, $3
+               WHERE NOT EXISTS (
+                 SELECT 1 FROM pascal_partner_bots WHERE channel_id = $1 AND username = $2
+               )`,
+              [channelDbId, bot.username, bot.label]
+            );
+          }
+        }
+      }
+      continue;
+    }
+
+    seeded++;
     const channelDbId = insertResult.rows[0].id;
 
     // Insert partner bots if any
@@ -136,17 +150,19 @@ export async function seedDefaults(): Promise<void> {
       for (const bot of mapping.partnerBots) {
         await pgQuery(
           `INSERT INTO pascal_partner_bots (channel_id, username, label)
-           VALUES ($1, $2, $3)`,
+           VALUES ($1, $2, $3)
+           ON CONFLICT DO NOTHING`,
           [channelDbId, bot.username, bot.label]
         );
       }
     }
   }
 
-  logger.info(
-    { count: DEFAULT_MERCHANT_CONFIGS.length },
-    "Default merchant configs seeded"
-  );
+  if (seeded > 0) {
+    logger.info({ seeded, total: DEFAULT_MERCHANT_CONFIGS.length }, "Default merchant configs seeded");
+  } else {
+    logger.info({ total: DEFAULT_MERCHANT_CONFIGS.length }, "All default merchant configs already in Postgres");
+  }
 }
 
 /**
