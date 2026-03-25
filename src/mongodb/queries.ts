@@ -457,6 +457,8 @@ async function findInWithdrawals(
           { id: id },
           { orderId: id },
           { tracking_key: id },
+          { "metadata.orderId": id },
+          { "metadata.order_id": id },
         ],
       },
       {
