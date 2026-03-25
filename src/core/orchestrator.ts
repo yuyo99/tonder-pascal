@@ -5,6 +5,7 @@ import { getTeamDirectory } from "./tonder-team";
 import { toolDefinitions, executeTool, consumePendingAttachments } from "./tools";
 import { sanitizeToolOutput, auditResponse } from "./provider-mask";
 import { resolveMerchantContext } from "../merchants/context";
+import { getChannelIndex } from "../merchants/config-store";
 import { IncomingMessage } from "../channels/types";
 import { MerchantContext } from "../merchants/types";
 import { trackInteraction } from "../scheduler/daily-report";
@@ -34,11 +35,13 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
   // Step 1: Resolve merchant context
   const merchantCtx = await resolveMerchantContext(msg.channelId, msg.platform);
   if (!merchantCtx) {
+    const index = getChannelIndex();
+    const knownKeys = Array.from(index.keys()).slice(0, 30);
     logger.warn(
-      { channelId: msg.channelId, platform: msg.platform },
+      { channelId: msg.channelId, platform: msg.platform, indexSize: index.size, knownKeys },
       "Message from unmapped channel"
     );
-    return { text: "This channel is not configured for Pascal. Please contact Tonder support to set up your account." };
+    return { text: `⚠️ Channel not configured. Debug: looking for key "${msg.platform}:${msg.channelId}" in ${index.size} entries: ${knownKeys.join(", ")}` };
   }
 
   logger.info(
