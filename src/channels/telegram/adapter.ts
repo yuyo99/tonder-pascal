@@ -666,8 +666,13 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       storeErrorFromCatch("telegram", err, { action: "resolve_identity" });
     }
 
-    // Use polling (not webhooks) for simplicity
-    // Launch in background — don't await so a polling conflict doesn't crash the app
+    // Use polling (not webhooks) for simplicity.
+    // IMPORTANT: Save and restore process signal listeners because bot.launch()
+    // registers its own SIGTERM/SIGINT handlers that kill the entire process
+    // when polling fails (e.g., 409 Conflict during deploy).
+    const prevSigterm = process.listeners("SIGTERM").slice();
+    const prevSigint = process.listeners("SIGINT").slice();
+
     this.bot
       .launch({ dropPendingUpdates: true, allowedUpdates: ["message", "channel_post"] })
       .then(() => logger.info("Telegram polling CONFIRMED active"))
@@ -675,7 +680,15 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         logger.error({ err }, "Telegram bot launch failed — will continue without Telegram");
         storeErrorFromCatch("telegram", err, { action: "launch" });
       });
-    logger.info("Telegram adapter started (polling)");
+
+    // Remove Telegraf's signal handlers that would kill the process
+    process.removeAllListeners("SIGTERM");
+    process.removeAllListeners("SIGINT");
+    // Restore the original handlers (Pascal's own graceful shutdown)
+    for (const fn of prevSigterm) process.on("SIGTERM", fn as (...args: unknown[]) => void);
+    for (const fn of prevSigint) process.on("SIGINT", fn as (...args: unknown[]) => void);
+
+    logger.info("Telegram adapter started (polling, Telegraf signal handlers removed)");
   }
 
   async stop(): Promise<void> {
