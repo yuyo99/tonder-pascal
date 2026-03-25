@@ -690,34 +690,18 @@ export class TelegramChannelAdapter implements ChannelAdapter {
     }
 
     // Use polling (not webhooks) for simplicity.
-    // CRITICAL: Telegraf's launch() registers process.once('SIGTERM') and process.once('SIGINT')
-    // AFTER its first internal await. If polling fails (409 Conflict during deploy), these
-    // handlers fire and kill the entire process. We intercept process.once to block them.
-    const origOnce = process.once.bind(process);
-    const blockedSignals = new Set(["SIGTERM", "SIGINT"]);
-    (process as any).once = function (event: string, listener: (...args: any[]) => void) {
-      if (blockedSignals.has(event)) {
-        logger.info({ event }, "Blocked Telegraf from registering signal handler");
-        return process;
-      }
-      return origOnce(event, listener);
-    };
-
+    // NOTE: Telegraf's launch() registers SIGTERM/SIGINT handlers internally.
+    // Pascal's own shutdown handlers are DELAYED by 15s in index.ts so that
+    // Telegraf's signals fire into the void if polling fails during startup.
     this.bot
       .launch({ dropPendingUpdates: true, allowedUpdates: ["message", "channel_post"] })
-      .then(() => {
-        logger.info("Telegram polling CONFIRMED active");
-        // Restore process.once after launch succeeds
-        (process as any).once = origOnce;
-      })
+      .then(() => logger.info("Telegram polling CONFIRMED active"))
       .catch((err) => {
         logger.error({ err }, "Telegram bot launch failed — will continue without Telegram");
         storeErrorFromCatch("telegram", err, { action: "launch" });
-        // Restore process.once even on failure
-        (process as any).once = origOnce;
       });
 
-    logger.info("Telegram adapter started (polling, Telegraf signal handlers blocked)");
+    logger.info("Telegram adapter started (polling)");
   }
 
   async stop(): Promise<void> {

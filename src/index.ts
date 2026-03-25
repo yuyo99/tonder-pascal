@@ -53,7 +53,11 @@ async function main() {
   // 7. Start monitoring heartbeat
   startHeartbeatWriter();
 
-  // Graceful shutdown
+  // Graceful shutdown — DELAYED registration to avoid Telegraf's SIGTERM kill.
+  // Telegraf's bot.launch() registers its own SIGTERM/SIGINT handlers that
+  // trigger process exit when polling fails (409 Conflict during deploy).
+  // By delaying our handler registration by 15s, Telegraf's launch either
+  // succeeds or fails WITHOUT triggering a shutdown cascade.
   const shutdown = async (signal: string) => {
     logger.info({ signal }, "Shutting down...");
 
@@ -75,8 +79,13 @@ async function main() {
     process.exit(0);
   };
 
-  process.on("SIGINT", () => shutdown("SIGINT"));
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  // Delay signal registration so Telegraf's SIGTERM from failed polling
+  // fires into the void (no handler registered yet).
+  setTimeout(() => {
+    process.on("SIGINT", () => shutdown("SIGINT"));
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
+    logger.info("Graceful shutdown handlers registered (delayed 15s post-boot)");
+  }, 15_000);
 }
 
 // Prevent unhandled rejections from crashing the process
