@@ -1,5 +1,4 @@
 import { App } from "@slack/bolt";
-import { Readable } from "stream";
 import { ChannelAdapter, IncomingMessage, OutgoingMessage, MessageResponse } from "../types";
 import { formatResponse, formatError, formatThinking } from "./formatter";
 import { createSupportTicket, createTriageTicket, createTeamTicket, CommandType } from "../../linear/client";
@@ -9,6 +8,7 @@ import { handleFeedbackMessage } from "../../knowledge/feedback";
 import { triageMessage, TriageResult } from "../../core/triage";
 import { isTonderTeamMember, getTeamMemberName } from "../../core/tonder-team";
 import { fetchSlackContext } from "./context";
+import { uploadFileToSlack } from "./upload-file";
 import { config } from "../../config";
 import { logger } from "../../utils/logger";
 import { storeErrorFromCatch } from "../../utils/error-store";
@@ -246,20 +246,13 @@ export class SlackChannelAdapter implements ChannelAdapter {
         });
 
         // Upload file attachments (e.g. PDF receipts)
-        logger.info({ hasAttachments: !!response.attachments?.length, count: response.attachments?.length ?? 0 }, "Slack: checking for attachments");
         if (response.attachments?.length) {
           for (const att of response.attachments) {
-            logger.info({ filename: att.filename, bufferSize: att.buffer?.length ?? 0, bufferType: typeof att.buffer }, "Slack: attempting PDF upload");
             try {
-              await (client.filesUploadV2 as any)({
-                channel_id: event.channel,
-                thread_ts: event.ts,
-                file: att.buffer,
-                filename: att.filename,
+              await uploadFileToSlack(config.slack.botToken, event.channel, att.buffer, att.filename, {
+                threadTs: event.ts,
                 title: att.filename.replace(/_/g, " ").replace(".pdf", ""),
-                length: att.buffer.length,
               });
-              logger.info({ filename: att.filename, channel: event.channel }, "PDF uploaded to Slack");
             } catch (uploadErr) {
               logger.error({ err: uploadErr, filename: att.filename }, "Failed to upload PDF to Slack");
             }
@@ -318,12 +311,8 @@ export class SlackChannelAdapter implements ChannelAdapter {
         if (response.attachments?.length) {
           for (const att of response.attachments) {
             try {
-              await (client.filesUploadV2 as any)({
-                channel_id: msg.channel!,
-                file: att.buffer,
-                filename: att.filename,
+              await uploadFileToSlack(config.slack.botToken, msg.channel!, att.buffer, att.filename, {
                 title: att.filename.replace(/_/g, " ").replace(".pdf", ""),
-                length: att.buffer.length,
               });
             } catch (uploadErr) {
               logger.error({ err: uploadErr, filename: att.filename }, "Failed to upload PDF to Slack DM");
@@ -505,16 +494,10 @@ export class SlackChannelAdapter implements ChannelAdapter {
         if (response.attachments?.length) {
           for (const att of response.attachments) {
             try {
-              const ambientUploadArgs: Record<string, unknown> = {
-                channel_id: msg.channel!,
-                file: att.buffer,
-                filename: att.filename,
+              await uploadFileToSlack(config.slack.botToken, msg.channel!, att.buffer, att.filename, {
+                threadTs: msg.thread_ts || msg.ts,
                 title: att.filename.replace(/_/g, " ").replace(".pdf", ""),
-                length: att.buffer.length,
-              };
-              if (msg.thread_ts || msg.ts) ambientUploadArgs.thread_ts = msg.thread_ts || msg.ts;
-              await (client.filesUploadV2 as any)(ambientUploadArgs);
-              logger.info({ filename: att.filename, channel: msg.channel }, "PDF uploaded to Slack (ambient)");
+              });
             } catch (uploadErr) {
               logger.error({ err: uploadErr, filename: att.filename }, "Failed to upload PDF to Slack (ambient)");
             }
