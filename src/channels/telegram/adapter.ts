@@ -667,28 +667,34 @@ export class TelegramChannelAdapter implements ChannelAdapter {
     }
 
     // Use polling (not webhooks) for simplicity.
-    // IMPORTANT: Save and restore process signal listeners because bot.launch()
-    // registers its own SIGTERM/SIGINT handlers that kill the entire process
-    // when polling fails (e.g., 409 Conflict during deploy).
-    const prevSigterm = process.listeners("SIGTERM").slice();
-    const prevSigint = process.listeners("SIGINT").slice();
+    // CRITICAL: Telegraf's launch() registers process.once('SIGTERM') and process.once('SIGINT')
+    // AFTER its first internal await. If polling fails (409 Conflict during deploy), these
+    // handlers fire and kill the entire process. We intercept process.once to block them.
+    const origOnce = process.once.bind(process);
+    const blockedSignals = new Set(["SIGTERM", "SIGINT"]);
+    (process as any).once = function (event: string, listener: (...args: any[]) => void) {
+      if (blockedSignals.has(event)) {
+        logger.info({ event }, "Blocked Telegraf from registering signal handler");
+        return process;
+      }
+      return origOnce(event, listener);
+    };
 
     this.bot
       .launch({ dropPendingUpdates: true, allowedUpdates: ["message", "channel_post"] })
-      .then(() => logger.info("Telegram polling CONFIRMED active"))
+      .then(() => {
+        logger.info("Telegram polling CONFIRMED active");
+        // Restore process.once after launch succeeds
+        (process as any).once = origOnce;
+      })
       .catch((err) => {
         logger.error({ err }, "Telegram bot launch failed — will continue without Telegram");
         storeErrorFromCatch("telegram", err, { action: "launch" });
+        // Restore process.once even on failure
+        (process as any).once = origOnce;
       });
 
-    // Remove Telegraf's signal handlers that would kill the process
-    process.removeAllListeners("SIGTERM");
-    process.removeAllListeners("SIGINT");
-    // Restore the original handlers (Pascal's own graceful shutdown)
-    for (const fn of prevSigterm) process.on("SIGTERM", fn as (...args: unknown[]) => void);
-    for (const fn of prevSigint) process.on("SIGINT", fn as (...args: unknown[]) => void);
-
-    logger.info("Telegram adapter started (polling, Telegraf signal handlers removed)");
+    logger.info("Telegram adapter started (polling, Telegraf signal handlers blocked)");
   }
 
   async stop(): Promise<void> {
