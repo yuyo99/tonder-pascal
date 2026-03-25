@@ -20,6 +20,12 @@ export async function uploadFileToSlack(
   filename: string,
   opts?: UploadOptions,
 ): Promise<void> {
+  logger.info({ filename, bufferSize: buffer.length, channel: channelId, hasThread: !!opts?.threadTs }, "Starting 3-step Slack file upload");
+
+  if (!buffer || buffer.length === 0) {
+    throw new Error("Cannot upload empty buffer");
+  }
+
   // Step 1: Get upload URL
   const urlRes = await fetch("https://slack.com/api/files.getUploadURLExternal", {
     method: "POST",
