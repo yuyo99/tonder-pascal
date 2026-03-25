@@ -254,9 +254,22 @@ export class SlackChannelAdapter implements ChannelAdapter {
                 title: att.filename.replace(/_/g, " ").replace(".pdf", ""),
               });
             } catch (uploadErr) {
+              const errMsg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
               logger.error({ err: uploadErr, filename: att.filename }, "Failed to upload PDF to Slack");
+              await client.chat.postMessage({
+                channel: event.channel,
+                thread_ts: event.ts,
+                text: `⚠️ PDF generated but upload failed: ${errMsg}`,
+              });
             }
           }
+        } else {
+          // Debug: surface when no attachments returned
+          await client.chat.postMessage({
+            channel: event.channel,
+            thread_ts: event.ts,
+            text: `🔍 Debug: orchestrator returned ${response.attachments?.length ?? 0} attachments`,
+          });
         }
       } catch (err) {
         logger.error({ err }, "Failed to answer Slack @mention");
