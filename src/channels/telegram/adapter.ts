@@ -244,6 +244,13 @@ export class TelegramChannelAdapter implements ChannelAdapter {
 
       if (!partnerUsername && !isPartnerChannel) return false;
 
+      // Skip if sender is a Tonder team member (they're not a partner bot)
+      const senderIsTonder = await isTonderTeamMember(fromId);
+      if (senderIsTonder && !partnerUsername) {
+        logger.debug({ chatId, fromId, fromUsername }, "checkPartnerBot: skip — Tonder team member (content fallback)");
+        return false;
+      }
+
       const label = partnerUsername || "content-match";
       logger.info(
         { chatId, detectedBy: partnerUsername ? "username" : "content", label, fromUsername, senderChatUsername, viaBotUsername, text: text.slice(0, 80) },

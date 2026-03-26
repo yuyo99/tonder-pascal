@@ -54,7 +54,10 @@ async function loadTeam(): Promise<void> {
     }
 
     if (teamCache.length > 0) {
-      logger.info({ count: teamCache.length }, "Tonder team loaded from DB");
+      logger.info(
+        { count: teamCache.length, slackIds: Array.from(slackIndex.keys()), telegramIds: Array.from(telegramIndex.keys()) },
+        "Tonder team loaded from DB"
+      );
     }
   } catch (err) {
     logger.warn({ err }, "Failed to load team from DB — using fallback");
