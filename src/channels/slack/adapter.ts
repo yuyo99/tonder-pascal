@@ -469,7 +469,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
           await client.chat.postMessage({
             channel: msg.channel,
             thread_ts: msg.thread_ts || msg.ts,
-            text: `I've created a ticket for this: <${ticket.url}|${ticket.identifier}>. The team will follow up.`,
+            text: `I've notified the team — they'll respond shortly.`,
           });
 
           logger.info(

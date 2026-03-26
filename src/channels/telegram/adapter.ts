@@ -425,7 +425,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
                 merchantCtx,
               });
               await ctx.reply(
-                `I've created a ticket for this: ${ticket.identifier} (${ticket.url}). The team will follow up.`,
+                `I've notified the team — they'll respond shortly.`,
                 { reply_parameters: { message_id: ctx.message.message_id } }
               );
             } catch (err) {

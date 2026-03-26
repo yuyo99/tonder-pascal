@@ -7,6 +7,7 @@ import { generateRefundReceipt } from "./receipt-generator";
 
 import { logger } from "../utils/logger";
 import { storeErrorFromCatch } from "../utils/error-store";
+import { createTeamTicket } from "../linear/client";
 
 // Pending file attachments from tool execution (keyed by receipt ID)
 const pendingAttachments = new Map<string, { buffer: Buffer; filename: string }>();
@@ -170,6 +171,21 @@ export const toolDefinitions: Anthropic.Tool[] = [
       required: ["payment_id", "amount", "status"] as string[],
     },
   },
+  {
+    name: "create_internal_ticket",
+    description:
+      "Create an internal support ticket routed to the correct Tonder team. Use when the merchant needs human help (account config, IP whitelisting, billing, MID requests, etc.). The merchant will NOT see the ticket ID — just tell them the team will respond shortly.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        title: { type: "string" as const, description: "Short ticket title summarizing the request" },
+        description: { type: "string" as const, description: "Full context including the merchant's message and any relevant details" },
+        team: { type: "string" as const, enum: ["int", "sos", "finops"], description: "Team to route to: 'int' for integrations/API/SDK, 'sos' for support/general, 'finops' for settlements/billing/payouts" },
+        priority: { type: "number" as const, enum: [1, 2, 3, 4], description: "1=Urgent 2=High 3=Normal 4=Low (default 3)" },
+      },
+      required: ["title", "description", "team"] as string[],
+    },
+  },
 ];
 
 // Tool input types
@@ -189,6 +205,11 @@ interface ToolInput {
   payment_method?: string;
   customer_email?: string;
   created_at?: string;
+  // Ticket fields
+  title?: string;
+  description?: string;
+  team?: "int" | "sos" | "finops";
+  priority?: number;
 }
 
 function resolveDateRange(input: ToolInput): DateRange {
@@ -368,6 +389,24 @@ export async function executeTool(
           receiptId,
           filename,
           message: "PDF receipt generated and will be sent as a file attachment.",
+        });
+      }
+
+      case "create_internal_ticket": {
+        if (!input.title || !input.description || !input.team) {
+          return "Error: title, description, and team are required";
+        }
+        const ticket = await createTeamTicket({
+          team: input.team,
+          title: input.title,
+          description: `**Merchant:** ${merchantCtx.businessName}\n**Channel:** ${merchantCtx.channelId}\n**Platform:** ${merchantCtx.platform}\n\n---\n\n${input.description}`,
+          priority: input.priority ?? 3,
+          merchantCtx,
+        });
+        logger.info({ ticket: ticket.identifier, team: input.team, merchant: merchantCtx.businessName }, "Internal ticket auto-created");
+        return JSON.stringify({
+          success: true,
+          message: "Ticket created. Tell the merchant the team will respond shortly. Do NOT share the ticket ID or URL with the merchant.",
         });
       }
 
