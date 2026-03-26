@@ -329,10 +329,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
           if (!config.ambient.enabled) return;
           if (config.ambient.allowedChannels.length > 0 && !config.ambient.allowedChannels.includes(chatId)) return;
 
-          // Rate limit
-          const lastResponse = this.ambientRateLimit.get(chatId) ?? 0;
-          if (Date.now() - lastResponse < 5 * 60 * 1000) return;
-
+          // Resolve merchant context first (needed for all paths)
           let merchantCtx = await resolveMerchantContext(chatId, "telegram");
           if (!merchantCtx) {
             if (config.ambient.allowedChannels.includes(chatId)) {
@@ -354,6 +351,30 @@ export class TelegramChannelAdapter implements ChannelAdapter {
           const senderName = (await getTeamMemberName(userId)) ||
             ctx.message.from.first_name + (ctx.message.from.last_name ? ` ${ctx.message.from.last_name}` : "");
           const isTonder = await isTonderTeamMember(userId);
+          const isTrainingChannel = merchantCtx.businessId === 0;
+
+          // Skip Tonder team messages in merchant channels (not training)
+          if (isTonder && !isTrainingChannel) {
+            logger.debug({ chatId, user: senderName }, "Ambient: skip — Tonder team member");
+            return;
+          }
+
+          // Skip trivial messages
+          if (text.trim().length < 10) return;
+
+          // Detect deposit tickets / transaction inquiries — these ALWAYS get a response (no rate limit, no triage)
+          const isDepositTicket = /(?:txid|orderId|payment_id|transaction.?id)\s*[:=]?\s*\w+/i.test(text)
+            && /(?:status|check|deposit|ticket|amount|currency)/i.test(text);
+          const isBareId = /^\s*(ord_[a-zA-Z0-9]+|pay_[a-zA-Z0-9]+|TNDR-[a-zA-Z0-9-]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-zA-Z0-9_-]{15,})\s*$/i.test(text.trim());
+          const isMappedAmbient = merchantCtx.businessId !== 0; // Real merchant, not training
+
+          // For deposit tickets: skip rate limit entirely — always respond immediately
+          if (!isDepositTicket && !isBareId) {
+            // Rate limit: 30s for ambient channels (was 5 min — too slow for merchant support)
+            const AMBIENT_COOLDOWN_MS = 30 * 1000;
+            const lastResponse = this.ambientRateLimit.get(chatId) ?? 0;
+            if (Date.now() - lastResponse < AMBIENT_COOLDOWN_MS) return;
+          }
 
           // Build minimal context from reply chain
           const threadContext: string[] = [];
@@ -363,22 +384,22 @@ export class TelegramChannelAdapter implements ChannelAdapter {
             threadContext.push(`${replyName}: ${(ctx.message.reply_to_message as any).text?.slice(0, 300)}`);
           }
 
-          // Fast-path: deposit ticket / transaction inquiry — always respond, skip triage
-          const isDepositTicket = /(?:txid|orderId|payment_id|transaction.?id)\s*[:=]?\s*\w+/i.test(text)
-            && /(?:status|check|deposit|ticket|amount|currency)/i.test(text);
-          // Fast-path: bare Tonder ID (ord_, pay_, UUID, or long alphanumeric) — always look it up
-          const isBareId = /^\s*(ord_[a-zA-Z0-9]+|pay_[a-zA-Z0-9]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-zA-Z0-9_-]{15,})\s*$/i.test(text.trim());
-
           let triage: TriageResult;
           if (isDepositTicket || isBareId) {
-            logger.info({ chatId, user: senderName, isBareId }, "Telegram ambient fast-path: transaction ID detected");
+            // Fast-path: deposit ticket or bare ID — always respond
+            logger.info({ chatId, user: senderName, isDepositTicket, isBareId }, "Telegram ambient fast-path: transaction detected");
             triage = { shouldRespond: true, confidence: 0.99, reason: "deposit ticket / transaction inquiry", action: "answer", ticketTeam: null };
+          } else if (isMappedAmbient) {
+            // Mapped merchant in AMBIENT_CHANNELS — always respond, skip triage
+            logger.info({ chatId, user: senderName, merchant: merchantCtx.businessName }, "Telegram ambient: mapped merchant — responding directly");
+            triage = { shouldRespond: true, confidence: 0.95, reason: "mapped ambient channel — always respond", action: "answer", ticketTeam: null };
           } else {
+            // Training channels: use triage to decide
             try {
               triage = await triageMessage({
                 message: text,
                 senderName,
-                isTonderTeam: merchantCtx.businessId === 0 ? false : isTonder, // Training channels: don't skip Tonder team
+                isTonderTeam: false,
                 threadContext,
                 merchantName: merchantCtx.businessName,
                 platform: "telegram",
