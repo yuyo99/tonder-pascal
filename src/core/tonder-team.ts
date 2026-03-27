@@ -28,9 +28,16 @@ let telegramIndex = new Map<string, TeamMemberInfo>();
 let lastLoaded = 0;
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
-// Hardcoded fallback (used before DB is available)
+// Hardcoded fallbacks (used before DB is available or if DB query fails)
 const FALLBACK_SLACK: Record<string, { name: string; role: string }> = {
   "U091BLCSUMC": { name: "Roberto", role: "FinOps" },
+  "U058YPQ0EBU": { name: "Geraldine Sprockel", role: "Acquirer MID" },
+  "U0A6RK3GR3P": { name: "Sandy Sosa", role: "Integrations Lead" },
+};
+
+const FALLBACK_TELEGRAM: Record<string, { name: string; role: string }> = {
+  "8525646695": { name: "Sandy Sosa", role: "Integrations Lead" },
+  "7104916069": { name: "Geraldine Sprockel", role: "Acquirer MID" },
 };
 
 async function loadTeam(): Promise<void> {
@@ -74,23 +81,27 @@ async function ensureLoaded(): Promise<void> {
 
 export async function isTonderTeamMember(userId: string): Promise<boolean> {
   await ensureLoaded();
-  if (slackIndex.has(userId) || telegramIndex.has(userId)) return true;
-  // Fallback check
-  return userId in FALLBACK_SLACK;
+  const inDb = slackIndex.has(userId) || telegramIndex.has(userId);
+  const inFallback = userId in FALLBACK_SLACK || userId in FALLBACK_TELEGRAM;
+  const result = inDb || inFallback;
+  if (result) {
+    logger.debug({ userId, inDb, inFallback, telegramIndexSize: telegramIndex.size, slackIndexSize: slackIndex.size }, "Tonder team member detected");
+  }
+  return result;
 }
 
 export async function getTeamMemberName(userId: string): Promise<string | null> {
   await ensureLoaded();
   const member = slackIndex.get(userId) ?? telegramIndex.get(userId);
   if (member) return member.name;
-  return FALLBACK_SLACK[userId]?.name ?? null;
+  return FALLBACK_SLACK[userId]?.name ?? FALLBACK_TELEGRAM[userId]?.name ?? null;
 }
 
 export async function getTeamMemberRole(userId: string): Promise<string | null> {
   await ensureLoaded();
   const member = slackIndex.get(userId) ?? telegramIndex.get(userId);
   if (member) return member.role;
-  return FALLBACK_SLACK[userId]?.role ?? null;
+  return FALLBACK_SLACK[userId]?.role ?? FALLBACK_TELEGRAM[userId]?.role ?? null;
 }
 
 /** Get all team members for prompt injection */
