@@ -1,4 +1,5 @@
 import { getCollection } from "./connection";
+import { Long } from "mongodb";
 import { DateRange } from "../utils/dates";
 import { getMerchantDisplayName } from "../core/provider-mask";
 
@@ -329,13 +330,16 @@ export async function lookupById(
   businessIds: number[],
   businessIdStrs: string[]
 ): Promise<LookupResult[]> {
-  const idAsNumber = parseInt(id, 10);
-  const numericId = !isNaN(idAsNumber) ? idAsNumber : null;
+  const isNumericStr = /^\d+$/.test(id);
+  const idAsNumber = isNumericStr ? parseInt(id, 10) : NaN;
+  // Only use JS number if it fits safely (≤ 2^53-1). Otherwise use MongoDB Long.
+  const numericId = !isNaN(idAsNumber) && Number.isSafeInteger(idAsNumber) ? idAsNumber : null;
+  const longId = isNumericStr && !Number.isSafeInteger(idAsNumber) ? Long.fromString(id) : null;
 
   const [txResults, wdResults, speiResults] = await Promise.all([
-    findInTransactions(id, numericId, businessIds),
+    findInTransactions(id, numericId, longId, businessIds),
     findInWithdrawals(id, businessIdStrs),
-    findInSpeiDeposits(id, numericId, businessIdStrs),
+    findInSpeiDeposits(id, numericId, longId, businessIdStrs),
   ]);
 
   const results: LookupResult[] = [];
@@ -405,6 +409,7 @@ export async function lookupById(
 async function findInTransactions(
   id: string,
   numericId: number | null,
+  longId: Long | null,
   businessIds: number[]
 ): Promise<Record<string, unknown>[]> {
   const col = getCollection(TX_COLLECTION);
@@ -416,6 +421,11 @@ async function findInTransactions(
   if (numericId !== null) {
     orConditions.push({ payment_id: numericId });
     orConditions.push({ order_id: numericId });
+  }
+  if (longId !== null) {
+    // Large IDs that exceed Number.MAX_SAFE_INTEGER — use MongoDB Long for precision
+    orConditions.push({ payment_id: longId });
+    orConditions.push({ order_id: longId });
   }
   // Also try string match for payment_id/order_id
   orConditions.push({ payment_id: id });
@@ -492,6 +502,7 @@ function extractClaveRastreo(doc: Record<string, unknown>): string | null {
 async function findInSpeiDeposits(
   id: string,
   numericId: number | null,
+  longId: Long | null,
   businessIdStrs: string[]
 ): Promise<Record<string, unknown>[]> {
   const col = getCollection(SPEI_COLLECTION);
@@ -506,6 +517,10 @@ async function findInSpeiDeposits(
   if (numericId !== null) {
     orConditions.push({ order_id: numericId });
     orConditions.push({ payment_id: numericId });
+  }
+  if (longId !== null) {
+    orConditions.push({ order_id: longId });
+    orConditions.push({ payment_id: longId });
   }
   orConditions.push({ order_id: id });
   orConditions.push({ payment_id: id });
