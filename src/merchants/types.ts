@@ -3,6 +3,8 @@ export interface PartnerBotConfig {
   username: string;
   /** Human-readable label for logging */
   label: string;
+  /** Telegram numeric user ID (fallback when username isn't in message) */
+  botId?: string;
 }
 
 export interface MerchantMapping {

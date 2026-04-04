@@ -3,6 +3,7 @@ import { Telegraf } from "telegraf";
 import { ChannelAdapter, IncomingMessage, OutgoingMessage, MessageResponse } from "../types";
 import { createSupportTicket, createTeamTicket, CommandType } from "../../linear/client";
 import { resolveMerchantContext, isPartnerBot, hasPartnerBots } from "../../merchants/context";
+import { getChannelIndex } from "../../merchants/config-store";
 import { trackInteraction } from "../../scheduler/daily-report";
 import { parseDepositTicket, isValidTxid, buildTicketLookupPrompt } from "./partner-bot";
 import { triageMessage, TriageResult } from "../../core/triage";
@@ -230,11 +231,22 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         `checkPartnerBot [${eventType}]: evaluating`);
 
       // Method 1: Username-based detection
-      const partnerUsername = [fromUsername, senderChatUsername, viaBotUsername]
+      let partnerUsername = [fromUsername, senderChatUsername, viaBotUsername]
         .find(u => u && isPartnerBot(chatId, "telegram", u)) || "";
 
-      logger.info({ chatId, partnerUsername: partnerUsername || "(none)", fromUsername },
-        `checkPartnerBot [${eventType}]: username match result`);
+      // Method 1b: Bot ID fallback (catches cases where username is empty/different)
+      if (!partnerUsername) {
+        const idx = getChannelIndex();
+        const mapping = idx.get(`telegram:${chatId}`);
+        const botIdMatch = mapping?.partnerBots?.find(pb => pb.botId && pb.botId === fromId);
+        if (botIdMatch) {
+          partnerUsername = botIdMatch.username;
+          logger.info({ chatId, fromId, matchedBot: botIdMatch.label }, `checkPartnerBot [${eventType}]: matched by bot ID`);
+        }
+      }
+
+      logger.info({ chatId, partnerUsername: partnerUsername || "(none)", fromUsername, fromId },
+        `checkPartnerBot [${eventType}]: username/ID match result`);
 
       // Method 2: Content-based fallback
       const isPartnerChannel = !partnerUsername && hasPartnerBots(chatId, "telegram");
