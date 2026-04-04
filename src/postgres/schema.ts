@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS pascal_knowledge_base (
 CREATE INDEX IF NOT EXISTS idx_pascal_kb_category
   ON pascal_knowledge_base (category) WHERE is_active = true;
 
+
 DO $$ BEGIN
   ALTER TABLE pascal_conversation_log
     ADD COLUMN IF NOT EXISTS knowledge_used JSONB DEFAULT '[]';
@@ -482,6 +483,36 @@ CREATE INDEX IF NOT EXISTS idx_pascal_synthetic_check ON pascal_synthetic_check_
 `;
 
 export async function ensureTables(): Promise<void> {
+  // Enable pgvector extension (separate query — non-fatal if not available)
+  try {
+    await pgQuery("CREATE EXTENSION IF NOT EXISTS vector");
+    logger.info("pgvector extension enabled");
+  } catch (err) {
+    logger.warn({ err }, "pgvector extension not available — semantic search will use keyword fallback");
+  }
+
   await pgQuery(DDL);
   logger.info("PostgreSQL tables ensured");
+
+  // Add embedding column (separate — requires pgvector to be available)
+  try {
+    await pgQuery(`
+      ALTER TABLE pascal_knowledge_base
+        ADD COLUMN IF NOT EXISTS embedding vector(1536);
+      ALTER TABLE pascal_knowledge_base
+        ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'manual';
+      ALTER TABLE pascal_knowledge_base
+        ADD COLUMN IF NOT EXISTS confidence FLOAT DEFAULT 1.0;
+      ALTER TABLE pascal_knowledge_base
+        ADD COLUMN IF NOT EXISTS business_id INT;
+    `);
+    // HNSW index for semantic search
+    await pgQuery(`
+      CREATE INDEX IF NOT EXISTS pascal_kb_embedding_idx
+        ON pascal_knowledge_base USING hnsw (embedding vector_cosine_ops)
+    `);
+    logger.info("pgvector columns and index ready on pascal_knowledge_base");
+  } catch (err) {
+    logger.warn({ err }, "Failed to add pgvector columns — semantic search disabled");
+  }
 }

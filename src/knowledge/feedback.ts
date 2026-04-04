@@ -9,8 +9,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { WebClient } from "@slack/web-api";
 import { config } from "../config";
-import { pgQuery } from "../postgres/connection";
-import { loadKnowledgeBase } from "./loader";
+import { saveKnowledgeEntry } from "./save-entry";
 import { logger } from "../utils/logger";
 import { storeErrorFromCatch } from "../utils/error-store";
 
@@ -81,21 +80,15 @@ export async function handleFeedbackMessage(params: {
       throw new Error("Missing required fields in extracted knowledge");
     }
 
-    // Insert into knowledge base
-    await pgQuery(
-      `INSERT INTO pascal_knowledge_base (category, match_pattern, title, content, action, priority, is_active)
-       VALUES ($1, $2, $3, $4, $5, 5, true)`,
-      [
-        extracted.category,
-        extracted.match_pattern,
-        extracted.title,
-        extracted.content,
-        extracted.action || null,
-      ]
-    );
-
-    // Force-refresh knowledge cache
-    await loadKnowledgeBase();
+    // Insert into knowledge base (shared function handles embedding + cache refresh)
+    await saveKnowledgeEntry({
+      category: extracted.category,
+      matchPattern: extracted.match_pattern,
+      title: extracted.title,
+      content: extracted.content,
+      action: extracted.action ?? undefined,
+      source: "slack:learn",
+    });
 
     logger.info(
       { title: extracted.title, category: extracted.category, patterns: extracted.match_pattern, user: userId },

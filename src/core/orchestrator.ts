@@ -54,8 +54,8 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
   // Step 2: Build merchant-specific system prompt
   let systemPrompt = buildSystemPrompt(merchantCtx);
 
-  // Step 2b: Inject relevant knowledge into system prompt
-  const knowledgeMatches = findRelevantKnowledge(msg.text);
+  // Step 2b: Inject relevant knowledge into system prompt (semantic search + keyword fallback)
+  const knowledgeMatches = await findRelevantKnowledge(msg.text, merchantCtx.businessId || undefined);
   if (knowledgeMatches.length > 0) {
     const knowledgeSection = knowledgeMatches
       .map((k) => {

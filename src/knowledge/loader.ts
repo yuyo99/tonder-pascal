@@ -1,12 +1,13 @@
 /**
  * Pascal Knowledge Base Loader
  *
- * Caches pascal_knowledge_base entries from PostgreSQL with a 10-minute TTL.
  * Provides findRelevantKnowledge() for system prompt injection.
- * Pattern: adapted from Marcus's knowledge/loader.ts.
+ * Primary: semantic search via pgvector cosine similarity.
+ * Fallback: keyword-based substring matching (if pgvector unavailable).
  */
 
 import { pgQuery } from "../postgres/connection";
+import { generateEmbedding } from "../lib/embeddings";
 import { logger } from "../utils/logger";
 
 export interface KnowledgeEntry {
@@ -19,11 +20,12 @@ export interface KnowledgeEntry {
   priority: number;
 }
 
+// Keyword cache for fallback
 let cache: KnowledgeEntry[] = [];
 let lastLoaded = 0;
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
-/** Load all active knowledge entries from DB into cache */
+/** Load all active knowledge entries from DB into cache (for keyword fallback) */
 export async function loadKnowledgeBase(): Promise<void> {
   try {
     const result = await pgQuery(
@@ -42,37 +44,69 @@ export async function loadKnowledgeBase(): Promise<void> {
   }
 }
 
-/** Ensure cache is fresh, trigger background refresh if stale */
-function ensureFresh(): KnowledgeEntry[] {
+/** Ensure keyword cache is fresh */
+async function ensureFreshCache(): Promise<KnowledgeEntry[]> {
   if (Date.now() - lastLoaded > CACHE_TTL) {
-    loadKnowledgeBase().catch(() => {});
+    await loadKnowledgeBase();
   }
   return cache;
 }
 
-/**
- * Find all knowledge entries whose match_pattern matches the question.
- * Supports comma-separated patterns (e.g. "refund, reembolso, devolucion").
- * Returns matches sorted by priority (lowest = highest priority).
- */
-export function findRelevantKnowledge(question: string): KnowledgeEntry[] {
-  const entries = ensureFresh();
+/** Keyword-based fallback search (existing logic) */
+function keywordSearch(question: string, entries: KnowledgeEntry[]): KnowledgeEntry[] {
   const lower = question.toLowerCase();
-
-  const matches: KnowledgeEntry[] = [];
-
-  for (const entry of entries) {
-    // Split comma-separated patterns and check each
+  return entries.filter((entry) => {
     const patterns = entry.match_pattern
       .split(",")
       .map((p) => p.trim().toLowerCase())
       .filter(Boolean);
+    return patterns.some((pattern) => lower.includes(pattern));
+  });
+}
 
-    const matched = patterns.some((pattern) => lower.includes(pattern));
-    if (matched) {
-      matches.push(entry);
+/**
+ * Find relevant knowledge entries for a question.
+ * Uses semantic search (pgvector) first, falls back to keyword matching.
+ * Now async — callers must await.
+ */
+export async function findRelevantKnowledge(
+  question: string,
+  businessId?: number
+): Promise<KnowledgeEntry[]> {
+  // Try semantic search first
+  try {
+    const embedding = await generateEmbedding(question);
+    if (embedding) {
+      const result = await pgQuery(
+        `SELECT id, category, match_pattern, title, content, action, priority
+         FROM pascal_knowledge_base
+         WHERE is_active = true
+           AND embedding IS NOT NULL
+           AND (business_id IS NULL OR business_id = $2)
+         ORDER BY embedding <=> $1::vector
+         LIMIT 5`,
+        [`[${embedding.join(",")}]`, businessId ?? null]
+      );
+      if (result.rows.length > 0) {
+        logger.debug(
+          { count: result.rows.length, method: "semantic" },
+          "Knowledge found via semantic search"
+        );
+        return result.rows;
+      }
     }
+  } catch (err) {
+    logger.warn({ err }, "Semantic search failed — falling back to keyword");
   }
 
-  return matches; // already sorted by priority from the SQL query
+  // Keyword fallback
+  const entries = await ensureFreshCache();
+  const matches = keywordSearch(question, entries);
+  if (matches.length > 0) {
+    logger.debug(
+      { count: matches.length, method: "keyword" },
+      "Knowledge found via keyword fallback"
+    );
+  }
+  return matches;
 }

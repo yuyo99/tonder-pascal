@@ -39,5 +39,8 @@ export const config = {
     // Channels where ambient mode is active (comma-separated). Empty = all mapped channels.
     allowedChannels: (process.env.AMBIENT_CHANNELS || "").split(",").filter(Boolean),
   },
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY || "",
+  },
   logLevel: process.env.LOG_LEVEL || "info",
 };
