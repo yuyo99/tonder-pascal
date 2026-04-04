@@ -84,6 +84,15 @@ function IconOnboarding({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
+function IconTraining({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" />
+      <path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" />
+    </svg>
+  );
+}
+
 function IconMonitoring({ className = "w-5 h-5" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -199,6 +208,7 @@ const AGENT_ITEMS: NavItem[] = [
   { label: "Analytics", href: "/analytics", icon: IconChart },
   { label: "Brain", href: "/brain", icon: IconBrain },
   { label: "Memory", href: "/memory", icon: IconMemory },
+  { label: "Training", href: "/training", icon: IconTraining },
   { label: "Merchant Chats", href: "/merchants", icon: IconChats },
   { label: "People", href: "/people", icon: IconPeople },
   { label: "Monitoring", href: "/monitoring", icon: IconMonitoring },
