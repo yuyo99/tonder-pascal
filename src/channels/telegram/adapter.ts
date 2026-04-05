@@ -624,10 +624,14 @@ export class TelegramChannelAdapter implements ChannelAdapter {
 
       // ── Partner bot auto-response (channel posts) ──
       const postSender = extractSenderInfo(post as unknown as Record<string, unknown>);
+      // Use actual sender ID (from.id or sender_chat.id) — NOT hardcoded "channel"
+      const rawPost = post as unknown as Record<string, unknown>;
+      const senderChatId = (rawPost.sender_chat as Record<string, unknown> | undefined)?.id;
+      const postSenderId = postSender.fromId && postSender.fromId !== "0" ? postSender.fromId : (senderChatId ? String(senderChatId) : "channel");
       const postReplyFn = async (answer: string) => { await ctx.reply(answer); };
       const wasChannelPartnerBot = await checkPartnerBot(
         chatId, ctx.chat.type, text,
-        "channel", postSender.fromUsername || postSender.senderChatUsername, postSender.senderChatUsername, postSender.viaBotUsername,
+        postSenderId, postSender.fromUsername || postSender.senderChatUsername, postSender.senderChatUsername, postSender.viaBotUsername,
         0, postReplyFn, post, "channel_post"
       );
       if (wasChannelPartnerBot) return;

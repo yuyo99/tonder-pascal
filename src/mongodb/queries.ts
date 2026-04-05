@@ -337,9 +337,9 @@ export async function lookupById(
   const longId = isNumericStr && !Number.isSafeInteger(idAsNumber) ? Long.fromString(id) : null;
 
   const [txResults, wdResults, speiResults] = await Promise.all([
-    findInTransactions(id, numericId, longId, businessIds),
+    findInTransactions(id, numericId, longId, isNumericStr, businessIds),
     findInWithdrawals(id, businessIdStrs),
-    findInSpeiDeposits(id, numericId, longId, businessIdStrs),
+    findInSpeiDeposits(id, numericId, longId, isNumericStr, businessIdStrs),
   ]);
 
   const results: LookupResult[] = [];
@@ -410,6 +410,7 @@ async function findInTransactions(
   id: string,
   numericId: number | null,
   longId: Long | null,
+  isNumericStr: boolean,
   businessIds: number[]
 ): Promise<Record<string, unknown>[]> {
   const col = getCollection(TX_COLLECTION);
@@ -427,9 +428,12 @@ async function findInTransactions(
     orConditions.push({ payment_id: longId });
     orConditions.push({ order_id: longId });
   }
-  // Also try string match for payment_id/order_id
-  orConditions.push({ payment_id: id });
-  orConditions.push({ order_id: id });
+  // String match for payment_id/order_id — ONLY for non-numeric IDs
+  // Numeric IDs must use the typed match above to avoid precision-related mismatches
+  if (!isNumericStr) {
+    orConditions.push({ payment_id: id });
+    orConditions.push({ order_id: id });
+  }
   orConditions.push({ tracking_key: id });
 
   const bizFilter = businessIds.length === 1 ? businessIds[0] : { $in: businessIds };
@@ -503,6 +507,7 @@ async function findInSpeiDeposits(
   id: string,
   numericId: number | null,
   longId: Long | null,
+  isNumericStr: boolean,
   businessIdStrs: string[]
 ): Promise<Record<string, unknown>[]> {
   const col = getCollection(SPEI_COLLECTION);
@@ -522,8 +527,11 @@ async function findInSpeiDeposits(
     orConditions.push({ order_id: longId });
     orConditions.push({ payment_id: longId });
   }
-  orConditions.push({ order_id: id });
-  orConditions.push({ payment_id: id });
+  // String match — ONLY for non-numeric IDs to avoid precision mismatches
+  if (!isNumericStr) {
+    orConditions.push({ order_id: id });
+    orConditions.push({ payment_id: id });
+  }
   orConditions.push({ "response.webhook.payload.details.clave_rastreo": id });
 
   const bizFilter = businessIdStrs.length === 1 ? businessIdStrs[0] : { $in: businessIdStrs };
