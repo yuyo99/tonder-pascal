@@ -2,7 +2,6 @@ import cron, { ScheduledTask } from "node-cron";
 import { WebClient } from "@slack/web-api";
 import { pgQuery } from "../postgres/connection";
 import { sendDailyReport } from "./daily-report";
-import { sendLinearOverdueAlert, sendLinearEodReview } from "./linear-alert";
 import { sendAccountCreationAlert } from "./linear-label-alert";
 import { onConfigChange } from "../merchants/config-store";
 import { checkHeartbeat } from "../monitoring/heartbeat";
@@ -34,8 +33,6 @@ const runningTasks = new Map<string, { task: ScheduledTask; config: ReportConfig
 
 // (Global daily report fallback removed — only per-merchant scheduled reports run now)
 // Hardcoded system alerts
-let linearAlertTask: ScheduledTask | null = null;
-let linearEodTask: ScheduledTask | null = null;
 let accountCreationTask: ScheduledTask | null = null;
 let slackClientRef: WebClient | null = null;
 
@@ -156,38 +153,6 @@ export function initScheduler(slackClient: WebClient): void {
 
   // ── Hardcoded system alerts ──────────────────────────────────────
 
-  // Linear overdue tickets alert — daily at 8:00 AM Mexico City
-  linearAlertTask = cron.schedule(
-    "0 8 * * *",
-    async () => {
-      logger.info("Running Linear overdue tickets alert...");
-      try {
-        await sendLinearOverdueAlert(slackClient);
-      } catch (err) {
-        logger.error({ err }, "Linear overdue alert failed");
-        storeErrorFromCatch("scheduler", err, { action: "linear_overdue" });
-      }
-    },
-    { timezone: "America/Mexico_City" }
-  );
-  logger.info("Linear overdue alert scheduled (daily 8:00 AM Mexico City)");
-
-  // Linear EOD review — daily at 4:59 PM Mexico City
-  linearEodTask = cron.schedule(
-    "59 16 * * *",
-    async () => {
-      logger.info("Running Linear EOD review...");
-      try {
-        await sendLinearEodReview(slackClient);
-      } catch (err) {
-        logger.error({ err }, "Linear EOD review failed");
-        storeErrorFromCatch("scheduler", err, { action: "linear_eod" });
-      }
-    },
-    { timezone: "America/Mexico_City" }
-  );
-  logger.info("Linear EOD review scheduled (daily 4:59 PM Mexico City)");
-
   // Account Creation PROD label alert — daily 10am Mon-Fri
   accountCreationTask = cron.schedule(
     "0 10 * * 1-5",
@@ -244,14 +209,6 @@ export function stopScheduler(): void {
     logger.info({ key }, "Stopped scheduled report");
   }
   runningTasks.clear();
-  if (linearAlertTask) {
-    linearAlertTask.stop();
-    linearAlertTask = null;
-  }
-  if (linearEodTask) {
-    linearEodTask.stop();
-    linearEodTask = null;
-  }
   if (accountCreationTask) {
     accountCreationTask.stop();
     accountCreationTask = null;
