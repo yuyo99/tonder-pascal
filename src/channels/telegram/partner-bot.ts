@@ -59,16 +59,17 @@ export function isValidTxid(txid: string): boolean {
 export function buildTicketLookupPrompt(ticket: ParsedDepositTicket): string {
   return [
     `[AUTOMATED DEPOSIT TICKET LOOKUP]`,
-    `A partner bot has reported a new deposit ticket. Look up the order using the orderId below.`,
+    `A partner bot has reported a new deposit ticket. Look up the order using the ID below.`,
     ``,
-    `Order ID (maps to order_id in Tonder): ${ticket.orderId}`,
-    `TXID (maps to payment_id in Tonder): ${ticket.txid}`,
+    `Order ID: ${ticket.orderId}`,
+    `TXID: ${ticket.txid}`,
     `Currency: ${ticket.currency}`,
     `Amount: ${ticket.amount}`,
     ``,
-    `Use the lookup_by_id tool with the Order ID "${ticket.orderId}" to find the transaction.`,
-    `If not found by Order ID, try again with the TXID "${ticket.txid}" (which is the payment_id).`,
+    `Use the lookup_by_id tool with "${ticket.orderId}" to find the transaction.`,
+    `This ID may be stored as order_id OR payment_customer_order_reference in Tonder — the lookup tool searches both automatically.`,
+    `If not found by Order ID, try with the TXID "${ticket.txid}".`,
     `If found: reply with the transaction status, amount, and date. Keep it to 2-3 lines max.`,
-    `If NOT found: reply ONLY with "Order ID ${ticket.orderId} not found." — nothing else. No next steps, no suggestions, no explanations. Just that one line.`,
+    `If NOT found: reply ONLY with "Order ${ticket.orderId} not found." — nothing else.`,
   ].join("\n");
 }

@@ -453,10 +453,25 @@ export class TelegramChannelAdapter implements ChannelAdapter {
             return;
           }
 
-          // Ambient answer
-          const queryText = isBareId
-            ? `Look up this ID and respond with its full status and details: ${text.trim()}`
-            : text;
+          // Ambient answer — for deposit tickets, parse fields and build a focused lookup prompt
+          let queryText: string;
+          if (isDepositTicket) {
+            const parsedTicket = parseDepositTicket(text);
+            if (parsedTicket && isValidTxid(parsedTicket.txid)) {
+              queryText = buildTicketLookupPrompt(parsedTicket);
+              logger.info({ chatId, orderId: parsedTicket.orderId, txid: parsedTicket.txid }, "Ambient: deposit ticket parsed — using focused lookup prompt");
+            } else if (parsedTicket && !isValidTxid(parsedTicket.txid)) {
+              // Has orderId but empty/invalid txid — stay silent (BC Game rule)
+              logger.info({ chatId, orderId: parsedTicket.orderId, txid: parsedTicket.txid }, "Ambient: deposit ticket with empty txid — staying silent");
+              return;
+            } else {
+              queryText = text;
+            }
+          } else if (isBareId) {
+            queryText = `Look up this ID and respond with its full status and details: ${text.trim()}`;
+          } else {
+            queryText = text;
+          }
           try {
             const response = await handler({
               channelId: chatId,
