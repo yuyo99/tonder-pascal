@@ -1,6 +1,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
+# cache-bust: added openai dep 2026-04-06
 RUN npm ci
 COPY . .
 RUN npm run build
