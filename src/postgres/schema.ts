@@ -525,4 +525,30 @@ export async function ensureTables(): Promise<void> {
   } catch (err) {
     logger.warn({ err }, "Failed to add conversation_id to self-QA events");
   }
+
+  // Knowledge gaps table (AID-80) — requires pgvector for embedding column
+  try {
+    await pgQuery(`
+      CREATE TABLE IF NOT EXISTS pascal_knowledge_gaps (
+        id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        question          TEXT NOT NULL,
+        channel_id        TEXT,
+        platform          TEXT,
+        merchant_name     TEXT,
+        business_id       INT,
+        frequency         INT DEFAULT 1,
+        status            TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'answered', 'dismissed')),
+        suggested_category TEXT,
+        embedding         vector(1536),
+        detected_at       TIMESTAMPTZ DEFAULT now(),
+        updated_at        TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_gaps_status ON pascal_knowledge_gaps(status);
+      CREATE INDEX IF NOT EXISTS idx_gaps_embedding
+        ON pascal_knowledge_gaps USING hnsw (embedding vector_cosine_ops);
+    `);
+    logger.info("pascal_knowledge_gaps table ready");
+  } catch (err) {
+    logger.warn({ err }, "Failed to create pascal_knowledge_gaps table (pgvector may not be available)");
+  }
 }

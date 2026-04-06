@@ -7,6 +7,7 @@ import { pgQuery } from "../postgres/connection";
 import { logger } from "../utils/logger";
 import { alertCritical, alertWarning } from "./alert-router";
 import { buildFingerprint } from "./fingerprints";
+import { detectAndRecordGap } from "../knowledge/gap-detector";
 import type { SelfQAEvent, Severity } from "./types";
 
 // ── Thresholds ──────────────────────────────────────────────────
@@ -146,6 +147,17 @@ export async function evaluateAndRecord(params: {
       alertThreshold: 3,
       suggestedSteps: getSuggestedSteps(params.messageType, params.failureReason),
     });
+  }
+
+  // Record knowledge gap for warning/fallback responses (AID-80)
+  if (event.fallbackUsed || status === "warning") {
+    detectAndRecordGap({
+      question: params.rawInput,
+      channelId: params.channelId,
+      platform: params.platform,
+      merchantName: params.merchantName ?? undefined,
+      businessId: params.businessId ? parseInt(params.businessId) : undefined,
+    }).catch(err => logger.warn({ err }, "Gap detection failed — non-fatal"));
   }
 }
 
