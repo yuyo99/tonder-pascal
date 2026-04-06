@@ -16,9 +16,9 @@ import { logger } from "../utils/logger";
 import { storeErrorFromCatch } from "../utils/error-store";
 import { evaluateAndRecord } from "../monitoring/self-qa";
 
-const client = new Anthropic({ apiKey: config.claude.apiKey, timeout: 60_000 });
-const MAX_TOOL_ROUNDS = 5;
-const HANDLER_TIMEOUT_MS = 90_000; // 90s max for entire message handling
+const client = new Anthropic({ apiKey: config.claude.apiKey, timeout: 120_000 });
+const MAX_TOOL_ROUNDS = 10;
+const HANDLER_TIMEOUT_MS = 300_000; // 5 min max — bulk queries (54 IDs) need time
 
 interface ToolLoopResult {
   answer: string;
@@ -116,7 +116,7 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
 
     let answer: string;
     if (errMsg.includes("Handler timeout")) {
-      answer = "Sorry, this request took too long. Please try again with a more specific question.";
+      answer = "This query is taking longer than expected — for large lookups this may take a few minutes. Please try again and I'll do my best.";
     } else if (errMsg.includes("authentication") || errMsg.includes("api_key") || errMsg.includes("401")) {
       answer = "I'm experiencing an authentication issue. Please contact Tonder support.";
     } else if (errMsg.includes("rate_limit") || errMsg.includes("429")) {
