@@ -515,4 +515,14 @@ export async function ensureTables(): Promise<void> {
   } catch (err) {
     logger.warn({ err }, "Failed to add pgvector columns — semantic search disabled");
   }
+
+  // Add conversation_id to self-QA events (for nightly auto-learn join, AID-79)
+  try {
+    await pgQuery(`
+      ALTER TABLE pascal_self_qa_events
+        ADD COLUMN IF NOT EXISTS conversation_id UUID;
+    `);
+  } catch (err) {
+    logger.warn({ err }, "Failed to add conversation_id to self-QA events");
+  }
 }

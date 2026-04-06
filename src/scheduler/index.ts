@@ -6,6 +6,7 @@ import { sendAccountCreationAlert } from "./linear-label-alert";
 import { onConfigChange } from "../merchants/config-store";
 import { checkHeartbeat } from "../monitoring/heartbeat";
 import { runAllSyntheticChecks, cleanupOldResults } from "../monitoring/synthetic-checks";
+import { runNightlyLearn } from "./nightly-learn";
 import { logger } from "../utils/logger";
 import { storeErrorFromCatch } from "../utils/error-store";
 
@@ -196,6 +197,17 @@ export function initScheduler(slackClient: WebClient): void {
       try { await cleanupOldResults(); } catch { /* non-fatal */ }
     }, { timezone: "America/Mexico_City" });
   }
+
+  // Nightly auto-learn — 2:00 AM Mexico City (AID-79)
+  cron.schedule("0 2 * * *", async () => {
+    try {
+      await runNightlyLearn();
+    } catch (err) {
+      logger.error({ err }, "Nightly auto-learn failed");
+      storeErrorFromCatch("scheduler", err, { action: "nightly_learn" });
+    }
+  }, { timezone: "America/Mexico_City" });
+  logger.info("Nightly auto-learn scheduled (daily 2:00 AM Mexico City)");
 
   logger.info("Scheduler initialized — syncing scheduled reports from Postgres");
 }
