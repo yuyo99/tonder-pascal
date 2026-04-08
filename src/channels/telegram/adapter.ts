@@ -621,6 +621,33 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         "Telegram photo event received"
       );
 
+      // BC Game fast-path for photo messages with deposit ticket captions
+      const BCGAME_CHANNELS = ["-1002589749469", "-1003575792934"];
+      if (BCGAME_CHANNELS.includes(chatId)) {
+        const ticket = parseDepositTicket(caption);
+        if (ticket) {
+          if (!isValidTxid(ticket.txid)) {
+            logger.info({ chatId, orderId: ticket.orderId, txid: ticket.txid }, "BC Game photo fast-path: empty txid — silent");
+            return;
+          }
+          logger.info({ chatId, orderId: ticket.orderId, txid: ticket.txid }, "BC Game photo fast-path: deposit ticket detected");
+          try {
+            const lookupPrompt = buildTicketLookupPrompt(ticket);
+            const response = await handler({
+              channelId: chatId, platform: "telegram",
+              userId: sender.fromId, userName: sender.fromUsername || "bcgame_ticket_bot",
+              text: lookupPrompt, rawEvent: ctx.message,
+            });
+            await ctx.reply(response.text, { reply_parameters: { message_id: ctx.message.message_id } });
+            logger.info({ chatId, orderId: ticket.orderId }, "BC Game photo fast-path: response sent");
+          } catch (err) {
+            logger.error({ err, chatId, orderId: ticket.orderId }, "BC Game photo fast-path: failed");
+            try { await ctx.reply("Sorry, I encountered an error looking up this deposit.", { reply_parameters: { message_id: ctx.message.message_id } }); } catch { /* ignore */ }
+          }
+          return;
+        }
+      }
+
       const replyFn = async (answer: string) => {
         await ctx.reply(answer, { reply_parameters: { message_id: ctx.message.message_id } });
       };
@@ -643,6 +670,33 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         { chatId, chatType: ctx.chat.type, from: sender.fromUsername, caption: caption.slice(0, 80) },
         "Telegram document event received"
       );
+
+      // BC Game fast-path for document messages with deposit ticket captions
+      const BCGAME_CHANNELS_DOC = ["-1002589749469", "-1003575792934"];
+      if (BCGAME_CHANNELS_DOC.includes(chatId)) {
+        const ticket = parseDepositTicket(caption);
+        if (ticket) {
+          if (!isValidTxid(ticket.txid)) {
+            logger.info({ chatId, orderId: ticket.orderId, txid: ticket.txid }, "BC Game doc fast-path: empty txid — silent");
+            return;
+          }
+          logger.info({ chatId, orderId: ticket.orderId, txid: ticket.txid }, "BC Game doc fast-path: deposit ticket detected");
+          try {
+            const lookupPrompt = buildTicketLookupPrompt(ticket);
+            const response = await handler({
+              channelId: chatId, platform: "telegram",
+              userId: sender.fromId, userName: sender.fromUsername || "bcgame_ticket_bot",
+              text: lookupPrompt, rawEvent: ctx.message,
+            });
+            await ctx.reply(response.text, { reply_parameters: { message_id: ctx.message.message_id } });
+            logger.info({ chatId, orderId: ticket.orderId }, "BC Game doc fast-path: response sent");
+          } catch (err) {
+            logger.error({ err, chatId, orderId: ticket.orderId }, "BC Game doc fast-path: failed");
+            try { await ctx.reply("Sorry, I encountered an error looking up this deposit.", { reply_parameters: { message_id: ctx.message.message_id } }); } catch { /* ignore */ }
+          }
+          return;
+        }
+      }
 
       const replyFn = async (answer: string) => {
         await ctx.reply(answer, { reply_parameters: { message_id: ctx.message.message_id } });
