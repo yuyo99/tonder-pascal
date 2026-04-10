@@ -1,5 +1,4 @@
 import { getCollection } from "./connection";
-import { Long } from "mongodb";
 import { DateRange } from "../utils/dates";
 import { getMerchantDisplayName } from "../core/provider-mask";
 
@@ -332,14 +331,13 @@ export async function lookupById(
 ): Promise<LookupResult[]> {
   const isNumericStr = /^\d+$/.test(id);
   const idAsNumber = isNumericStr ? parseInt(id, 10) : NaN;
-  // Only use JS number if it fits safely (≤ 2^53-1). Otherwise use MongoDB Long.
+  // Only use JS number if it fits safely (≤ 2^53-1). Large IDs are matched via string fields only.
   const numericId = !isNaN(idAsNumber) && Number.isSafeInteger(idAsNumber) ? idAsNumber : null;
-  const longId = isNumericStr && !Number.isSafeInteger(idAsNumber) ? Long.fromString(id) : null;
 
   const [txResults, wdResults, speiResults] = await Promise.all([
-    findInTransactions(id, numericId, longId, isNumericStr, businessIds),
+    findInTransactions(id, numericId, isNumericStr, businessIds),
     findInWithdrawals(id, businessIdStrs),
-    findInSpeiDeposits(id, numericId, longId, isNumericStr, businessIdStrs),
+    findInSpeiDeposits(id, numericId, isNumericStr, businessIdStrs),
   ]);
 
   const results: LookupResult[] = [];
@@ -409,7 +407,6 @@ export async function lookupById(
 async function findInTransactions(
   id: string,
   numericId: number | null,
-  longId: Long | null,
   isNumericStr: boolean,
   businessIds: number[]
 ): Promise<Record<string, unknown>[]> {
@@ -423,13 +420,12 @@ async function findInTransactions(
     orConditions.push({ payment_id: numericId });
     orConditions.push({ order_id: numericId });
   }
-  if (longId !== null) {
-    // Large IDs that exceed Number.MAX_SAFE_INTEGER — use MongoDB Long for precision
-    orConditions.push({ payment_id: longId });
-    orConditions.push({ order_id: longId });
-  }
-  // String match for payment_id/order_id — ONLY for non-numeric IDs
-  // Numeric IDs must use the typed match above to avoid precision-related mismatches
+  // NOTE: Long ID matching (for IDs > MAX_SAFE_INTEGER) on payment_id/order_id was REMOVED.
+  // These large 18-19 digit IDs are BC Game order IDs stored in payment_customer_order_reference (string).
+  // Long matching on payment_id/order_id produced false positives — matching wrong records.
+  // The string match on payment_customer_order_reference (line above) handles these correctly.
+
+  // String match for payment_id/order_id — ONLY for non-numeric IDs (UUIDs, references, etc.)
   if (!isNumericStr) {
     orConditions.push({ payment_id: id });
     orConditions.push({ order_id: id });
@@ -506,7 +502,6 @@ function extractClaveRastreo(doc: Record<string, unknown>): string | null {
 async function findInSpeiDeposits(
   id: string,
   numericId: number | null,
-  longId: Long | null,
   isNumericStr: boolean,
   businessIdStrs: string[]
 ): Promise<Record<string, unknown>[]> {
@@ -523,11 +518,7 @@ async function findInSpeiDeposits(
     orConditions.push({ order_id: numericId });
     orConditions.push({ payment_id: numericId });
   }
-  if (longId !== null) {
-    orConditions.push({ order_id: longId });
-    orConditions.push({ payment_id: longId });
-  }
-  // String match — ONLY for non-numeric IDs to avoid precision mismatches
+  // Long ID matching removed (same reason as findInTransactions — false positives)
   if (!isNumericStr) {
     orConditions.push({ order_id: id });
     orConditions.push({ payment_id: id });
