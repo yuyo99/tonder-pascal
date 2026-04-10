@@ -657,6 +657,62 @@ export async function lookupSpeiDeposits(
   }));
 }
 
+// ── Direct BC Game Deposit Lookup (no orchestrator, no Claude) ──────
+
+export interface DirectLookupResult {
+  found: boolean;
+  paymentId?: number;
+  orderId?: number;
+  status?: string;
+  amount?: number;
+  paymentMethod?: string;
+  created?: string;
+}
+
+/**
+ * Direct MongoDB lookup for BC Game deposit tickets.
+ * Searches by txid (payment_id) first, then orderId (payment_customer_order_reference).
+ * Returns formatted result — no Claude or orchestrator involved.
+ */
+export async function directDepositLookup(
+  txid: string,
+  orderId: string,
+  businessIds: number[]
+): Promise<DirectLookupResult> {
+  const col = getCollection(TX_COLLECTION);
+  const bizFilter = businessIds.length === 1 ? businessIds[0] : { $in: businessIds };
+  const txidNum = parseInt(txid, 10);
+
+  // Try txid (payment_id) first — unique per attempt
+  let doc = !isNaN(txidNum)
+    ? await col.findOne(
+        { business_id: bizFilter, payment_id: txidNum },
+        { projection: { payment_id: 1, order_id: 1, status: 1, amount: 1, acq: 1, provider: 1, created: 1, _id: 0 } }
+      )
+    : null;
+
+  // Fallback: orderId (payment_customer_order_reference) — string match
+  if (!doc) {
+    doc = await col.findOne(
+      { business_id: bizFilter, payment_customer_order_reference: orderId },
+      { projection: { payment_id: 1, order_id: 1, status: 1, amount: 1, acq: 1, provider: 1, created: 1, _id: 0 } }
+    );
+  }
+
+  if (!doc) return { found: false };
+
+  const acq = (doc.acq as string) || (doc.provider as string) || "unknown";
+  return {
+    found: true,
+    paymentId: doc.payment_id as number,
+    orderId: doc.order_id as number,
+    status: doc.status as string,
+    amount: parseFloat(String(doc.amount)) || 0,
+    paymentMethod: getMerchantDisplayName(acq),
+    created: doc.created ? new Date(doc.created as string).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Mexico_City" }) : undefined,
+  };
+}
+
 // ── Business List (for startup cache) ───────────────────────────────
 
 export async function loadBusinessList(): Promise<{ id: number; name: string }[]> {

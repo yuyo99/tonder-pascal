@@ -5,7 +5,8 @@ import { createSupportTicket, createTeamTicket, CommandType } from "../../linear
 import { resolveMerchantContext, isPartnerBot, hasPartnerBots } from "../../merchants/context";
 import { getChannelIndex } from "../../merchants/config-store";
 import { trackInteraction } from "../../scheduler/daily-report";
-import { parseDepositTicket, isValidTxid, buildTicketLookupPrompt } from "./partner-bot";
+import { parseDepositTicket, isValidTxid, buildTicketLookupPrompt, ParsedDepositTicket } from "./partner-bot";
+import { directDepositLookup } from "../../mongodb/queries";
 import { triageMessage, TriageResult } from "../../core/triage";
 import { isTonderTeamMember, getTeamMemberName } from "../../core/tonder-team";
 import { config } from "../../config";
@@ -88,6 +89,47 @@ async function tryHandleDepositTicket(
   }).catch(() => {});
 
   return true;
+}
+
+// BC Game channel IDs (hardcoded — no config dependency)
+const BCGAME_CHAT_IDS = ["-1002589749469", "-1003575792934"];
+const BCGAME_BUSINESS_IDS = [121, 91];
+
+/**
+ * Direct BC Game deposit ticket handler.
+ * Queries MongoDB directly — no orchestrator, no Claude, no merchant context.
+ */
+async function handleBcGameDeposit(
+  ticket: ParsedDepositTicket,
+  chatId: string,
+  messageId: number,
+  replyFn: (text: string) => Promise<void>,
+): Promise<void> {
+  logger.info({ chatId, orderId: ticket.orderId, txid: ticket.txid }, "BC Game direct lookup: starting");
+  try {
+    const result = await directDepositLookup(ticket.txid, ticket.orderId, BCGAME_BUSINESS_IDS);
+    if (result.found) {
+      const statusEmoji = result.status === "Success" ? "✅" :
+        result.status === "Expired" ? "⏰" :
+        result.status === "Pending" ? "⏳" :
+        result.status === "Declined" || result.status === "Failed" ? "❌" : "ℹ️";
+      const reply = [
+        `**Order ${ticket.orderId}:** ${statusEmoji} **${result.status}**`,
+        `**Amount:** $${result.amount?.toLocaleString("en-US", { minimumFractionDigits: 2 })} MXN`,
+        `**Payment Method:** ${result.paymentMethod}`,
+        `**Date:** ${result.created}`,
+        `**Payment ID:** ${result.paymentId}`,
+      ].join("\n");
+      await replyFn(reply);
+      logger.info({ chatId, orderId: ticket.orderId, status: result.status }, "BC Game direct lookup: responded");
+    } else {
+      await replyFn(`Order ${ticket.orderId} not found.`);
+      logger.info({ chatId, orderId: ticket.orderId }, "BC Game direct lookup: not found");
+    }
+  } catch (err) {
+    logger.error({ err, chatId, orderId: ticket.orderId }, "BC Game direct lookup: failed");
+    try { await replyFn("Sorry, I encountered an error looking up this deposit."); } catch { /* ignore */ }
+  }
 }
 
 export class TelegramChannelAdapter implements ChannelAdapter {
@@ -322,32 +364,17 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         "Telegram text event received"
       );
 
-      // ── BC Game hardcoded fast-path (bypasses ALL config/index dependencies) ──
-      const BCGAME_CHANNELS = ["-1002589749469", "-1003575792934"];
-      if (BCGAME_CHANNELS.includes(chatId)) {
+      // ── BC Game hardcoded fast-path (direct MongoDB lookup — no orchestrator, no Claude) ──
+      if (BCGAME_CHAT_IDS.includes(chatId)) {
         const ticket = parseDepositTicket(text);
         if (ticket) {
           if (!isValidTxid(ticket.txid)) {
             logger.info({ chatId, orderId: ticket.orderId, txid: ticket.txid }, "BC Game fast-path: empty txid — silent");
             return;
           }
-          logger.info({ chatId, orderId: ticket.orderId, txid: ticket.txid }, "BC Game fast-path: deposit ticket detected — handling");
-          try {
-            const lookupPrompt = buildTicketLookupPrompt(ticket);
-            const response = await handler({
-              channelId: chatId,
-              platform: "telegram",
-              userId: sender.fromId,
-              userName: sender.fromUsername || "bcgame_ticket_bot",
-              text: lookupPrompt,
-              rawEvent: ctx.message,
-            });
-            await ctx.reply(response.text, { reply_parameters: { message_id: ctx.message.message_id } });
-            logger.info({ chatId, orderId: ticket.orderId }, "BC Game fast-path: response sent");
-          } catch (err) {
-            logger.error({ err, chatId, orderId: ticket.orderId }, "BC Game fast-path: failed");
-            try { await ctx.reply("Sorry, I encountered an error looking up this deposit.", { reply_parameters: { message_id: ctx.message.message_id } }); } catch { /* ignore */ }
-          }
+          await handleBcGameDeposit(ticket, chatId, ctx.message.message_id, async (answer) => {
+            await ctx.reply(answer, { reply_parameters: { message_id: ctx.message.message_id } });
+          });
           return;
         }
       }
@@ -621,29 +648,14 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         "Telegram photo event received"
       );
 
-      // BC Game fast-path for photo messages with deposit ticket captions
-      const BCGAME_CHANNELS = ["-1002589749469", "-1003575792934"];
-      if (BCGAME_CHANNELS.includes(chatId)) {
+      // BC Game fast-path for photo messages (direct MongoDB lookup)
+      if (BCGAME_CHAT_IDS.includes(chatId)) {
         const ticket = parseDepositTicket(caption);
         if (ticket) {
-          if (!isValidTxid(ticket.txid)) {
-            logger.info({ chatId, orderId: ticket.orderId, txid: ticket.txid }, "BC Game photo fast-path: empty txid — silent");
-            return;
-          }
-          logger.info({ chatId, orderId: ticket.orderId, txid: ticket.txid }, "BC Game photo fast-path: deposit ticket detected");
-          try {
-            const lookupPrompt = buildTicketLookupPrompt(ticket);
-            const response = await handler({
-              channelId: chatId, platform: "telegram",
-              userId: sender.fromId, userName: sender.fromUsername || "bcgame_ticket_bot",
-              text: lookupPrompt, rawEvent: ctx.message,
-            });
-            await ctx.reply(response.text, { reply_parameters: { message_id: ctx.message.message_id } });
-            logger.info({ chatId, orderId: ticket.orderId }, "BC Game photo fast-path: response sent");
-          } catch (err) {
-            logger.error({ err, chatId, orderId: ticket.orderId }, "BC Game photo fast-path: failed");
-            try { await ctx.reply("Sorry, I encountered an error looking up this deposit.", { reply_parameters: { message_id: ctx.message.message_id } }); } catch { /* ignore */ }
-          }
+          if (!isValidTxid(ticket.txid)) return;
+          await handleBcGameDeposit(ticket, chatId, ctx.message.message_id, async (answer) => {
+            await ctx.reply(answer, { reply_parameters: { message_id: ctx.message.message_id } });
+          });
           return;
         }
       }
@@ -671,29 +683,14 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         "Telegram document event received"
       );
 
-      // BC Game fast-path for document messages with deposit ticket captions
-      const BCGAME_CHANNELS_DOC = ["-1002589749469", "-1003575792934"];
-      if (BCGAME_CHANNELS_DOC.includes(chatId)) {
+      // BC Game fast-path for document messages (direct MongoDB lookup)
+      if (BCGAME_CHAT_IDS.includes(chatId)) {
         const ticket = parseDepositTicket(caption);
         if (ticket) {
-          if (!isValidTxid(ticket.txid)) {
-            logger.info({ chatId, orderId: ticket.orderId, txid: ticket.txid }, "BC Game doc fast-path: empty txid — silent");
-            return;
-          }
-          logger.info({ chatId, orderId: ticket.orderId, txid: ticket.txid }, "BC Game doc fast-path: deposit ticket detected");
-          try {
-            const lookupPrompt = buildTicketLookupPrompt(ticket);
-            const response = await handler({
-              channelId: chatId, platform: "telegram",
-              userId: sender.fromId, userName: sender.fromUsername || "bcgame_ticket_bot",
-              text: lookupPrompt, rawEvent: ctx.message,
-            });
-            await ctx.reply(response.text, { reply_parameters: { message_id: ctx.message.message_id } });
-            logger.info({ chatId, orderId: ticket.orderId }, "BC Game doc fast-path: response sent");
-          } catch (err) {
-            logger.error({ err, chatId, orderId: ticket.orderId }, "BC Game doc fast-path: failed");
-            try { await ctx.reply("Sorry, I encountered an error looking up this deposit.", { reply_parameters: { message_id: ctx.message.message_id } }); } catch { /* ignore */ }
-          }
+          if (!isValidTxid(ticket.txid)) return;
+          await handleBcGameDeposit(ticket, chatId, ctx.message.message_id, async (answer) => {
+            await ctx.reply(answer, { reply_parameters: { message_id: ctx.message.message_id } });
+          });
           return;
         }
       }
