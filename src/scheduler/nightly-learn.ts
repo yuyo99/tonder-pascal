@@ -102,14 +102,18 @@ export async function runNightlyLearn(): Promise<void> {
 
   for (const conv of conversations) {
     // Step 2: Check if there's a matching self-QA event with status = 'ok'
+    // Uses conversation_id (reliable 1:1 link) with fallback to time-window join
     const { rows: qaMatch } = await pgQuery(
       `SELECT 1 FROM pascal_self_qa_events
-       WHERE channel_id = $1 AND platform = $2
-         AND status = 'ok' AND responded = true AND fallback_used = false
-         AND created_at BETWEEN $3::timestamptz - INTERVAL '10 seconds'
-                             AND $3::timestamptz + INTERVAL '10 seconds'
+       WHERE status = 'ok' AND responded = true AND fallback_used = false
+         AND (
+           conversation_id = $1::uuid
+           OR (conversation_id IS NULL AND channel_id = $2 AND platform = $3
+               AND created_at BETWEEN $4::timestamptz - INTERVAL '10 seconds'
+                                   AND $4::timestamptz + INTERVAL '10 seconds')
+         )
        LIMIT 1`,
-      [conv.channel_id, conv.platform, conv.created_at]
+      [conv.id, conv.channel_id, conv.platform, conv.created_at]
     );
 
     if (qaMatch.length === 0) {

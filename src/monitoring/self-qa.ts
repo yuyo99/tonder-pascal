@@ -18,14 +18,14 @@ const DEPOSIT_FAILURE_ALERT_THRESHOLD = 3; // 3 failures in window → critical
 
 // ── Store QA event ──────────────────────────────────────────────
 
-export async function recordSelfQA(event: SelfQAEvent): Promise<void> {
+export async function recordSelfQA(event: SelfQAEvent, conversationId?: string): Promise<void> {
   try {
     await pgQuery(
       `INSERT INTO pascal_self_qa_events
          (platform, channel_id, merchant_name, business_id, message_type,
           status, latency_ms, parse_confidence, answer_confidence,
-          fallback_used, responded, failure_reason, raw_input, details)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+          fallback_used, responded, failure_reason, raw_input, details, conversation_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
       [
         event.platform,
         event.channelId,
@@ -41,6 +41,7 @@ export async function recordSelfQA(event: SelfQAEvent): Promise<void> {
         event.failureReason,
         event.rawInput?.slice(0, 2000),
         JSON.stringify(event.details),
+        conversationId ?? null,
       ],
     );
   } catch (err) {
@@ -70,6 +71,7 @@ export async function evaluateAndRecord(params: {
   parseConfidence?: number | null;
   answerConfidence?: number | null;
   details?: Record<string, unknown>;
+  conversationId?: string;
 }): Promise<void> {
   const status = classifySeverity(params);
 
@@ -94,8 +96,8 @@ export async function evaluateAndRecord(params: {
     },
   };
 
-  // Store the event
-  await recordSelfQA(event);
+  // Store the event (with conversation link if available)
+  await recordSelfQA(event, params.conversationId);
 
   // Log for observability
   if (status !== "ok") {

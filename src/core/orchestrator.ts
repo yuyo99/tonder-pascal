@@ -169,7 +169,7 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
   const attachments = consumePendingAttachments();
 
   const latencyMs = Date.now() - startTime;
-  logConversation(merchantCtx, msg, result, latencyMs, error, knowledgeMatches);
+  const conversationId = await logConversation(merchantCtx, msg, result, latencyMs, error, knowledgeMatches);
 
   logger.info(
     { hasAttachments: attachments.length > 0, attachmentCount: attachments.length, filenames: attachments.map(a => a.filename), bufferSizes: attachments.map(a => a.buffer?.length ?? 0) },
@@ -190,6 +190,7 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
     rawInput: msg.text?.slice(0, 2000) ?? "",
     toolsCalled: result.toolCalls.map((t) => t.tool),
     rounds: result.rounds,
+    conversationId: conversationId ?? undefined,
   }).catch((err) => logger.warn({ err }, "Self-QA fire-and-forget failed"));
 
   return {
@@ -200,43 +201,48 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
 
 // ── Conversation logging (fire-and-forget) ──
 
-function logConversation(
+async function logConversation(
   ctx: MerchantContext,
   msg: IncomingMessage,
   result: ToolLoopResult,
   latencyMs: number,
   error?: string,
   knowledgeMatches: KnowledgeEntry[] = []
-): void {
+): Promise<string | null> {
   const knowledgeUsed = knowledgeMatches.map((k) => ({
     id: k.id,
     title: k.title,
     category: k.category,
   }));
 
-  pgQuery(
-    `INSERT INTO pascal_conversation_log
-      (merchant_id, merchant_name, platform, channel_id, user_name, question, answer, tool_calls, rounds, latency_ms, error, knowledge_used)
-     VALUES (
-       (SELECT id FROM pascal_merchant_channels WHERE platform = $1 AND channel_id = $2 LIMIT 1),
-       $3, $1, $2, $4, $5, $6, $7, $8, $9, $10, $11
-     )`,
-    [
-      ctx.platform,
-      ctx.channelId,
-      ctx.businessName,
-      msg.userName || null,
-      msg.text,
-      result.answer,
-      JSON.stringify(result.toolCalls),
-      result.rounds,
-      latencyMs,
-      error || null,
-      JSON.stringify(knowledgeUsed),
-    ]
-  ).catch((err) => {
+  try {
+    const res = await pgQuery(
+      `INSERT INTO pascal_conversation_log
+        (merchant_id, merchant_name, platform, channel_id, user_name, question, answer, tool_calls, rounds, latency_ms, error, knowledge_used)
+       VALUES (
+         (SELECT id FROM pascal_merchant_channels WHERE platform = $1 AND channel_id = $2 LIMIT 1),
+         $3, $1, $2, $4, $5, $6, $7, $8, $9, $10, $11
+       )
+       RETURNING id`,
+      [
+        ctx.platform,
+        ctx.channelId,
+        ctx.businessName,
+        msg.userName || null,
+        msg.text,
+        result.answer,
+        JSON.stringify(result.toolCalls),
+        result.rounds,
+        latencyMs,
+        error || null,
+        JSON.stringify(knowledgeUsed),
+      ]
+    );
+    return res.rows[0]?.id ?? null;
+  } catch (err) {
     logger.warn({ err }, "Failed to log conversation — non-fatal");
-  });
+    return null;
+  }
 }
 
 // ── Retry wrapper for transient Claude API errors ──

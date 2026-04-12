@@ -522,6 +522,10 @@ export async function ensureTables(): Promise<void> {
       ALTER TABLE pascal_self_qa_events
         ADD COLUMN IF NOT EXISTS conversation_id UUID;
     `);
+    await pgQuery(`
+      CREATE INDEX IF NOT EXISTS idx_pascal_self_qa_conversation_id
+        ON pascal_self_qa_events (conversation_id) WHERE conversation_id IS NOT NULL;
+    `);
   } catch (err) {
     logger.warn({ err }, "Failed to add conversation_id to self-QA events");
   }
