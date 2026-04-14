@@ -302,21 +302,16 @@ export function getOverallStatus(
 
 /* ─── Team-Scoped Utilities ─── */
 
-export type TeamKey = "cs" | "int";
+export type TeamKey = "cs";
 
 export const TEAM_PHASES: Record<TeamKey, string[]> = {
   cs: ["phase_0", "phase_1", "phase_1_5"],
-  int: ["phase_2", "phase_3", "phase_4", "phase_4_5", "phase_5", "phase_6", "phase_7"],
 };
 
 export const TEAM_LABELS: Record<TeamKey, { name: string; description: string }> = {
   cs: {
     name: "CS Onboarding",
     description: "Commercial, compliance & legal phases",
-  },
-  int: {
-    name: "Integrations",
-    description: "Integration, certification & go-live phases",
   },
 };
 
