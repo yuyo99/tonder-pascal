@@ -683,19 +683,19 @@ export async function directDepositLookup(
   const bizFilter = businessIds.length === 1 ? businessIds[0] : { $in: businessIds };
   const txidNum = parseInt(txid, 10);
 
-  // Try txid (payment_id) first — unique per attempt
+  // Try txid (payment_id) first — unique per attempt, sort by most recent
   let doc = !isNaN(txidNum)
     ? await col.findOne(
         { business_id: bizFilter, payment_id: txidNum },
-        { projection: { payment_id: 1, order_id: 1, status: 1, amount: 1, acq: 1, provider: 1, created: 1, _id: 0 } }
+        { projection: { payment_id: 1, order_id: 1, status: 1, amount: 1, acq: 1, provider: 1, created: 1, _id: 0 }, sort: { created: -1 } }
       )
     : null;
 
-  // Fallback: orderId (payment_customer_order_reference) — string match
+  // Fallback: orderId (payment_customer_order_reference) — string match, most recent
   if (!doc) {
     doc = await col.findOne(
       { business_id: bizFilter, payment_customer_order_reference: orderId },
-      { projection: { payment_id: 1, order_id: 1, status: 1, amount: 1, acq: 1, provider: 1, created: 1, _id: 0 } }
+      { projection: { payment_id: 1, order_id: 1, status: 1, amount: 1, acq: 1, provider: 1, created: 1, _id: 0 }, sort: { created: -1 } }
     );
   }
 
