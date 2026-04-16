@@ -411,26 +411,32 @@ async function findInTransactions(
   businessIds: number[]
 ): Promise<Record<string, unknown>[]> {
   const col = getCollection(TX_COLLECTION);
-  const orConditions: Record<string, unknown>[] = [
-    { transaction_reference: id },
-    { metadata_order_id: id },
-    { payment_customer_order_reference: id },
-  ];
+  const isLargeNumeric = isNumericStr && id.length >= 16; // BC Game-style 18-19 digit order IDs
+
+  // For large numeric IDs (18+ digits): ONLY search payment_customer_order_reference.
+  // These are BC Game order IDs — searching other fields (transaction_reference, tracking_key)
+  // causes false matches with wrong records.
+  const orConditions: Record<string, unknown>[] = isLargeNumeric
+    ? [{ payment_customer_order_reference: id }]
+    : [
+        { transaction_reference: id },
+        { metadata_order_id: id },
+        { payment_customer_order_reference: id },
+      ];
+
   if (numericId !== null) {
     orConditions.push({ payment_id: numericId });
     orConditions.push({ order_id: numericId });
   }
-  // NOTE: Long ID matching (for IDs > MAX_SAFE_INTEGER) on payment_id/order_id was REMOVED.
-  // These large 18-19 digit IDs are BC Game order IDs stored in payment_customer_order_reference (string).
-  // Long matching on payment_id/order_id produced false positives — matching wrong records.
-  // The string match on payment_customer_order_reference (line above) handles these correctly.
 
   // String match for payment_id/order_id — ONLY for non-numeric IDs (UUIDs, references, etc.)
   if (!isNumericStr) {
     orConditions.push({ payment_id: id });
     orConditions.push({ order_id: id });
   }
-  orConditions.push({ tracking_key: id });
+  if (!isLargeNumeric) {
+    orConditions.push({ tracking_key: id });
+  }
 
   const bizFilter = businessIds.length === 1 ? businessIds[0] : { $in: businessIds };
   const results = await col
