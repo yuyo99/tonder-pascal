@@ -450,7 +450,9 @@ async function findInTransactions(
           created: 1, customer_email: 1, business_name: 1,
           decline_code: 1, decline_description: 1, _id: 0,
         },
-        sort: { created: -1 },
+        // For BC Game large IDs: sort oldest first (original transaction, not retry)
+        // For normal IDs: sort newest first (latest status)
+        sort: { created: isLargeNumeric ? 1 : -1 },
         limit: 5,
       }
     )
