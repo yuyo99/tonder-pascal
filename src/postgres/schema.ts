@@ -494,26 +494,26 @@ export async function ensureTables(): Promise<void> {
   await pgQuery(DDL);
   logger.info("PostgreSQL tables ensured");
 
-  // Add embedding column (separate — requires pgvector to be available)
+  // Add non-vector columns first (these always succeed regardless of pgvector)
   try {
-    await pgQuery(`
-      ALTER TABLE pascal_knowledge_base
-        ADD COLUMN IF NOT EXISTS embedding vector(1536);
-      ALTER TABLE pascal_knowledge_base
-        ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'manual';
-      ALTER TABLE pascal_knowledge_base
-        ADD COLUMN IF NOT EXISTS confidence FLOAT DEFAULT 1.0;
-      ALTER TABLE pascal_knowledge_base
-        ADD COLUMN IF NOT EXISTS business_id INT;
-    `);
-    // HNSW index for semantic search
+    await pgQuery(`ALTER TABLE pascal_knowledge_base ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'manual'`);
+    await pgQuery(`ALTER TABLE pascal_knowledge_base ADD COLUMN IF NOT EXISTS confidence FLOAT DEFAULT 1.0`);
+    await pgQuery(`ALTER TABLE pascal_knowledge_base ADD COLUMN IF NOT EXISTS business_id INT`);
+    logger.info("Knowledge base metadata columns ready (source, confidence, business_id)");
+  } catch (err) {
+    logger.warn({ err }, "Failed to add metadata columns");
+  }
+
+  // Add embedding column SEPARATELY (requires pgvector — failure does NOT block the metadata columns above)
+  try {
+    await pgQuery(`ALTER TABLE pascal_knowledge_base ADD COLUMN IF NOT EXISTS embedding vector(1536)`);
     await pgQuery(`
       CREATE INDEX IF NOT EXISTS pascal_kb_embedding_idx
         ON pascal_knowledge_base USING hnsw (embedding vector_cosine_ops)
     `);
-    logger.info("pgvector columns and index ready on pascal_knowledge_base");
+    logger.info("pgvector column and index ready on pascal_knowledge_base");
   } catch (err) {
-    logger.warn({ err }, "Failed to add pgvector columns — semantic search disabled");
+    logger.warn({ err }, "pgvector unavailable — semantic search disabled, keyword fallback active");
   }
 
   // Add conversation_id to self-QA events (for nightly auto-learn join, AID-79)
