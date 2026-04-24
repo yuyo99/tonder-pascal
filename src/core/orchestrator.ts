@@ -87,12 +87,23 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
   }
 
   // Step 2e: Load conversation history for multi-turn context
-  const history = await loadConversationHistory(msg.channelId, msg.platform, 5);
+  // BC Game: stateless lookups — no history loading to prevent hallucinated answers
+  // mixing with fresh tool data. Each query is an independent transaction lookup.
+  const STATELESS_CHAT_IDS = ["-1002589749469", "-1003575792934"];
+  const skipHistory = STATELESS_CHAT_IDS.includes(msg.channelId);
+  const history = skipHistory
+    ? []
+    : await loadConversationHistory(msg.channelId, msg.platform, 5);
   if (history.length > 0) {
-    systemPrompt += `\n\n## Conversation History\nYou have access to recent messages in this channel. Use them for context (pronouns like "it", "that transaction", "yesterday's issue" refer to prior messages). Don't repeat information already given unless asked.`;
+    systemPrompt += `\n\n## Conversation History\nYou have access to recent messages in this channel. Use them for context (pronouns like "it", "that transaction", "yesterday's issue" refer to prior messages). Don't repeat information already given unless asked.\n\n**CRITICAL:** Historical answers may be OUTDATED. When current tool results differ from history, ALWAYS use current tool results. Transaction data (order_id, payment_id, amount, status, date) must come EXCLUSIVELY from the most recent tool call — never from memory of prior turns.`;
     logger.info(
       { turns: history.length / 2, merchant: merchantCtx.businessName },
       "Conversation history loaded"
+    );
+  } else if (skipHistory) {
+    logger.info(
+      { chatId: msg.channelId, merchant: merchantCtx.businessName },
+      "Stateless channel — history skipped"
     );
   }
 
