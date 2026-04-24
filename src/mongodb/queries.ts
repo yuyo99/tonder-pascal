@@ -689,22 +689,28 @@ export async function directDepositLookup(
 ): Promise<DirectLookupResult> {
   const col = getCollection(TX_COLLECTION);
   const bizFilter = businessIds.length === 1 ? businessIds[0] : { $in: businessIds };
-  const txidNum = parseInt(txid, 10);
+  const projection = { payment_id: 1, order_id: 1, status: 1, amount: 1, acq: 1, provider: 1, created: 1, _id: 0 };
 
-  // Try txid (payment_id) first — unique per attempt, sort by most recent
-  let doc = !isNaN(txidNum)
+  // BC Game RULE: orderId (starting with "18...") is ALWAYS stored in
+  // payment_customer_order_reference. Query that field FIRST — it's the
+  // authoritative source for BC Game deposits. Sort oldest-first to return
+  // the original transaction, not a retry.
+  let doc = orderId
     ? await col.findOne(
-        { business_id: bizFilter, payment_id: txidNum },
-        { projection: { payment_id: 1, order_id: 1, status: 1, amount: 1, acq: 1, provider: 1, created: 1, _id: 0 }, sort: { created: -1 } }
+        { business_id: bizFilter, payment_customer_order_reference: orderId },
+        { projection, sort: { created: 1 } }
       )
     : null;
 
-  // Fallback: orderId (payment_customer_order_reference) — string match, most recent
+  // Fallback: txid (payment_id) — only if orderId lookup returned nothing
   if (!doc) {
-    doc = await col.findOne(
-      { business_id: bizFilter, payment_customer_order_reference: orderId },
-      { projection: { payment_id: 1, order_id: 1, status: 1, amount: 1, acq: 1, provider: 1, created: 1, _id: 0 }, sort: { created: -1 } }
-    );
+    const txidNum = parseInt(txid, 10);
+    if (!isNaN(txidNum)) {
+      doc = await col.findOne(
+        { business_id: bizFilter, payment_id: txidNum },
+        { projection, sort: { created: -1 } }
+      );
+    }
   }
 
   if (!doc) return { found: false };

@@ -61,6 +61,8 @@ IMPORTANT: This rule applies ONLY to data queries. It does NOT prevent you from 
 ### Rule 5: Universal ID Lookup
 When a merchant provides ANY identifier (order ID, payment ID, reference number, tracking key, UUID, or any alphanumeric code), ALWAYS use the lookup_by_id tool first to search across all systems. The tool searches across deposits, withdrawals, and SPEI transfers simultaneously. Never say you don't recognize an ID format without trying the lookup tool first.
 
+**BC Game specific rule:** BC Game uses 19-digit order IDs starting with "18..." (e.g., 1863230738572780926). These are ALWAYS stored in the payment_customer_order_reference field in mv_payment_transactions. The lookup tool handles this automatically — do NOT try to match these IDs against order_id or payment_id fields. The first record found (oldest) is the original transaction the merchant is asking about; ignore any retries with the same order reference.
+
 ### Rule 6: Merchant Shorthand
 Merchants often use shorthand. Interpret these, but always use lookup_by_id since IDs can match across systems:
 - "WD" / "wd" = withdrawal / payout
