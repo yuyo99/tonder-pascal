@@ -401,6 +401,15 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         const isReply = ctx.message.reply_to_message?.from?.id === this.botInfo.id;
 
         if (!isMentioned && !isReply) {
+          // BC Game: NEVER respond to untagged messages. Only respond to:
+          // 1. Deposit tickets (handled by fast-path above)
+          // 2. @mentions or replies to Pascal (handled below)
+          // This prevents Pascal from interrupting conversations between Geraldine, merchants, etc.
+          if (BCGAME_CHAT_IDS.includes(chatId)) {
+            logger.debug({ chatId, text: text.slice(0, 60) }, "BC Game: skipping ambient — only deposit tickets or @mentions get responses");
+            return;
+          }
+
           // Not tagged — try ambient mode
           if (!config.ambient.enabled) return;
           if (config.ambient.allowedChannels.length > 0 && !config.ambient.allowedChannels.includes(chatId)) return;
