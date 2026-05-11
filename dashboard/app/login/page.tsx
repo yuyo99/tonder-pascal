@@ -185,7 +185,7 @@ export default function LoginPage() {
           <img
             src="/tpl-logo.png"
             alt="TPL"
-            className="h-4 w-auto opacity-80"
+            className="h-7 w-auto opacity-85"
           />
         </div>
       </footer>
