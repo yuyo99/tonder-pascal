@@ -159,7 +159,7 @@ function PascalLogo({ collapsed }: { collapsed: boolean }) {
           pascal
         </span>
         <span className="mt-1.5 text-[9px] font-medium tracking-[0.18em] text-gray-400 uppercase">
-          Tonder AI Agent
+          AI Support
         </span>
       </div>
     </div>

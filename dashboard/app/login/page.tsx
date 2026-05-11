@@ -65,7 +65,7 @@ export default function LoginPage() {
         .animate-spinner { animation: spinnerSpin 0.7s linear infinite; }
       `}</style>
 
-      {/* ── Top bar — logo top-left, Zeno-style stacked wordmark ── */}
+      {/* ── Top bar — logo top-left, simple wordmark ── */}
       <header className="px-6 py-5 border-b border-neutral-200/70">
         <div className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -74,14 +74,9 @@ export default function LoginPage() {
             alt="Pascal"
             className="h-11 w-11 shrink-0"
           />
-          <div className="flex flex-col leading-none">
-            <span className="text-[22px] font-bold tracking-tight text-neutral-900">
-              pascal
-            </span>
-            <span className="mt-1.5 text-[10px] font-medium tracking-[0.18em] text-neutral-400 uppercase">
-              Tonder AI Agent
-            </span>
-          </div>
+          <span className="text-[22px] font-bold tracking-tight text-neutral-900 leading-none">
+            pascal
+          </span>
         </div>
       </header>
 
