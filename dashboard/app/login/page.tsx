@@ -194,15 +194,18 @@ export default function LoginPage() {
         </div>
       </main>
 
-      {/* ── Footer — BUILT BY TONDER ── */}
+      {/* ── Footer — BUILT BY [TPL logo] ── */}
       <footer className="border-t border-neutral-200/70 bg-neutral-50/60">
-        <div className="px-6 py-5 flex items-center justify-center gap-2">
+        <div className="px-6 py-5 flex items-center justify-center gap-2.5">
           <span className="text-[10px] font-semibold tracking-[0.18em] text-neutral-400 uppercase">
             Built by
           </span>
-          <span className="text-[13px] font-bold tracking-tight text-neutral-700">
-            Tonder
-          </span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/tpl-logo.png"
+            alt="TPL"
+            className="h-4 w-auto opacity-80"
+          />
         </div>
       </footer>
     </div>
