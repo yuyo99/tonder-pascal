@@ -73,17 +73,6 @@ function IconPeople({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
-function IconOnboarding({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
-      <rect x="9" y="3" width="6" height="4" rx="1" />
-      <path d="M9 12l2 2 4-4" />
-      <line x1="9" y1="17" x2="15" y2="17" />
-    </svg>
-  );
-}
-
 function IconTraining({ className = "w-5 h-5" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -186,10 +175,6 @@ const AGENT_ITEMS: NavItem[] = [
   { label: "Monitoring", href: "/monitoring", icon: IconMonitoring },
 ];
 
-const ADMIN_ITEMS: NavItem[] = [
-  { label: "CS Onboarding", href: "/onboarding/cs", icon: IconOnboarding },
-];
-
 /* ─── Sidebar Component ─── */
 
 export default function Sidebar() {
@@ -241,37 +226,6 @@ export default function Sidebar() {
         )}
         <div className="space-y-0.5">
           {AGENT_ITEMS.map((item) => {
-            const active = isActive(item.href);
-            return (
-              <a
-                key={item.href}
-                href={item.href}
-                onClick={() => setMobileOpen(false)}
-                title={collapsed ? item.label : undefined}
-                className={`relative flex items-center gap-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 ${
-                  collapsed ? "px-0 justify-center" : "px-3"
-                } ${
-                  active
-                    ? "bg-violet-50 text-violet-700 before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-full before:bg-violet-500"
-                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <item.icon className="w-[18px] h-[18px] shrink-0" />
-                {!collapsed && <span>{item.label}</span>}
-              </a>
-            );
-          })}
-        </div>
-
-        {/* Admin section */}
-        {!collapsed && (
-          <p className="px-3 mt-5 mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
-            Admin
-          </p>
-        )}
-        {collapsed && <div className="mt-3" />}
-        <div className="space-y-0.5">
-          {ADMIN_ITEMS.map((item) => {
             const active = isActive(item.href);
             return (
               <a
