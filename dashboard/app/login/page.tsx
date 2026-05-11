@@ -104,13 +104,13 @@ export default function LoginPage() {
           {/* Error */}
           {error && (
             <div
-              className={`flex items-center gap-2 bg-neutral-50 border border-neutral-200 text-neutral-700 text-[13px] rounded-lg px-3 py-2.5 mb-3 ${
+              className={`flex items-center gap-2 bg-violet-50/60 border border-violet-100 text-neutral-700 text-[13px] rounded-lg px-3 py-2.5 mb-3 ${
                 shake ? "animate-shakeX" : ""
               }`}
               role="alert"
             >
               <svg
-                className="w-4 h-4 shrink-0 text-neutral-500"
+                className="w-4 h-4 shrink-0 text-violet-600"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -137,7 +137,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Access key (required)"
                 autoFocus
-                className="w-full h-11 border border-neutral-200 rounded-lg px-3.5 text-[14px] bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/5 transition-colors"
+                className="w-full h-11 border border-neutral-200 rounded-lg px-3.5 text-[14px] bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/15 transition-colors"
               />
             </div>
 
