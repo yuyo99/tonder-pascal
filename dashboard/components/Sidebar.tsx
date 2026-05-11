@@ -141,24 +141,26 @@ function PascalLogo({ collapsed }: { collapsed: boolean }) {
       <img
         src="/pascal-logo.svg"
         alt="Pascal"
-        className="h-8 w-8 shrink-0 rounded-lg"
+        className="h-9 w-9 shrink-0"
       />
     );
   }
 
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-3">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/pascal-logo.svg"
         alt="Pascal"
-        className="h-9 w-9 shrink-0 rounded-lg"
+        className="h-10 w-10 shrink-0"
       />
-      <div className="flex flex-col">
-        <span className="text-[15px] font-semibold text-gray-900 leading-tight tracking-tight">
+      <div className="flex flex-col leading-none">
+        <span className="text-[19px] font-bold text-gray-900 tracking-tight">
           pascal
         </span>
-        <span className="text-[10px] text-gray-400 font-medium">Merchant Operations</span>
+        <span className="mt-1.5 text-[9px] font-medium tracking-[0.18em] text-gray-400 uppercase">
+          Tonder AI Agent
+        </span>
       </div>
     </div>
   );

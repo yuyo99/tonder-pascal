@@ -65,18 +65,23 @@ export default function LoginPage() {
         .animate-spinner { animation: spinnerSpin 0.7s linear infinite; }
       `}</style>
 
-      {/* ── Top bar — logo top-left ── */}
+      {/* ── Top bar — logo top-left, Zeno-style stacked wordmark ── */}
       <header className="px-6 py-5 border-b border-neutral-200/70">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/pascal-logo.svg"
             alt="Pascal"
-            className="h-7 w-7 rounded-md"
+            className="h-11 w-11 shrink-0"
           />
-          <span className="text-[15px] font-semibold tracking-tight text-neutral-900">
-            pascal
-          </span>
+          <div className="flex flex-col leading-none">
+            <span className="text-[22px] font-bold tracking-tight text-neutral-900">
+              pascal
+            </span>
+            <span className="mt-1.5 text-[10px] font-medium tracking-[0.18em] text-neutral-400 uppercase">
+              Tonder AI Agent
+            </span>
+          </div>
         </div>
       </header>
 
@@ -139,7 +144,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading || !password}
-              className="w-full h-11 bg-neutral-900 text-white rounded-lg text-[14px] font-medium hover:bg-neutral-800 active:bg-neutral-900 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+              className="w-full h-11 bg-violet-600 text-white rounded-lg text-[14px] font-medium hover:bg-violet-700 active:bg-violet-700 disabled:bg-violet-300 disabled:cursor-not-allowed transition-colors shadow-sm shadow-violet-600/15"
             >
               {loading ? (
                 <span className="inline-flex items-center justify-center gap-2">
@@ -177,7 +182,7 @@ export default function LoginPage() {
             Need access?{" "}
             <a
               href="mailto:soporte@tonder.io"
-              className="text-neutral-900 underline underline-offset-2 hover:text-neutral-700 inline-flex items-center gap-0.5"
+              className="text-neutral-900 underline underline-offset-2 decoration-neutral-300 hover:text-violet-700 hover:decoration-violet-300 inline-flex items-center gap-0.5 transition-colors"
             >
               Contact Tonder
               <svg
