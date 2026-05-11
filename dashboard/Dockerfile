@@ -13,5 +13,8 @@ ENV NODE_ENV=production
 ENV NODE_OPTIONS="--dns-result-order=ipv4first"
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+# Next.js standalone mode does NOT include public/ — copy it manually
+# so static assets like /pascal-logo.svg are served.
+COPY --from=builder /app/public ./public
 EXPOSE 3000
 CMD ["node", "server.js"]
