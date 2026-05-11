@@ -172,25 +172,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Need access link */}
-          <p className="mt-5 text-[13px] text-neutral-500">
-            Need access?{" "}
-            <a
-              href="mailto:soporte@tonder.io"
-              className="text-neutral-900 underline underline-offset-2 decoration-neutral-300 hover:text-violet-700 hover:decoration-violet-300 inline-flex items-center gap-0.5 transition-colors"
-            >
-              Contact Tonder
-              <svg
-                className="w-3 h-3"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path d="M7 17L17 7M17 7H8M17 7v9" />
-              </svg>
-            </a>
-          </p>
         </div>
       </main>
 
