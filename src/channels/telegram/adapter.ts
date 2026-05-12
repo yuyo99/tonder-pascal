@@ -9,7 +9,7 @@ import { parseDepositTicket, isValidTxid, buildTicketLookupPrompt, ParsedDeposit
 import { directDepositLookup } from "../../mongodb/queries";
 import { triageMessage, TriageResult } from "../../core/triage";
 import { isTonderTeamMember, getTeamMemberName } from "../../core/tonder-team";
-import { parseTicketShortcut, fileTicketFromShortcut, formatShortcutConfirmation } from "../../core/ticket-shortcut";
+import { parseTicketShortcut, fileTicketFromShortcut } from "../../core/ticket-shortcut";
 import { config } from "../../config";
 import { logger } from "../../utils/logger";
 import { storeErrorFromCatch, storeError } from "../../utils/error-store";
@@ -367,8 +367,9 @@ export class TelegramChannelAdapter implements ChannelAdapter {
 
       // ── Ticket shortcut: reply with exact "1" / "2" from Tonder team ──
       // "1" → Support (SOS), "2" → Integrations (INT). Files a Linear ticket
-      // whose subject is the message being replied to. Must beat every other
-      // behavior below (BC Game fast-path, partner bot, ambient, etc.).
+      // whose subject is the message being replied to. SILENT in the merchant's
+      // chat — the only visible side-effect is a plain-language notice posted
+      // to #customer-integrations on Slack.
       const shortcutTeam = parseTicketShortcut(text);
       const replyToParent = ctx.message.reply_to_message as Record<string, unknown> | undefined;
       if (shortcutTeam && replyToParent && sender.fromId) {
@@ -395,6 +396,10 @@ export class TelegramChannelAdapter implements ChannelAdapter {
               permalink = `https://t.me/c/${shortChatId}/${parentMessageId}`;
             }
 
+            // Telegram chat title for the internal notice (e.g. "BC Game Tonder")
+            const chatTitle = (ctx.chat as { title?: string }).title;
+            const channelDisplayName = chatTitle ? `${chatTitle} (Telegram)` : undefined;
+
             const merchantCtx = (await resolveMerchantContext(chatId, "telegram")) || undefined;
             const triggeredByName = (await getTeamMemberName(sender.fromId))
               || sender.fromUsername
@@ -406,27 +411,22 @@ export class TelegramChannelAdapter implements ChannelAdapter {
               parentAuthorName,
               platform: "telegram",
               channelId: chatId,
+              channelDisplayName,
               merchantCtx,
               permalink,
               triggeredByName,
             });
 
-            await ctx.reply(formatShortcutConfirmation(shortcutTeam, ticket), {
-              reply_parameters: { message_id: ctx.message.message_id },
-            });
-
             logger.info(
               { team: shortcutTeam, identifier: ticket.identifier, chatId, user: sender.fromId },
-              "Ticket shortcut: Linear ticket created"
+              "Ticket shortcut: Linear ticket created (silent to merchant)"
             );
           } catch (err) {
+            // Failure is silent in the merchant's chat — never leak to them. Sentry
+            // + error-store + absence of internal notice are the team's signal.
             Sentry.captureException(err);
             logger.error({ err, team: shortcutTeam }, "ticket-shortcut: failed to create Linear ticket");
             storeErrorFromCatch("telegram", err, { channel: chatId, user: sender.fromId, action: "ticket-shortcut" });
-            const errMsg = err instanceof Error ? err.message : "unknown error";
-            await ctx.reply(`⚠️ Couldn't create the ticket: ${errMsg}`, {
-              reply_parameters: { message_id: ctx.message.message_id },
-            });
           }
           return; // Operator's "1"/"2" reply is fully handled — do not fall through
         }

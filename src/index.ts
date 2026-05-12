@@ -11,6 +11,7 @@ import { initScheduler, stopScheduler } from "./scheduler";
 import { loadKnowledgeBase } from "./knowledge/loader";
 import { startHeartbeatWriter, stopHeartbeatWriter } from "./monitoring/heartbeat";
 import { setAlertSlackClient } from "./monitoring/alert-router";
+import { setShortcutSlackClient } from "./core/ticket-shortcut";
 import { logger } from "./utils/logger";
 import { storeErrorFromCatch } from "./utils/error-store";
 
@@ -45,6 +46,7 @@ async function main() {
   const slackAdapter = findSlackAdapter(adapters);
   if (slackAdapter) {
     setAlertSlackClient(slackAdapter.client);
+    setShortcutSlackClient(slackAdapter.client);
     initScheduler(slackAdapter.client);
   } else {
     logger.warn("No Slack adapter — daily report scheduler not started");
