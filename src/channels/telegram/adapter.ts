@@ -9,6 +9,7 @@ import { parseDepositTicket, isValidTxid, buildTicketLookupPrompt, ParsedDeposit
 import { directDepositLookup } from "../../mongodb/queries";
 import { triageMessage, TriageResult } from "../../core/triage";
 import { isTonderTeamMember, getTeamMemberName } from "../../core/tonder-team";
+import { parseTicketShortcut, fileTicketFromShortcut, formatShortcutConfirmation } from "../../core/ticket-shortcut";
 import { config } from "../../config";
 import { logger } from "../../utils/logger";
 import { storeErrorFromCatch, storeError } from "../../utils/error-store";
@@ -363,6 +364,74 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         },
         "Telegram text event received"
       );
+
+      // ── Ticket shortcut: reply with exact "1" / "2" from Tonder team ──
+      // "1" → Support (SOS), "2" → Integrations (INT). Files a Linear ticket
+      // whose subject is the message being replied to. Must beat every other
+      // behavior below (BC Game fast-path, partner bot, ambient, etc.).
+      const shortcutTeam = parseTicketShortcut(text);
+      const replyToParent = ctx.message.reply_to_message as Record<string, unknown> | undefined;
+      if (shortcutTeam && replyToParent && sender.fromId) {
+        if (await isTonderTeamMember(sender.fromId)) {
+          try {
+            const parentText = (replyToParent.text as string)
+              || (replyToParent.caption as string)
+              || "";
+            const parentFrom = replyToParent.from as Record<string, unknown> | undefined;
+            const parentUserId = parentFrom ? String((parentFrom.id as number) || "") : "";
+            const parentAuthorName = parentUserId
+              ? ((await getTeamMemberName(parentUserId))
+                  || (parentFrom?.username as string)
+                  || `${parentFrom?.first_name ?? ""} ${parentFrom?.last_name ?? ""}`.trim()
+                  || parentUserId)
+              : undefined;
+
+            // Supergroup permalink: -1001234567890 → t.me/c/1234567890/{msg_id}
+            // Private chats / regular groups have no public permalink.
+            const parentMessageId = replyToParent.message_id as number | undefined;
+            let permalink: string | undefined;
+            if (parentMessageId && /^-100\d+$/.test(chatId)) {
+              const shortChatId = chatId.replace(/^-100/, "");
+              permalink = `https://t.me/c/${shortChatId}/${parentMessageId}`;
+            }
+
+            const merchantCtx = (await resolveMerchantContext(chatId, "telegram")) || undefined;
+            const triggeredByName = (await getTeamMemberName(sender.fromId))
+              || sender.fromUsername
+              || sender.fromId;
+
+            const ticket = await fileTicketFromShortcut({
+              team: shortcutTeam,
+              parentMessageText: parentText,
+              parentAuthorName,
+              platform: "telegram",
+              channelId: chatId,
+              merchantCtx,
+              permalink,
+              triggeredByName,
+            });
+
+            await ctx.reply(formatShortcutConfirmation(shortcutTeam, ticket), {
+              reply_parameters: { message_id: ctx.message.message_id },
+            });
+
+            logger.info(
+              { team: shortcutTeam, identifier: ticket.identifier, chatId, user: sender.fromId },
+              "Ticket shortcut: Linear ticket created"
+            );
+          } catch (err) {
+            Sentry.captureException(err);
+            logger.error({ err, team: shortcutTeam }, "ticket-shortcut: failed to create Linear ticket");
+            storeErrorFromCatch("telegram", err, { channel: chatId, user: sender.fromId, action: "ticket-shortcut" });
+            const errMsg = err instanceof Error ? err.message : "unknown error";
+            await ctx.reply(`⚠️ Couldn't create the ticket: ${errMsg}`, {
+              reply_parameters: { message_id: ctx.message.message_id },
+            });
+          }
+          return; // Operator's "1"/"2" reply is fully handled — do not fall through
+        }
+        // Non-Tonder user typed "1"/"2" as a reply — silently ignore, let normal handlers decide
+      }
 
       // ── BC Game hardcoded fast-path (direct MongoDB lookup — no orchestrator, no Claude) ──
       if (BCGAME_CHAT_IDS.includes(chatId)) {

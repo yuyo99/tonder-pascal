@@ -8,6 +8,7 @@ import { trackInteraction } from "../../scheduler/daily-report";
 import { handleFeedbackMessage } from "../../knowledge/feedback";
 import { triageMessage, TriageResult } from "../../core/triage";
 import { isTonderTeamMember, getTeamMemberName } from "../../core/tonder-team";
+import { parseTicketShortcut, fileTicketFromShortcut, formatShortcutConfirmation } from "../../core/ticket-shortcut";
 import { fetchSlackContext } from "./context";
 import { uploadFileToSlack } from "./upload-file";
 import { config } from "../../config";
@@ -367,9 +368,85 @@ export class SlackChannelAdapter implements ChannelAdapter {
         "Ambient listener: channel message received"
       );
 
-      if (!config.ambient.enabled) return;
       // Skip bot messages, subtypes (joins, leaves, etc.), empty text
       if (msg.subtype || msg.bot_id || !msg.text || !msg.channel || !msg.user) return;
+
+      // ── Ticket shortcut: thread reply with exact "1" / "2" by Tonder team ──
+      // "1" → Support (SOS), "2" → Integrations (INT). Files a Linear ticket
+      // whose subject is the message being replied to. Must be processed before
+      // ambient mode (independent of rate limits / allowed-channel gating).
+      const shortcutTeam = parseTicketShortcut(msg.text);
+      if (shortcutTeam && msg.thread_ts && msg.thread_ts !== msg.ts) {
+        if (await isTonderTeamMember(msg.user)) {
+          try {
+            // Fetch the thread root message (the subject of the ticket)
+            const repliesRes = await client.conversations.replies({
+              channel: msg.channel,
+              ts: msg.thread_ts,
+              limit: 1,
+              inclusive: true,
+            });
+            const parent = repliesRes.messages?.[0];
+            const parentText = (parent?.text as string) || "";
+            const parentUserId = (parent?.user as string) || (parent?.bot_id as string) || "";
+            const parentAuthorName = parentUserId
+              ? ((await getTeamMemberName(parentUserId)) || parentUserId)
+              : undefined;
+
+            // Permalink back to the original message
+            let permalink: string | undefined;
+            try {
+              const permaRes = await client.chat.getPermalink({
+                channel: msg.channel,
+                message_ts: msg.thread_ts,
+              });
+              permalink = (permaRes.permalink as string) || undefined;
+            } catch (permaErr) {
+              logger.warn({ err: permaErr }, "ticket-shortcut: getPermalink failed (non-fatal)");
+            }
+
+            // Best-effort merchant context (may be null for non-merchant channels)
+            const merchantCtx = (await resolveMerchantContext(msg.channel, "slack")) || undefined;
+            const triggeredByName = (await getTeamMemberName(msg.user)) || msg.user;
+
+            const ticket = await fileTicketFromShortcut({
+              team: shortcutTeam,
+              parentMessageText: parentText,
+              parentAuthorName,
+              platform: "slack",
+              channelId: msg.channel,
+              merchantCtx,
+              permalink,
+              triggeredByName,
+            });
+
+            await client.chat.postMessage({
+              channel: msg.channel,
+              thread_ts: msg.thread_ts,
+              text: formatShortcutConfirmation(shortcutTeam, ticket),
+            });
+
+            logger.info(
+              { team: shortcutTeam, identifier: ticket.identifier, channel: msg.channel, user: msg.user },
+              "Ticket shortcut: Linear ticket created"
+            );
+          } catch (err) {
+            Sentry.captureException(err);
+            logger.error({ err, team: shortcutTeam }, "ticket-shortcut: failed to create Linear ticket");
+            storeErrorFromCatch("slack", err, { channel: msg.channel, user: msg.user, action: "ticket-shortcut" });
+            const errMsg = err instanceof Error ? err.message : "unknown error";
+            await client.chat.postMessage({
+              channel: msg.channel,
+              thread_ts: msg.thread_ts,
+              text: `⚠️ Couldn't create the ticket: ${errMsg}`,
+            });
+          }
+          return; // Always return — operator's "1"/"2" reply is fully handled
+        }
+        // Not a Tonder team member — silently ignore the shortcut and fall through
+      }
+
+      if (!config.ambient.enabled) return;
       // Skip if this is an @mention (already handled by app_mention)
       if (msg.text.includes(`<@`) && msg.text.match(/<@[A-Z0-9]+>/)) return;
       // Skip if already processed as a different event
