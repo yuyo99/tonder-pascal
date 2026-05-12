@@ -92,12 +92,17 @@ export async function fileTicketFromShortcut(
   const title = buildTitle(input.parentMessageText, input.team);
   const description = buildDescription(input);
 
+  // Shortcut tickets skip triage and land directly in the team's active queue,
+  // with today as the due date — they represent live merchant questions and
+  // need to be worked on the same day.
   const ticket = await createTeamTicket({
     team: input.team,
     title,
     description,
     merchantCtx: input.merchantCtx,
     priority: 3,
+    stateName: "Open",
+    dueDate: todayIsoDate(),
   });
 
   // Internal notice — best-effort, never fail the operator's action on this
@@ -114,6 +119,23 @@ export async function fileTicketFromShortcut(
 }
 
 // ── internals ─────────────────────────────────────────────────────────────
+
+/**
+ * Today as YYYY-MM-DD in America/Mexico_City (the Tonder team's working day).
+ * Linear's `dueDate` field accepts a plain date string and renders it in the
+ * viewer's locale, so this just needs to be the calendar date the operator
+ * is actually working on.
+ */
+function todayIsoDate(): string {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Mexico_City",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  // en-CA produces YYYY-MM-DD natively
+  return fmt.format(new Date());
+}
 
 function buildTitle(parentText: string, team: TicketShortcutTeam): string {
   const cleaned = parentText.replace(/\s+/g, " ").trim();

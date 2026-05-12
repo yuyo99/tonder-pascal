@@ -155,22 +155,56 @@ const TEAM_IDS: Record<string, string> = {
 // Cache triage state IDs per team
 const cachedTeamTriageStates = new Map<string, string>();
 
-async function resolveTeamTriageState(teamId: string): Promise<string | undefined> {
-  const cached = cachedTeamTriageStates.get(teamId);
+// Cache all workflow states per team (used by resolveTeamStateByName)
+type LinearState = { id: string; name: string; type: string };
+const cachedTeamStates = new Map<string, LinearState[]>();
+
+async function fetchTeamStates(teamId: string): Promise<LinearState[]> {
+  const cached = cachedTeamStates.get(teamId);
   if (cached) return cached;
 
   const client = getLinearClient();
   const statesResult = await client.client.rawRequest(
-    `query($teamId: String!) { team(id: $teamId) { states { nodes { id name } } } }`,
+    `query($teamId: String!) { team(id: $teamId) { states { nodes { id name type } } } }`,
     { teamId },
   );
-  const stateNodes = (statesResult as any).data.team.states.nodes as Array<{
-    id: string;
-    name: string;
-  }>;
-  const triage = stateNodes.find((s) => s.name === "Triage");
+  const nodes = (statesResult as any).data.team.states.nodes as LinearState[];
+  cachedTeamStates.set(teamId, nodes);
+  return nodes;
+}
+
+async function resolveTeamTriageState(teamId: string): Promise<string | undefined> {
+  const cached = cachedTeamTriageStates.get(teamId);
+  if (cached) return cached;
+  const states = await fetchTeamStates(teamId);
+  const triage = states.find((s) => s.name === "Triage" || s.type === "triage");
   if (triage) cachedTeamTriageStates.set(teamId, triage.id);
   return triage?.id;
+}
+
+/**
+ * Look up a workflow state by name (case-insensitive) within a team.
+ * If `name` is "Open" (or similar), falls back to the first state with
+ * Linear's "unstarted" type ("Todo", "Backlog", etc.) when no exact
+ * name match is found. Returns undefined if nothing matches —
+ * caller should then omit stateId so Linear uses the team default.
+ */
+async function resolveTeamStateByName(
+  teamId: string,
+  name: string,
+): Promise<string | undefined> {
+  const states = await fetchTeamStates(teamId);
+  const lower = name.toLowerCase();
+  const byName = states.find((s) => s.name.toLowerCase() === lower);
+  if (byName) return byName.id;
+
+  // "Open" semantics — accept any unstarted state as the fallback
+  if (lower === "open" || lower === "todo" || lower === "backlog") {
+    const unstarted = states.find((s) => s.type === "unstarted")
+      || states.find((s) => s.type === "backlog");
+    return unstarted?.id;
+  }
+  return undefined;
 }
 
 export async function createTeamTicket(params: {
@@ -179,6 +213,15 @@ export async function createTeamTicket(params: {
   description: string;
   priority?: number;
   merchantCtx?: MerchantContext;
+  /**
+   * Workflow state to place the new issue in. Default behavior (when
+   * omitted): the team's Triage state, matching the historical ambient-
+   * detection flow. Pass "Open" (or "Todo") to skip triage and put the
+   * ticket straight into the team's active queue.
+   */
+  stateName?: string;
+  /** ISO date (YYYY-MM-DD). When set, the issue is created with this due date. */
+  dueDate?: string;
 }): Promise<TicketResult> {
   const client = getLinearClient();
 
@@ -191,7 +234,9 @@ export async function createTeamTicket(params: {
     teamId = TEAM_IDS[params.team];
   }
 
-  const stateId = await resolveTeamTriageState(teamId);
+  const stateId = params.stateName
+    ? await resolveTeamStateByName(teamId, params.stateName)
+    : await resolveTeamTriageState(teamId);
 
   const fullDescription = params.merchantCtx
     ? [
@@ -212,6 +257,7 @@ export async function createTeamTicket(params: {
     description: fullDescription,
     priority: params.priority ?? 3,
     stateId: stateId || undefined,
+    dueDate: params.dueDate || undefined,
   });
 
   const issue = await issuePayload.issue;
