@@ -481,7 +481,7 @@ function GapQueueTab() {
                 <div className="inline-flex items-center gap-1.5">
                   <button
                     onClick={() => setAnsweringGap(gap)}
-                    className="text-xs px-3 py-1 bg-pascal-600 text-white rounded-md hover:bg-pascal-700 font-medium"
+                    className="text-xs px-3 py-1 bg-violet-600 text-white rounded-md hover:bg-violet-700 font-medium"
                   >
                     Answer
                   </button>
@@ -621,7 +621,7 @@ function PrimaryButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex items-center gap-2 px-4 py-[7px] bg-pascal-600 text-white text-sm font-medium rounded-md hover:bg-pascal-700 transition disabled:bg-pascal-300 disabled:cursor-not-allowed"
+      className="inline-flex items-center gap-2 px-4 py-[7px] bg-violet-600 text-white text-sm font-medium rounded-md hover:bg-violet-700 transition disabled:bg-violet-300 disabled:cursor-not-allowed"
     >
       {children}
     </button>

@@ -139,7 +139,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading || !password}
-              className="w-full h-11 bg-blue-600 text-white rounded-lg text-[14px] font-medium hover:bg-blue-700 active:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors shadow-sm shadow-blue-600/15"
+              className="w-full h-11 bg-violet-600 text-white rounded-lg text-[14px] font-medium hover:bg-violet-700 active:bg-violet-700 disabled:bg-violet-300 disabled:cursor-not-allowed transition-colors shadow-sm shadow-violet-600/15"
             >
               {loading ? (
                 <span className="inline-flex items-center justify-center gap-2">

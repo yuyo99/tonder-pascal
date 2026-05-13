@@ -790,7 +790,7 @@ function PersonModal({
             <button
               onClick={onSave}
               disabled={!form.name.trim()}
-              className="px-5 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-5 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {editingId ? "Save Changes" : "Add Person"}
             </button>

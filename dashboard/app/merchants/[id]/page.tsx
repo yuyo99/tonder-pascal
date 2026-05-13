@@ -622,7 +622,7 @@ export default function MerchantEditPage() {
           <button
             onClick={handleSave}
             disabled={saving || !form.label || !form.channel_id || form.business_ids.length === 0}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+            className="px-6 py-2 bg-violet-600 hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
           >
             {saving ? "Saving..." : isNew ? "Create Merchant" : "Save Changes"}
           </button>

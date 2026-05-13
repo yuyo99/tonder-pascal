@@ -43,7 +43,7 @@ export default function OverviewPage() {
       <div className="mt-8">
         <Link
           href="/merchants"
-          className="inline-flex items-center gap-2 px-4 py-[7px] bg-pascal-600 hover:bg-pascal-700 text-white text-sm font-medium rounded-md transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-[7px] bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-md transition-colors"
         >
           Manage merchants
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

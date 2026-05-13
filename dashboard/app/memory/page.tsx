@@ -333,7 +333,7 @@ export default function MemoryPage() {
               <button
                 onClick={handleSave}
                 disabled={saving || !form.title.trim() || !form.match_pattern.trim() || !form.content.trim()}
-                className="inline-flex items-center gap-2 px-4 py-[7px] bg-pascal-600 text-white text-sm font-medium rounded-md hover:bg-pascal-700 transition disabled:bg-pascal-300 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 px-4 py-[7px] bg-violet-600 text-white text-sm font-medium rounded-md hover:bg-violet-700 transition disabled:bg-violet-300 disabled:cursor-not-allowed"
               >
                 {saving ? "Saving…" : editingId ? "Update" : "Create"}
               </button>
