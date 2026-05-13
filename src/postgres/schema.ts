@@ -617,16 +617,29 @@ export async function ensureTables(): Promise<void> {
         WHERE scope = 'channel' AND scope_value = '-1003575792934' AND rule_type = 'behavioral'
       );
 
-      -- BC Game ticket bot parsing — customer_order_id instead of txid
+      -- BC Game ticket bot parsing — payment_customer_order_reference, not txid.
+      -- (Field name corrected: the MongoDB column is payment_customer_order_reference
+      -- in mv_payment_transactions. customer_order_id does not exist.)
       INSERT INTO pascal_business_rules (rule_type, scope, scope_value, instruction, predicate, priority, source, created_by)
       SELECT 'parsing', 'bot', 'bcgame_ticket_bot',
-        'When parsing deposit tickets from this bot, extract the customer order reference ID from the customer_order_id field, not the txid field. The txid field for this bot contains the blockchain transaction hash, not a Tonder identifier.',
-        '{"extract_field": "customer_order_id", "as": "ref_id", "fallback_field": "txid"}'::jsonb,
+        'When parsing deposit tickets from this bot, the customer order reference ID is stored in the payment_customer_order_reference field on mv_payment_transactions (NOT customer_order_id, which does not exist, and NOT txid, which holds the blockchain transaction hash). Always look up BC Game order IDs against payment_customer_order_reference first.',
+        '{"extract_field": "payment_customer_order_reference", "as": "ref_id", "fallback_field": "txid"}'::jsonb,
         'hard', 'manual', 'yuyo'
       WHERE NOT EXISTS (
         SELECT 1 FROM pascal_business_rules
         WHERE scope = 'bot' AND scope_value = 'bcgame_ticket_bot' AND rule_type = 'parsing'
       );
+
+      -- Fix any previously-seeded version of the BC Game parsing rule that
+      -- used the wrong field name. Idempotent — only updates rows that still
+      -- reference the wrong field. Safe to run every boot.
+      UPDATE pascal_business_rules
+         SET instruction = 'When parsing deposit tickets from this bot, the customer order reference ID is stored in the payment_customer_order_reference field on mv_payment_transactions (NOT customer_order_id, which does not exist, and NOT txid, which holds the blockchain transaction hash). Always look up BC Game order IDs against payment_customer_order_reference first.',
+             predicate = '{"extract_field": "payment_customer_order_reference", "as": "ref_id", "fallback_field": "txid"}'::jsonb
+       WHERE scope = 'bot'
+         AND scope_value = 'bcgame_ticket_bot'
+         AND rule_type = 'parsing'
+         AND (instruction LIKE '%customer_order_id%' OR predicate->>'extract_field' = 'customer_order_id');
 
       -- Tonder Prod internal channel — skip provider masking
       INSERT INTO pascal_business_rules (rule_type, scope, scope_value, instruction, priority, source, created_by)
