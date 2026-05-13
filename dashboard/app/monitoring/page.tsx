@@ -45,10 +45,10 @@ const TIME_OPTIONS = [
 ];
 
 const SOURCE_COLORS: Record<string, string> = {
-  orchestrator: "bg-blue-100 text-blue-700",
+  orchestrator: "bg-violet-100 text-violet-700",
   tool: "bg-indigo-100 text-indigo-700",
   slack: "bg-purple-100 text-purple-700",
-  telegram: "bg-blue-100 text-blue-700",
+  telegram: "bg-violet-100 text-violet-700",
   scheduler: "bg-amber-100 text-amber-700",
   feedback: "bg-teal-100 text-teal-700",
   config: "bg-gray-100 text-gray-700",
@@ -191,7 +191,7 @@ export default function MonitoringPage() {
         <select
           value={source}
           onChange={(e) => setSource(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
         >
           <option value="">All sources</option>
           {sources.map((s) => (
@@ -205,7 +205,7 @@ export default function MonitoringPage() {
         <select
           value={severity}
           onChange={(e) => setSeverity(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
         >
           <option value="">All severities</option>
           <option value="error">error</option>
@@ -219,7 +219,7 @@ export default function MonitoringPage() {
             placeholder="Search error messages..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
           />
         </div>
       </div>
@@ -227,7 +227,7 @@ export default function MonitoringPage() {
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center h-48">
-          <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full" />
+          <div className="animate-spin w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full" />
         </div>
       )}
 

@@ -55,7 +55,7 @@ export default function AnalyticsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full" />
+        <div className="animate-spin w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -113,7 +113,7 @@ export default function AnalyticsPage() {
                   <td className="px-5 py-3">
                     <Link
                       href={`/analytics/${encodeURIComponent(m.merchantName)}`}
-                      className="text-blue-600 hover:text-blue-800 font-medium"
+                      className="text-violet-600 hover:text-violet-800 font-medium"
                     >
                       {m.merchantName}
                     </Link>
@@ -162,7 +162,7 @@ export default function AnalyticsPage() {
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium uppercase ${
                       c.platform === "slack"
                         ? "bg-purple-100 text-purple-700"
-                        : "bg-blue-100 text-blue-700"
+                        : "bg-violet-100 text-violet-700"
                     }`}>
                       {c.platform}
                     </span>

@@ -50,7 +50,7 @@ export default function ConversationDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full" />
+        <div className="animate-spin w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -61,7 +61,7 @@ export default function ConversationDetailPage() {
         <p className="text-gray-400 text-lg">Conversation not found</p>
         <Link
           href="/analytics"
-          className="text-blue-600 hover:text-blue-800 text-sm mt-2 inline-block"
+          className="text-violet-600 hover:text-violet-800 text-sm mt-2 inline-block"
         >
           Back to Analytics
         </Link>
@@ -109,7 +109,7 @@ export default function ConversationDetailPage() {
               className={`text-xs px-2 py-1 rounded font-medium uppercase ${
                 conv.platform === "slack"
                   ? "bg-purple-100 text-purple-700"
-                  : "bg-blue-100 text-blue-700"
+                  : "bg-violet-100 text-violet-700"
               }`}
             >
               {conv.platform}
@@ -161,12 +161,12 @@ export default function ConversationDetailPage() {
             {conv.knowledgeUsed.map((k) => (
               <div
                 key={k.id}
-                className="flex items-center gap-2 border border-blue-200 bg-blue-50 rounded-lg px-3 py-2"
+                className="flex items-center gap-2 border border-violet-200 bg-violet-50 rounded-lg px-3 py-2"
               >
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-200 text-blue-700 font-medium uppercase">
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-200 text-violet-700 font-medium uppercase">
                   {k.category}
                 </span>
-                <span className="text-sm text-blue-800">{k.title}</span>
+                <span className="text-sm text-violet-800">{k.title}</span>
               </div>
             ))}
           </div>
@@ -182,7 +182,7 @@ export default function ConversationDetailPage() {
           <div className="space-y-3">
             {conv.toolCalls.map((tc, i) => (
               <div key={i} className="border border-gray-100 rounded-lg p-3">
-                <p className="text-sm font-medium text-blue-700 mb-1">{tc.tool}</p>
+                <p className="text-sm font-medium text-violet-700 mb-1">{tc.tool}</p>
                 <pre className="text-xs text-gray-500 bg-gray-50 rounded p-2 overflow-x-auto">
                   {JSON.stringify(tc.input, null, 2)}
                 </pre>

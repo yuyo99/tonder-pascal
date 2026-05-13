@@ -64,7 +64,7 @@ function renderMarkdown(text: string) {
     if (line.match(/^[-•*]\s/)) {
       elements.push(
         <div key={i} className="flex gap-2 ml-1">
-          <span className="text-blue-400 mt-0.5">•</span>
+          <span className="text-violet-400 mt-0.5">•</span>
           <span>{inlineFormat(line.slice(2))}</span>
         </div>
       );
@@ -76,7 +76,7 @@ function renderMarkdown(text: string) {
     if (numMatch) {
       elements.push(
         <div key={i} className="flex gap-2 ml-1">
-          <span className="text-blue-400 font-medium min-w-[1.2rem]">
+          <span className="text-violet-400 font-medium min-w-[1.2rem]">
             {numMatch[1]}.
           </span>
           <span>{inlineFormat(line.slice(numMatch[0].length))}</span>
@@ -110,7 +110,7 @@ function inlineFormat(text: string): React.ReactNode {
       return (
         <code
           key={i}
-          className="bg-gray-100 text-blue-700 px-1.5 py-0.5 rounded text-[0.85em] font-mono"
+          className="bg-gray-100 text-violet-700 px-1.5 py-0.5 rounded text-[0.85em] font-mono"
         >
           {part}
         </code>
@@ -147,7 +147,7 @@ function ToolCard({ events }: { events: ToolEvent[] }) {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-blue-500">
+                  <span className="text-violet-500">
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                       <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />
                     </svg>
@@ -203,9 +203,9 @@ function ThinkingDots() {
   return (
     <div className="flex items-center gap-1 px-4 py-3">
       <div className="flex gap-1">
-        <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:0ms]" />
-        <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:150ms]" />
-        <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:300ms]" />
+        <span className="w-2 h-2 bg-violet-400 rounded-full animate-bounce [animation-delay:0ms]" />
+        <span className="w-2 h-2 bg-violet-400 rounded-full animate-bounce [animation-delay:150ms]" />
+        <span className="w-2 h-2 bg-violet-400 rounded-full animate-bounce [animation-delay:300ms]" />
       </div>
       <span className="text-sm text-gray-400 ml-2">Thinking...</span>
     </div>
@@ -400,8 +400,8 @@ export default function ChatPage() {
     <div className="flex flex-col h-[calc(100vh-2rem)] max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100">
-        <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center">
-          <svg className="w-5 h-5 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+        <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center">
+          <svg className="w-5 h-5 text-violet-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
             <path d="M8 10h.01M12 10h.01M16 10h.01" />
           </svg>
@@ -429,8 +429,8 @@ export default function ChatPage() {
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {isEmpty && (
           <div className="flex flex-col items-center justify-center h-full gap-6">
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center">
-              <svg className="w-8 h-8 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+            <div className="w-16 h-16 rounded-2xl bg-violet-50 flex items-center justify-center">
+              <svg className="w-8 h-8 text-violet-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 <line x1="11" y1="8" x2="11" y2="14" />
@@ -450,7 +450,7 @@ export default function ChatPage() {
                 <button
                   key={ex}
                   onClick={() => sendMessage(ex)}
-                  className="text-sm px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                  className="text-sm px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:border-violet-300 hover:text-violet-700 hover:bg-violet-50 transition-colors"
                 >
                   {ex}
                 </button>
@@ -463,7 +463,7 @@ export default function ChatPage() {
           if (item.kind === "user") {
             return (
               <div key={i} className="flex justify-end">
-                <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-md bg-blue-600 text-white text-sm leading-relaxed">
+                <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-md bg-violet-600 text-white text-sm leading-relaxed">
                   {item.content}
                 </div>
               </div>
@@ -505,7 +505,7 @@ export default function ChatPage() {
             onKeyDown={handleKeyDown}
             placeholder="Ask anything about your data..."
             rows={1}
-            className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
+            className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 transition-colors"
             disabled={loading}
           />
           <button

@@ -48,12 +48,12 @@ const DOMAINS = [
 
 const DOMAIN_COLORS: Record<string, string> = {
   payments: "bg-emerald-100 text-emerald-700",
-  integrations: "bg-blue-100 text-blue-700",
+  integrations: "bg-violet-100 text-violet-700",
   finops: "bg-amber-100 text-amber-700",
   infra: "bg-purple-100 text-purple-700",
   support: "bg-rose-100 text-rose-700",
   engineering: "bg-cyan-100 text-cyan-700",
-  product: "bg-blue-100 text-blue-700",
+  product: "bg-violet-100 text-violet-700",
   sales: "bg-orange-100 text-orange-700",
 };
 
@@ -378,7 +378,7 @@ function TeamGrid({
           <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-50 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               onClick={() => onEdit(p)}
-              className="text-xs text-gray-400 hover:text-blue-600 transition-colors"
+              className="text-xs text-gray-400 hover:text-violet-600 transition-colors"
             >
               Edit
             </button>
@@ -446,7 +446,7 @@ function ContactsTable({
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => onEdit(p)}
-                    className="text-xs text-gray-400 hover:text-blue-600"
+                    className="text-xs text-gray-400 hover:text-violet-600"
                   >
                     Edit
                   </button>
@@ -506,7 +506,7 @@ function RelationshipsView({ people }: { people: Person[] }) {
               {am && (
                 <span className="text-xs text-gray-400">
                   Account Manager:{" "}
-                  <span className="text-blue-600 font-medium">{am.name}</span>
+                  <span className="text-violet-600 font-medium">{am.name}</span>
                   {am.domain && (
                     <span
                       className={`ml-2 text-[10px] px-2 py-0.5 rounded-full ${
@@ -526,7 +526,7 @@ function RelationshipsView({ people }: { people: Person[] }) {
                   key={c.id}
                   className="flex items-center gap-3 p-3 rounded-lg bg-gray-50/50 border border-gray-50"
                 >
-                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-semibold shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 text-xs font-semibold shrink-0">
                     {c.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
                   </div>
                   <div className="min-w-0">
@@ -599,7 +599,7 @@ function PersonModal({
                     }
                     className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
                       form.type === t
-                        ? "bg-blue-100 border-blue-300 text-blue-700 font-medium"
+                        ? "bg-violet-100 border-violet-300 text-violet-700 font-medium"
                         : "bg-white border-gray-100 text-gray-400 hover:border-gray-200"
                     }`}
                   >
@@ -616,7 +616,7 @@ function PersonModal({
                 <input
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                   placeholder="Full name"
                 />
               </div>
@@ -625,7 +625,7 @@ function PersonModal({
                 <input
                   value={form.role}
                   onChange={(e) => setForm({ ...form, role: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                   placeholder="e.g., FinOps Lead"
                 />
               </div>
@@ -638,7 +638,7 @@ function PersonModal({
                 <input
                   value={form.company}
                   onChange={(e) => setForm({ ...form, company: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                   placeholder={isTeam ? "Tonder" : "Merchant name"}
                 />
               </div>
@@ -647,7 +647,7 @@ function PersonModal({
                 <input
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                   placeholder="email@example.com"
                 />
               </div>
@@ -661,7 +661,7 @@ function PersonModal({
                   <select
                     value={form.domain}
                     onChange={(e) => setForm({ ...form, domain: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                    className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                   >
                     <option value="">— Select —</option>
                     {DOMAINS.map((d) => (
@@ -679,7 +679,7 @@ function PersonModal({
                   <input
                     value={topicsInput}
                     onChange={(e) => setTopicsInput(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                    className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                     placeholder="settlements, guardian, 3DS, SPEI"
                   />
                 </div>
@@ -690,7 +690,7 @@ function PersonModal({
                     value={form.escalation_notes}
                     onChange={(e) => setForm({ ...form, escalation_notes: e.target.value })}
                     rows={2}
-                    className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 resize-none"
+                    className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 resize-none"
                     placeholder="When should Pascal escalate to this person?"
                   />
                 </div>
@@ -710,7 +710,7 @@ function PersonModal({
                         merchant_channel_id: e.target.value ? Number(e.target.value) : null,
                       })
                     }
-                    className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                    className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                   >
                     <option value="">— None —</option>
                     {channels.map((ch) => (
@@ -731,7 +731,7 @@ function PersonModal({
                         account_manager_id: e.target.value || null,
                       })
                     }
-                    className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                    className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                   >
                     <option value="">— None —</option>
                     {teamMembers.map((tm) => (
@@ -751,7 +751,7 @@ function PersonModal({
                 <input
                   value={form.slack_user_id ?? ""}
                   onChange={(e) => setForm({ ...form, slack_user_id: e.target.value || null })}
-                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                   placeholder="U091BLCSUMC"
                 />
               </div>
@@ -760,7 +760,7 @@ function PersonModal({
                 <input
                   value={form.telegram_user_id ?? ""}
                   onChange={(e) => setForm({ ...form, telegram_user_id: e.target.value || null })}
-                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                  className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
                   placeholder="123456789"
                 />
               </div>
@@ -773,7 +773,7 @@ function PersonModal({
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 rows={3}
-                className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 resize-none"
+                className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 resize-none"
                 placeholder="Historical issues, preferences, context for Pascal..."
               />
             </div>
