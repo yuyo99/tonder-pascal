@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import PageHeader from "@/components/PageHeader";
 
 const CATEGORIES = [
   { value: "integration", label: "Integration" },
@@ -35,16 +36,13 @@ export default function TrainingPage() {
   const [tab, setTab] = useState<Tab>("add");
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Training</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Teach Pascal new knowledge. Entries are embedded for semantic search automatically.
-        </p>
-      </div>
+    <>
+      <PageHeader
+        title="Training"
+        subtitle="Teach Pascal new knowledge — entries are embedded for semantic search automatically"
+      />
 
-      {/* Tab switcher */}
-      <div className="flex gap-1 bg-gray-100/80 rounded-lg p-1 w-fit mb-6">
+      <div className="flex items-center gap-0.5 bg-gray-100 rounded-md p-0.5 w-fit mb-6">
         {(
           [
             { key: "add", label: "Add Entry" },
@@ -55,11 +53,7 @@ export default function TrainingPage() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-              tab === t.key
-                ? "bg-white shadow-sm text-gray-900"
-                : "text-gray-400 hover:text-gray-600"
-            }`}
+            className={`t-tab ${tab === t.key ? "active" : ""}`}
           >
             {t.label}
           </button>
@@ -69,11 +63,11 @@ export default function TrainingPage() {
       {tab === "add" && <AddEntryTab />}
       {tab === "bulk" && <BulkImportTab />}
       {tab === "gaps" && <GapQueueTab />}
-    </div>
+    </>
   );
 }
 
-// ── Add Entry Tab ──────────────────────────────────────────────────
+/* ─── Add Entry tab ─────────────────────────────────────────────────── */
 
 function AddEntryTab() {
   const [form, setForm] = useState(emptyForm);
@@ -113,123 +107,92 @@ function AddEntryTab() {
     <div className="max-w-2xl">
       {toast && (
         <div
-          className={`mb-4 px-4 py-2.5 rounded-lg text-sm font-medium ${
+          className={`mb-4 px-4 py-2.5 rounded-md text-sm font-medium border ${
             toast.startsWith("Error")
-              ? "bg-red-50 text-red-700 border border-red-200"
-              : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+              ? "bg-red-50 text-red-700 border-red-200"
+              : "bg-emerald-50 text-emerald-800 border-emerald-200"
           }`}
         >
           {toast}
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
-        {/* Category */}
-        <div>
-          <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
-            Category *
-          </label>
+      <div className="t-card space-y-5 fade-in d1">
+        <Field label="Category" required>
           <select
             value={form.category}
             onChange={(e) => setForm({ ...form, category: e.target.value })}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+            className="form-input"
           >
             {CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
+              <option key={c.value} value={c.value}>{c.label}</option>
             ))}
           </select>
-        </div>
+        </Field>
 
-        {/* Title */}
-        <div>
-          <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
-            Title / Question *
-          </label>
+        <Field label="Title / question" required>
           <input
             type="text"
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
             placeholder="e.g. How to handle SPEI refund requests"
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+            className="form-input"
           />
-        </div>
+        </Field>
 
-        {/* Content */}
-        <div>
-          <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
-            Content / Answer *
-          </label>
+        <Field label="Content / answer" required>
           <textarea
             value={form.content}
             onChange={(e) => setForm({ ...form, content: e.target.value })}
-            placeholder="The full knowledge Pascal should use when this topic comes up..."
+            placeholder="The full knowledge Pascal should use when this topic comes up…"
             rows={6}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 resize-y"
+            className="form-input resize-y"
           />
-        </div>
+        </Field>
 
-        {/* Match Keywords */}
-        <div>
-          <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
-            Match Keywords *
-          </label>
+        <Field label="Match keywords" required hint="comma-separated">
           <input
             type="text"
             value={form.match_pattern}
             onChange={(e) => setForm({ ...form, match_pattern: e.target.value })}
             placeholder="spei, refund, reembolso, devolucion"
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+            className="form-input font-mono text-[13px]"
           />
-          <p className="text-[11px] text-gray-400 mt-1">
-            Comma-separated keywords for fallback search (semantic search is primary)
+          <p className="text-[11px] text-gray-400 mt-1.5">
+            Fallback keywords (semantic search is primary)
           </p>
-        </div>
+        </Field>
 
-        {/* Recommended Action */}
-        <div>
-          <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
-            Recommended Action
-          </label>
+        <Field label="Recommended action" hint="optional">
           <textarea
             value={form.action}
             onChange={(e) => setForm({ ...form, action: e.target.value })}
-            placeholder="Optional: what should Pascal do when this knowledge is triggered?"
+            placeholder="What should Pascal do when this knowledge is triggered?"
             rows={2}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 resize-y"
+            className="form-input resize-y"
           />
-        </div>
+        </Field>
 
-        {/* Merchant Scope */}
-        <div>
-          <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
-            Merchant Scope
-          </label>
+        <Field label="Merchant scope" hint="optional">
           <input
             type="text"
             value={form.business_id}
             onChange={(e) => setForm({ ...form, business_id: e.target.value })}
-            placeholder="Leave blank for global (all merchants)"
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+            placeholder="Business ID, or leave blank for global"
+            className="form-input"
           />
-          <p className="text-[11px] text-gray-400 mt-1">
-            Business ID to scope this entry to a specific merchant (blank = available to all)
+          <p className="text-[11px] text-gray-400 mt-1.5">
+            Blank = available to all merchants
           </p>
-        </div>
+        </Field>
 
-        {/* Submit */}
-        <div className="flex items-center gap-3 pt-2">
-          <button
-            onClick={handleSubmit}
-            disabled={!valid || saving}
-            className="px-5 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {saving ? "Saving..." : "Save Entry"}
-          </button>
+        <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+          <PrimaryButton onClick={handleSubmit} disabled={!valid || saving}>
+            {saving ? "Saving…" : "Save entry"}
+          </PrimaryButton>
           <button
             onClick={() => setForm(emptyForm)}
-            className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            className="preset"
           >
             Reset
           </button>
@@ -239,7 +202,7 @@ function AddEntryTab() {
   );
 }
 
-// ── Bulk Import Tab ────────────────────────────────────────────────
+/* ─── Bulk import tab ───────────────────────────────────────────────── */
 
 function BulkImportTab() {
   const [rows, setRows] = useState<BulkRow[]>([]);
@@ -257,9 +220,7 @@ function BulkImportTab() {
     for (let i = 1; i < lines.length; i++) {
       const values = lines[i].split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
       const row: Record<string, string> = {};
-      headers.forEach((h, idx) => {
-        row[h] = values[idx] || "";
-      });
+      headers.forEach((h, idx) => { row[h] = values[idx] || ""; });
       parsed.push({
         category: row.category || "faq",
         title: row.title || row.question || "",
@@ -313,100 +274,83 @@ function BulkImportTab() {
   }, [rows]);
 
   return (
-    <div>
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="mb-4">
-          <label className="block text-xs text-gray-500 uppercase tracking-wide mb-2">
-            Upload CSV
-          </label>
-          <p className="text-[11px] text-gray-400 mb-3">
-            Columns: <code className="bg-gray-100 px-1 rounded">category, title, content, match_pattern, action, business_id</code>
-          </p>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv"
-            onChange={handleFile}
-            className="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-4 file:rounded-lg file:border file:border-gray-200 file:text-sm file:font-medium file:bg-white file:text-gray-700 hover:file:bg-gray-50 file:cursor-pointer"
-          />
-        </div>
-
-        {result && (
-          <div
-            className={`mb-4 px-4 py-2.5 rounded-lg text-sm font-medium ${
-              result.failed === 0
-                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                : "bg-amber-50 text-amber-700 border border-amber-200"
-            }`}
-          >
-            {result.ok} entries saved, {result.failed} failed
-          </div>
-        )}
-
-        {rows.length > 0 && (
-          <>
-            <div className="overflow-x-auto mt-4">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-xs text-gray-400 uppercase tracking-wider">
-                    <th className="text-left py-2 px-3">Category</th>
-                    <th className="text-left py-2 px-3">Title</th>
-                    <th className="text-left py-2 px-3">Content</th>
-                    <th className="text-left py-2 px-3">Keywords</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {rows.map((row, i) => (
-                    <tr key={i} className="hover:bg-gray-50/40">
-                      <td className="py-2 px-3">
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-violet-100 text-violet-700">
-                          {row.category}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3 text-gray-700 max-w-[200px] truncate">
-                        {row.title}
-                      </td>
-                      <td className="py-2 px-3 text-gray-500 max-w-[300px] truncate">
-                        {row.content}
-                      </td>
-                      <td className="py-2 px-3 text-gray-400 max-w-[150px] truncate">
-                        {row.match_pattern}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-gray-100">
-              <button
-                onClick={handlePublish}
-                disabled={importing}
-                className="px-5 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {importing
-                  ? `Publishing ${rows.length} entries...`
-                  : `Publish ${rows.length} Entries`}
-              </button>
-              <button
-                onClick={() => {
-                  setRows([]);
-                  setResult(null);
-                  if (fileRef.current) fileRef.current.value = "";
-                }}
-                className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                Clear
-              </button>
-            </div>
-          </>
-        )}
+    <div className="t-card fade-in d1">
+      <div className="mb-4">
+        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Upload CSV</p>
+        <p className="text-[11px] text-gray-400 mb-3">
+          Columns:{" "}
+          <code className="bg-gray-50 border border-gray-200 px-1.5 py-0.5 rounded font-mono text-[11px]">
+            category, title, content, match_pattern, action, business_id
+          </code>
+        </p>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".csv"
+          onChange={handleFile}
+          className="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-4 file:rounded-md file:border file:border-gray-200 file:text-sm file:font-medium file:bg-white file:text-gray-700 hover:file:bg-gray-50 file:cursor-pointer"
+        />
       </div>
+
+      {result && (
+        <div
+          className={`mb-4 px-4 py-2.5 rounded-md text-sm font-medium border ${
+            result.failed === 0
+              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+              : "bg-amber-50 text-amber-800 border-amber-200"
+          }`}
+        >
+          {result.ok} entries saved, {result.failed} failed
+        </div>
+      )}
+
+      {rows.length > 0 && (
+        <>
+          <div className="overflow-x-auto -mx-6 mt-4 border-t border-gray-100">
+            <table className="t-table">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th>Title</th>
+                  <th>Content</th>
+                  <th>Keywords</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, i) => (
+                  <tr key={i}>
+                    <td><span className="t-badge t-badge-violet">{row.category}</span></td>
+                    <td className="text-gray-900 max-w-[220px] truncate">{row.title}</td>
+                    <td className="text-gray-500 max-w-[320px] truncate">{row.content}</td>
+                    <td className="text-gray-400 max-w-[180px] truncate font-mono text-[12px]">{row.match_pattern}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100">
+            <PrimaryButton onClick={handlePublish} disabled={importing}>
+              {importing ? `Publishing ${rows.length}…` : `Publish ${rows.length} entries`}
+            </PrimaryButton>
+            <button
+              onClick={() => {
+                setRows([]);
+                setResult(null);
+                if (fileRef.current) fileRef.current.value = "";
+              }}
+              className="preset"
+            >
+              Clear
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
-// ── Gap Queue Tab ──────────────────────────────────────────────────
+/* ─── Gap queue tab ─────────────────────────────────────────────────── */
 
 interface Gap {
   id: string;
@@ -436,7 +380,7 @@ function GapQueueTab() {
     setLoading(false);
   }, []);
 
-  useState(() => { fetchGaps(); });
+  useEffect(() => { fetchGaps(); }, [fetchGaps]);
 
   const handleDismiss = useCallback(async (id: string) => {
     await fetch(`/api/training/gaps/${id}`, {
@@ -462,13 +406,16 @@ function GapQueueTab() {
       <div>
         <button
           onClick={() => setAnsweringGap(null)}
-          className="text-sm text-violet-600 hover:text-violet-700 mb-4"
+          className="text-sm text-pascal-600 hover:text-pascal-700 mb-4 inline-flex items-center gap-1"
         >
-          &larr; Back to Gap Queue
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+          Back to gap queue
         </button>
-        <div className="bg-violet-50 border border-violet-200 rounded-lg p-3 mb-4">
-          <p className="text-xs text-violet-500 uppercase tracking-wide mb-1">Answering gap</p>
-          <p className="text-sm text-violet-900">{answeringGap.question}</p>
+        <div className="t-card !p-4 mb-4 fade-in d1" style={{ background: "#faf9ff", borderColor: "#ddd6fe" }}>
+          <p className="text-[10px] font-semibold text-pascal-600 uppercase tracking-wider mb-1">Answering gap</p>
+          <p className="text-sm text-gray-900">{answeringGap.question}</p>
         </div>
         <AnswerGapForm gap={answeringGap} onAnswered={handleAnswered} />
       </div>
@@ -478,17 +425,16 @@ function GapQueueTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full" />
+        <div className="animate-spin w-6 h-6 border-2 border-pascal-500 border-t-transparent rounded-full" />
       </div>
     );
   }
 
   if (gaps.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-        <p className="text-3xl mb-3">&#x2705;</p>
-        <h3 className="text-lg font-semibold text-gray-900 mb-1">No pending gaps</h3>
-        <p className="text-sm text-gray-500">
+      <div className="t-card text-center py-12 fade-in d1">
+        <h3 className="text-sm font-semibold text-gray-900 mb-1">No pending gaps</h3>
+        <p className="text-xs text-gray-400">
           Pascal is handling all questions well. Gaps appear when fallback or low-confidence responses occur.
         </p>
       </div>
@@ -496,56 +442,56 @@ function GapQueueTab() {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-        <p className="text-sm font-medium text-gray-700">{gaps.length} pending gaps</p>
-        <button onClick={fetchGaps} className="text-xs text-gray-400 hover:text-gray-600">Refresh</button>
+    <div className="t-card t-card-flush overflow-hidden fade-in d1">
+      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <p className="text-sm font-semibold text-gray-900">{gaps.length} pending gaps</p>
+        <button onClick={fetchGaps} className="preset">Refresh</button>
       </div>
-      <table className="w-full text-sm">
+      <table className="t-table">
         <thead>
-          <tr className="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
-            <th className="text-left py-2 px-5">Question</th>
-            <th className="text-left py-2 px-3">Category</th>
-            <th className="text-left py-2 px-3">Merchant</th>
-            <th className="text-center py-2 px-3">Seen</th>
-            <th className="text-right py-2 px-5">Actions</th>
+          <tr>
+            <th>Question</th>
+            <th>Category</th>
+            <th>Merchant</th>
+            <th className="num">Seen</th>
+            <th className="num">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-50">
+        <tbody>
           {gaps.map((gap) => (
-            <tr key={gap.id} className="hover:bg-gray-50/40">
-              <td className="py-3 px-5 text-gray-700 max-w-[400px]">
-                <p className="truncate">{gap.question}</p>
-                <p className="text-[11px] text-gray-400 mt-0.5">
-                  {new Date(gap.detected_at).toLocaleDateString()}
-                </p>
+            <tr key={gap.id}>
+              <td className="max-w-[400px]">
+                <p className="text-gray-900 truncate">{gap.question}</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">{new Date(gap.detected_at).toLocaleDateString()}</p>
               </td>
-              <td className="py-3 px-3">
-                {gap.suggested_category && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-violet-100 text-violet-700">
-                    {gap.suggested_category}
-                  </span>
+              <td>
+                {gap.suggested_category ? (
+                  <span className="t-badge t-badge-violet">{gap.suggested_category}</span>
+                ) : (
+                  <span className="text-gray-300">—</span>
                 )}
               </td>
-              <td className="py-3 px-3 text-gray-500 text-xs">{gap.merchant_name || "—"}</td>
-              <td className="py-3 px-3 text-center">
-                <span className={`text-xs font-medium ${gap.frequency > 3 ? "text-red-600" : "text-gray-500"}`}>
-                  {gap.frequency}x
+              <td className="text-gray-500 text-[13px]">{gap.merchant_name || "—"}</td>
+              <td className="num">
+                <span className={`text-sm font-medium ${gap.frequency > 3 ? "text-red-600" : "text-gray-900"}`}>
+                  {gap.frequency}×
                 </span>
               </td>
-              <td className="py-3 px-5 text-right">
-                <button
-                  onClick={() => setAnsweringGap(gap)}
-                  className="text-xs px-3 py-1 bg-violet-600 text-white rounded-md hover:bg-violet-700 mr-2"
-                >
-                  Answer
-                </button>
-                <button
-                  onClick={() => handleDismiss(gap.id)}
-                  className="text-xs px-2 py-1 text-gray-400 hover:text-gray-600"
-                >
-                  Dismiss
-                </button>
+              <td className="num">
+                <div className="inline-flex items-center gap-1.5">
+                  <button
+                    onClick={() => setAnsweringGap(gap)}
+                    className="text-xs px-3 py-1 bg-pascal-600 text-white rounded-md hover:bg-pascal-700 font-medium"
+                  >
+                    Answer
+                  </button>
+                  <button
+                    onClick={() => handleDismiss(gap.id)}
+                    className="text-xs px-2 py-1 text-gray-400 hover:text-gray-700"
+                  >
+                    Dismiss
+                  </button>
+                </div>
               </td>
             </tr>
           ))}
@@ -555,7 +501,7 @@ function GapQueueTab() {
   );
 }
 
-// ── Answer Gap Form (pre-filled from gap question) ─────────────────
+/* ─── Answer-gap form ──────────────────────────────────────────────── */
 
 function AnswerGapForm({ gap, onAnswered }: { gap: Gap; onAnswered: (gapId: string) => Promise<void> }) {
   const [form, setForm] = useState({
@@ -591,56 +537,93 @@ function AnswerGapForm({ gap, onAnswered }: { gap: Gap; onAnswered: (gapId: stri
   }, [form, gap, onAnswered]);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4 max-w-2xl">
+    <div className="t-card space-y-4 max-w-2xl">
       {toast && (
-        <div className="px-4 py-2 rounded-lg text-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+        <div className="px-4 py-2 rounded-md text-sm font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
           {toast}
         </div>
       )}
-      <div>
-        <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">Title (from gap question)</label>
+      <Field label="Title" hint="from gap question">
         <input
           value={form.title}
           onChange={(e) => setForm({ ...form, title: e.target.value })}
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+          className="form-input"
         />
-      </div>
-      <div>
-        <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">Answer / Content *</label>
+      </Field>
+      <Field label="Answer / content" required>
         <textarea
           value={form.content}
           onChange={(e) => setForm({ ...form, content: e.target.value })}
-          placeholder="Write the answer Pascal should give for this type of question..."
+          placeholder="Write the answer Pascal should give for this type of question…"
           rows={5}
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 resize-y"
+          className="form-input resize-y"
         />
-      </div>
-      <div>
-        <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">Match Keywords *</label>
+      </Field>
+      <Field label="Match keywords" required>
         <input
           value={form.match_pattern}
           onChange={(e) => setForm({ ...form, match_pattern: e.target.value })}
           placeholder="comma-separated keywords"
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+          className="form-input font-mono text-[13px]"
         />
-      </div>
-      <div>
-        <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">Category</label>
+      </Field>
+      <Field label="Category">
         <select
           value={form.category}
           onChange={(e) => setForm({ ...form, category: e.target.value })}
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+          className="form-input"
         >
           {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
         </select>
-      </div>
-      <button
-        onClick={handleSubmit}
-        disabled={!form.content || !form.match_pattern || saving}
-        className="px-5 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors"
-      >
-        {saving ? "Saving..." : "Save Entry + Resolve Gap"}
-      </button>
+      </Field>
+      <PrimaryButton onClick={handleSubmit} disabled={!form.content || !form.match_pattern || saving}>
+        {saving ? "Saving…" : "Save entry + resolve gap"}
+      </PrimaryButton>
     </div>
+  );
+}
+
+/* ─── Reusable bits ─────────────────────────────────────────────────── */
+
+function Field({
+  label,
+  required,
+  hint,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+        {label}
+        {required && <span className="text-pascal-600 ml-0.5">*</span>}
+        {hint && <span className="ml-1.5 normal-case font-normal text-gray-400 tracking-normal">({hint})</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function PrimaryButton({
+  onClick,
+  disabled,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex items-center gap-2 px-4 py-[7px] bg-pascal-600 text-white text-sm font-medium rounded-md hover:bg-pascal-700 transition disabled:bg-pascal-300 disabled:cursor-not-allowed"
+    >
+      {children}
+    </button>
   );
 }

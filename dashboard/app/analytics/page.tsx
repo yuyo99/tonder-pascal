@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import PageHeader from "@/components/PageHeader";
 
 interface Summary {
   total: number;
@@ -71,21 +72,21 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div>
-      <h1 className="text-2xl font-semibold text-gray-900 mb-6">Analytics</h1>
+    <>
+      <PageHeader title="Analytics" subtitle="Conversation volume, merchants, and recent activity" />
 
       {/* Summary cards */}
       {summary && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatCard label="Total Conversations" value={summary.total} />
-          <StatCard label="Last 24 Hours" value={summary.last24h} />
-          <StatCard label="Last 7 Days" value={summary.last7d} />
-          <StatCard label="Active Merchants (7d)" value={summary.activeMerchants7d} />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatCard label="Total conversations" value={summary.total} delay={1} />
+          <StatCard label="Last 24 hours" value={summary.last24h} delay={2} />
+          <StatCard label="Last 7 days" value={summary.last7d} delay={3} />
+          <StatCard label="Active merchants (7d)" value={summary.activeMerchants7d} delay={4} />
         </div>
       )}
 
       {/* Per-merchant table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-8">
+      <div className="t-card t-card-flush overflow-hidden mb-6">
         <div className="px-5 py-4 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
             Per-Merchant Breakdown
@@ -141,11 +142,9 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Recent conversations */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-            Recent Conversations
-          </h2>
+      <div className="t-card t-card-flush overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-900">Recent conversations</h2>
         </div>
         <div className="divide-y divide-gray-50">
           {conversations.map((c) => (
@@ -193,21 +192,21 @@ export default function AnalyticsPage() {
             </Link>
           ))}
           {conversations.length === 0 && (
-            <div className="px-5 py-8 text-center text-gray-400">
+            <div className="px-5 py-8 text-center text-sm text-gray-400">
               No conversations yet
             </div>
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value, delay }: { label: string; value: number; delay: number }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4">
-      <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">{label}</p>
-      <p className="text-2xl font-semibold text-gray-900 mt-1">{value.toLocaleString()}</p>
+    <div className={`t-card fade-in d${delay}`}>
+      <p className="text-sm font-medium text-gray-500">{label}</p>
+      <p className="text-[var(--text-metric)] font-semibold text-gray-900 leading-tight mt-1">{value.toLocaleString()}</p>
     </div>
   );
 }

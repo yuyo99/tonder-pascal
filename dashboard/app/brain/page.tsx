@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { CATEGORY_COLORS, KNOWLEDGE_CATEGORIES, topicCategory } from "@/lib/brain-topics";
+import PageHeader from "@/components/PageHeader";
 
 // Force graph MUST be loaded client-side only (Canvas)
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
@@ -180,37 +181,30 @@ export default function BrainPage() {
   };
 
   return (
-    <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Brain</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
-            Question knowledge graph &middot; connections &amp; insights
-          </p>
-        </div>
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-          {TIME_RANGES.map((tr) => (
-            <button
-              key={tr.days}
-              onClick={() => setDays(tr.days)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                days === tr.days
-                  ? "bg-white text-violet-700 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              {tr.label}
-            </button>
-          ))}
-        </div>
-      </div>
+    <>
+      <PageHeader
+        title="Brain"
+        subtitle="Question knowledge graph — connections & insights"
+        right={
+          <div className="flex items-center gap-0.5 bg-gray-100 rounded-md p-0.5">
+            {TIME_RANGES.map((tr) => (
+              <button
+                key={tr.days}
+                onClick={() => setDays(tr.days)}
+                className={`t-tab ${days === tr.days ? "active" : ""}`}
+              >
+                {tr.label}
+              </button>
+            ))}
+          </div>
+        }
+      />
 
       {/* Main layout */}
       <div className="flex gap-6 flex-col lg:flex-row">
         {/* Left: Graph */}
         <div className="lg:w-2/3 w-full">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="t-card t-card-flush overflow-hidden">
             <div
               ref={containerRef}
               className="relative"
@@ -263,7 +257,7 @@ export default function BrainPage() {
 
           {/* Node detail drawer */}
           {selectedNode && (
-            <div className="mt-4 bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div className="mt-4 t-card !p-5">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div
@@ -543,7 +537,7 @@ export default function BrainPage() {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -570,7 +564,7 @@ function InsightCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+    <div className="t-card !p-4">
       <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-0.5">
         {title}
       </h3>

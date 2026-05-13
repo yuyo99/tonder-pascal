@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import PageHeader from "@/components/PageHeader";
 
 /* ─── Types ─── */
 
@@ -144,42 +145,35 @@ export default function MonitoringPage() {
   }, [searchInput]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Error Monitoring</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Track and investigate Pascal errors in real-time</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Time window selector */}
-          <div className="flex bg-gray-100 rounded-lg p-0.5">
-            {TIME_OPTIONS.map((opt) => (
-              <button
-                key={opt.hours}
-                onClick={() => setHours(opt.hours)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                  hours === opt.hours
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          {/* Refresh */}
-          <button
-            onClick={fetchData}
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100"
-            title="Refresh"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          </button>
-        </div>
-      </div>
+    <>
+      <PageHeader
+        title="Monitoring"
+        subtitle="Track and investigate Pascal errors in real-time"
+        right={
+          <>
+            <div className="flex items-center gap-0.5 bg-gray-100 rounded-md p-0.5">
+              {TIME_OPTIONS.map((opt) => (
+                <button
+                  key={opt.hours}
+                  onClick={() => setHours(opt.hours)}
+                  className={`t-tab ${hours === opt.hours ? "active" : ""}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={fetchData}
+              className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-md hover:bg-gray-50"
+              title="Refresh"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </>
+        }
+      />
 
       {/* Stat Cards */}
       {stats && (
@@ -192,7 +186,7 @@ export default function MonitoringPage() {
       )}
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 mb-4 flex flex-wrap gap-2 items-center">
+      <div className="t-card !p-3 mb-4 flex flex-wrap gap-2 items-center">
         {/* Source filter */}
         <select
           value={source}
@@ -239,7 +233,7 @@ export default function MonitoringPage() {
 
       {/* Error Table */}
       {!loading && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="t-card t-card-flush overflow-hidden">
           {errors.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-gray-400">
               <svg className="w-12 h-12 mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -392,7 +386,7 @@ export default function MonitoringPage() {
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -408,7 +402,7 @@ function StatCard({
   accent?: boolean;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4">
+    <div className="t-card !px-5 !py-4">
       <p className="text-[11px] text-gray-500 uppercase tracking-wide font-medium">
         {label}
       </p>

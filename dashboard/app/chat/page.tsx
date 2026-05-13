@@ -475,7 +475,7 @@ export default function ChatPage() {
           if (item.kind === "assistant") {
             return (
               <div key={i} className="flex justify-start">
-                <div className="max-w-[85%] px-4 py-3 rounded-2xl rounded-bl-md bg-white border border-gray-200 text-sm text-gray-700 shadow-sm">
+                <div className="max-w-[85%] px-4 py-3 rounded-2xl rounded-bl-md bg-white border border-gray-200 text-sm text-gray-700">
                   {renderMarkdown(item.content || "")}
                 </div>
               </div>
@@ -486,7 +486,7 @@ export default function ChatPage() {
 
         {loading && (
           <div className="flex justify-start">
-            <div className="rounded-2xl rounded-bl-md bg-white border border-gray-200 shadow-sm">
+            <div className="rounded-2xl rounded-bl-md bg-white border border-gray-200">
               <ThinkingDots />
             </div>
           </div>
