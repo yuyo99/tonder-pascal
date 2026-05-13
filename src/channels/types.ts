@@ -10,6 +10,20 @@ export interface IncomingMessage {
   ambient?: boolean;
   /** Thread context for ambient mode (recent messages for context) */
   threadContext?: string[];
+  /**
+   * Mention tokens extracted by the adapter (e.g. ["@pascal"] on Telegram,
+   * or ["<@U07TONDER>"] on Slack). Used by the Phase 0 Gate's
+   * require_mention predicate.
+   */
+  mentions?: string[];
+  /** True when this message is a reply to one of Pascal's prior messages. */
+  isReplyToPascal?: boolean;
+  /**
+   * When the message originates from a known partner bot (e.g.
+   * "bcgame_ticket_bot"), this identifies which one. Used by parsing rules
+   * and bot-scoped rules at Phase 0.
+   */
+  botId?: string;
 }
 
 export interface OutgoingMessage {

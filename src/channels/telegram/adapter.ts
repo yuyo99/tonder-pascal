@@ -618,10 +618,15 @@ export class TelegramChannelAdapter implements ChannelAdapter {
               ambient: true,
               threadContext,
             });
-            await ctx.reply(response.text, { reply_parameters: { message_id: ctx.message.message_id } });
-            if (response.attachments?.length) {
-              for (const att of response.attachments) {
-                await ctx.replyWithDocument({ source: att.buffer, filename: att.filename }, { reply_parameters: { message_id: ctx.message.message_id } });
+            // Empty text means Phase 0 gate short-circuited — stay silent.
+            if (!response.text) {
+              logger.info({ chatId }, "Telegram ambient response empty (gate-blocked) — skipping send");
+            } else {
+              await ctx.reply(response.text, { reply_parameters: { message_id: ctx.message.message_id } });
+              if (response.attachments?.length) {
+                for (const att of response.attachments) {
+                  await ctx.replyWithDocument({ source: att.buffer, filename: att.filename }, { reply_parameters: { message_id: ctx.message.message_id } });
+                }
               }
             }
           } catch (err) {

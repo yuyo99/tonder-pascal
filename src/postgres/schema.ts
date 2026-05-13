@@ -194,6 +194,40 @@ CREATE INDEX IF NOT EXISTS idx_pascal_people_type ON pascal_people(type) WHERE i
 CREATE INDEX IF NOT EXISTS idx_pascal_people_slack ON pascal_people(slack_user_id) WHERE slack_user_id IS NOT NULL AND slack_user_id != '';
 CREATE INDEX IF NOT EXISTS idx_pascal_people_telegram ON pascal_people(telegram_user_id) WHERE telegram_user_id IS NOT NULL AND telegram_user_id != '';
 
+-- ═══ Business Rules (Pascal Model 2 — Milestone 4 / AID-82) ═══
+-- Persistent directives that survive across sessions. Loaded at Phase 0
+-- (Gate) and Phase 4 (system prompt). See PASCAL_MODEL_2.md §4 (Layer 3).
+CREATE TABLE IF NOT EXISTS pascal_business_rules (
+  id              SERIAL PRIMARY KEY,
+  rule_type       TEXT NOT NULL CHECK (rule_type IN ('behavioral','parsing','escalation','tone')),
+  scope           TEXT NOT NULL CHECK (scope IN ('global','merchant','channel','bot')),
+  scope_value     TEXT,
+  instruction     TEXT NOT NULL,
+  predicate       JSONB,
+  priority        TEXT NOT NULL DEFAULT 'soft' CHECK (priority IN ('hard','soft')),
+  source          TEXT NOT NULL CHECK (source IN ('manual','auto:correction','auto:pattern')),
+  source_ref      TEXT,
+  confidence      REAL NOT NULL DEFAULT 1.0,
+  active          BOOLEAN NOT NULL DEFAULT true,
+  created_by      TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_applied_at TIMESTAMPTZ,
+  apply_count     INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_pascal_rules_scope ON pascal_business_rules (scope, scope_value) WHERE active = true;
+CREATE INDEX IF NOT EXISTS idx_pascal_rules_type  ON pascal_business_rules (rule_type) WHERE active = true;
+
+CREATE TABLE IF NOT EXISTS pascal_rule_applications (
+  id              SERIAL PRIMARY KEY,
+  rule_id         INTEGER NOT NULL REFERENCES pascal_business_rules(id) ON DELETE CASCADE,
+  conversation_id TEXT NOT NULL,
+  phase           TEXT NOT NULL CHECK (phase IN ('gate','refine','generate','validate')),
+  outcome         TEXT NOT NULL CHECK (outcome IN ('applied','blocked','triggered_regen','no_effect')),
+  applied_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pascal_rule_app_rule ON pascal_rule_applications (rule_id);
+CREATE INDEX IF NOT EXISTS idx_pascal_rule_app_conv ON pascal_rule_applications (conversation_id);
+
 -- ═══ Seed: Integration Knowledge Base Entries ═══
 ` +
 `
@@ -554,5 +588,88 @@ export async function ensureTables(): Promise<void> {
     logger.info("pascal_knowledge_gaps table ready");
   } catch (err) {
     logger.warn({ err }, "Failed to create pascal_knowledge_gaps table (pgvector may not be available)");
+  }
+
+  // ═══ Pascal Model 2 / AID-82 — Seed day-one business rules ═══
+  // Idempotent inserts (WHERE NOT EXISTS on a stable key).
+  // These capture the corrections the team has already given Pascal,
+  // so the rules system is useful the moment AID-82 ships.
+  try {
+    await pgQuery(`
+      -- Don't respond unless explicitly tagged — BC Game Telegram channels
+      INSERT INTO pascal_business_rules (rule_type, scope, scope_value, instruction, predicate, priority, source, created_by)
+      SELECT 'behavioral', 'channel', '-1002589749469',
+        'Do not respond to messages in this channel unless the message explicitly tags @Pascal or replies to a Pascal message.',
+        '{"type": "require_mention", "tags": ["@pascal", "@Pascal"]}'::jsonb,
+        'hard', 'manual', 'yuyo'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM pascal_business_rules
+        WHERE scope = 'channel' AND scope_value = '-1002589749469' AND rule_type = 'behavioral'
+      );
+
+      INSERT INTO pascal_business_rules (rule_type, scope, scope_value, instruction, predicate, priority, source, created_by)
+      SELECT 'behavioral', 'channel', '-1003575792934',
+        'Do not respond to messages in this channel unless the message explicitly tags @Pascal or replies to a Pascal message.',
+        '{"type": "require_mention", "tags": ["@pascal", "@Pascal"]}'::jsonb,
+        'hard', 'manual', 'yuyo'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM pascal_business_rules
+        WHERE scope = 'channel' AND scope_value = '-1003575792934' AND rule_type = 'behavioral'
+      );
+
+      -- BC Game ticket bot parsing — customer_order_id instead of txid
+      INSERT INTO pascal_business_rules (rule_type, scope, scope_value, instruction, predicate, priority, source, created_by)
+      SELECT 'parsing', 'bot', 'bcgame_ticket_bot',
+        'When parsing deposit tickets from this bot, extract the customer order reference ID from the customer_order_id field, not the txid field. The txid field for this bot contains the blockchain transaction hash, not a Tonder identifier.',
+        '{"extract_field": "customer_order_id", "as": "ref_id", "fallback_field": "txid"}'::jsonb,
+        'hard', 'manual', 'yuyo'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM pascal_business_rules
+        WHERE scope = 'bot' AND scope_value = 'bcgame_ticket_bot' AND rule_type = 'parsing'
+      );
+
+      -- Tonder Prod internal channel — skip provider masking
+      INSERT INTO pascal_business_rules (rule_type, scope, scope_value, instruction, priority, source, created_by)
+      SELECT 'behavioral', 'channel', 'C0AF237ATKJ',
+        'This is the internal Tonder team channel. Skip provider masking — internal acquirer names (kushki, bitso, stp, unlimit, safetypay, guardian) are allowed and expected here.',
+        'hard', 'manual', 'yuyo'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM pascal_business_rules
+        WHERE scope = 'channel' AND scope_value = 'C0AF237ATKJ' AND rule_type = 'behavioral'
+      );
+
+      -- Stadiobet tone — formal Spanish, no emojis
+      INSERT INTO pascal_business_rules (rule_type, scope, scope_value, instruction, priority, source, created_by)
+      SELECT 'tone', 'merchant', '530',
+        'Stadiobet contacts prefer formal Spanish (usted, not tú). No emojis.',
+        'soft', 'manual', 'yuyo'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM pascal_business_rules
+        WHERE scope = 'merchant' AND scope_value = '530' AND rule_type = 'tone'
+      );
+
+      -- Campobet account creation always escalates to Geraldine
+      INSERT INTO pascal_business_rules (rule_type, scope, scope_value, instruction, priority, source, created_by)
+      SELECT 'escalation', 'merchant', '120',
+        'Account creation issues always go through Geraldine; do not attempt to diagnose.',
+        'hard', 'manual', 'yuyo'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM pascal_business_rules
+        WHERE scope = 'merchant' AND scope_value = '120' AND rule_type = 'escalation'
+      );
+
+      -- Vitau high-value refunds always go through Roberto (FinOps)
+      INSERT INTO pascal_business_rules (rule_type, scope, scope_value, instruction, priority, source, created_by)
+      SELECT 'escalation', 'merchant', '82',
+        'For refund requests over $5,000 USD equivalent, create a Linear ticket assigned to Roberto (FinOps) and mention him in the response. Do not attempt to process the refund directly.',
+        'hard', 'manual', 'yuyo'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM pascal_business_rules
+        WHERE scope = 'merchant' AND scope_value = '82' AND rule_type = 'escalation'
+      );
+    `);
+    logger.info("Day-one business rules seeded (idempotent)");
+  } catch (err) {
+    logger.warn({ err }, "Failed to seed business rules (table may not exist yet — non-fatal)");
   }
 }

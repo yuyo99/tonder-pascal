@@ -1,10 +1,24 @@
 import { MerchantContext } from "../merchants/types";
 import { TeamMemberInfo } from "./tonder-team";
+import type { BusinessRule } from "./rules";
 
 const today = new Date().toISOString().slice(0, 10);
 const dayOfWeek = new Date().toLocaleDateString("en-US", { weekday: "long" });
 
-export function buildSystemPrompt(merchantCtx: MerchantContext): string {
+/**
+ * Build the system prompt for the orchestrator.
+ *
+ * `rules` is the list of active business rules in scope (loaded by
+ * `loadActiveRules()` in src/core/rules.ts). When non-empty they're
+ * rendered as an `## Active rules` section that takes precedence over the
+ * generic guidance below — hard rules are bolded so the model treats them
+ * as absolutes.
+ */
+export function buildSystemPrompt(
+  merchantCtx: MerchantContext,
+  rules: BusinessRule[] = [],
+): string {
+  const activeRulesSection = buildActiveRulesSection(rules);
   return `You are Pascal, a payment assistant for ${merchantCtx.businessName} powered by Tonder.
 
 You are Tonder's integration and payments expert. You help merchants with everything related to Tonder — from payment data and transaction lookups to integration guides, SDK setup, API configuration, webhooks, troubleshooting, and more.
@@ -18,7 +32,7 @@ You're professional, helpful, and empathetic. You speak like a knowledgeable sup
 ## Merchant Context
 - Merchant: ${merchantCtx.businessName}
 - Primary currency: MXN (Mexican Pesos)
-
+${activeRulesSection}
 ## CRITICAL RULES — NEVER VIOLATE
 
 ### Rule 1: Provider Name Masking
@@ -116,6 +130,33 @@ Use \`start_date\` and \`end_date\` with ISO format (YYYY-MM-DD).
 
 ## Refund Receipts
 When a merchant asks for a refund receipt, first use lookup_by_id to get the transaction details, then use generate_refund_receipt to create and send a PDF receipt. Always look up the transaction first — never fabricate receipt data.
+`;
+}
+
+/**
+ * Render the active business rules as a system-prompt section. Returns an
+ * empty string when there are no applicable rules (so the prompt template
+ * collapses cleanly). Hard rules render as bold + uppercase tag; soft rules
+ * render plain. Rules are emitted in the order `loadActiveRules` returned
+ * them — most-specific-scope first, hard before soft.
+ *
+ * The `parsing` rule type doesn't go in the prompt — those are consumed by
+ * Phase 1 (refine) in M5 and the validation phase. We filter them out here.
+ */
+function buildActiveRulesSection(rules: BusinessRule[]): string {
+  const promptable = rules.filter((r) => r.rule_type !== "parsing");
+  if (promptable.length === 0) return "";
+
+  const lines = promptable.map((r, i) => {
+    const tag = r.priority === "hard" ? "**[HARD]**" : "[soft]";
+    return `${i + 1}. ${tag} ${r.instruction}`;
+  });
+
+  return `
+## Active Rules
+The Tonder team has set these directives for this channel/merchant. Follow them strictly. **[HARD]** rules are absolute and override any other guidance below. [soft] rules are strong preferences — only deviate from them with a stated reason.
+
+${lines.join("\n")}
 `;
 }
 

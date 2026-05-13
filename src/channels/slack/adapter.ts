@@ -580,12 +580,17 @@ export class SlackChannelAdapter implements ChannelAdapter {
           threadContext,
         });
 
-        // Post as a natural reply (no "thinking" indicator)
-        await client.chat.postMessage({
-          channel: msg.channel,
-          thread_ts: msg.thread_ts || msg.ts,
-          text: response.text,
-        });
+        // Post as a natural reply (no "thinking" indicator).
+        // Empty text means Phase 0 gate short-circuited — stay silent.
+        if (!response.text) {
+          logger.info({ channel: msg.channel }, "Ambient response empty (gate-blocked) — skipping send");
+        } else {
+          await client.chat.postMessage({
+            channel: msg.channel,
+            thread_ts: msg.thread_ts || msg.ts,
+            text: response.text,
+          });
+        }
 
         if (response.attachments?.length) {
           for (const att of response.attachments) {

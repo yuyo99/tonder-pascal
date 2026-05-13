@@ -15,6 +15,7 @@ import { pgQuery } from "../postgres/connection";
 import { logger } from "../utils/logger";
 import { storeErrorFromCatch } from "../utils/error-store";
 import { evaluateAndRecord } from "../monitoring/self-qa";
+import { loadActiveRules, shouldRespond, logRuleApplication } from "./rules";
 
 const client = new Anthropic({ apiKey: config.claude.apiKey, timeout: 120_000 });
 const MAX_TOOL_ROUNDS = 10;
@@ -51,8 +52,51 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
     "Processing merchant question"
   );
 
-  // Step 2: Build merchant-specific system prompt
-  let systemPrompt = buildSystemPrompt(merchantCtx);
+  // ── Phase 0 — Gate (Pascal Model 2 / AID-82) ──────────────────────────
+  // Load active business rules in scope for this channel/merchant/bot, then
+  // evaluate any `behavioral` + `hard` rules with a predicate. If a rule
+  // blocks (e.g. "don't respond unless tagged"), short-circuit the pipeline.
+  const activeRules = await loadActiveRules({
+    businessId: merchantCtx.businessId ?? undefined,
+    channelId: msg.channelId,
+    botId: msg.botId,
+  });
+
+  const gate = await shouldRespond(
+    {
+      businessId: merchantCtx.businessId ?? undefined,
+      channelId: msg.channelId,
+      botId: msg.botId,
+    },
+    {
+      text: msg.text,
+      mentions: msg.mentions,
+      isReplyToPascal: msg.isReplyToPascal,
+    },
+    activeRules,
+  );
+
+  if (!gate.allow) {
+    if (gate.blockedByRuleId) {
+      // Synthetic conversation id — blocked messages never get a full
+      // conversation_log row, but we still record the gate application.
+      const syntheticConvId = `gate:${msg.platform}:${msg.channelId}:${Date.now()}`;
+      logRuleApplication(gate.blockedByRuleId, syntheticConvId, "gate", "blocked");
+    }
+    logger.info(
+      {
+        channelId: msg.channelId,
+        merchant: merchantCtx.businessName,
+        ruleId: gate.blockedByRuleId,
+        reason: gate.reason,
+      },
+      "Phase 0 gate: pipeline short-circuited"
+    );
+    return { text: "" }; // adapters skip sending when text is empty
+  }
+
+  // Step 2: Build merchant-specific system prompt (rules included)
+  let systemPrompt = buildSystemPrompt(merchantCtx, activeRules);
 
   // Step 2b: Inject relevant knowledge into system prompt (semantic search + keyword fallback)
   const knowledgeMatches = await findRelevantKnowledge(msg.text, merchantCtx.businessId || undefined);
