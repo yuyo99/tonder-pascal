@@ -200,31 +200,25 @@ export default function Sidebar() {
 
   const sidebarContent = (
     <div className="flex flex-col h-full">
-      {/* Logo area */}
-      <div className={`flex items-center py-5 border-b border-gray-100 overflow-hidden ${collapsed ? "px-2 justify-center" : "px-4 justify-between"}`}>
-        <a href="/" className="flex items-center" onClick={collapsed ? (e) => { e.preventDefault(); toggleCollapsed(); } : undefined}>
+      {/* Logo + Live pill */}
+      <div className={`flex items-center py-4 ${collapsed ? "px-2 justify-center" : "px-4 justify-between"}`}>
+        <a href="/" className="flex items-center min-w-0" onClick={collapsed ? (e) => { e.preventDefault(); toggleCollapsed(); } : undefined}>
           <PascalLogo collapsed={collapsed} />
         </a>
         {!collapsed && (
-          <button
-            onClick={toggleCollapsed}
-            className="hidden lg:flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-            title="Collapse sidebar"
+          <div
+            className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full"
+            style={{ boxShadow: "inset 0 0 0 1px rgba(5,150,105,0.3)" }}
           >
-            <IconCollapseLeft className="w-4 h-4" />
-          </button>
+            Live
+          </div>
         )}
       </div>
 
       {/* Navigation */}
-      <nav className={`flex-1 py-4 overflow-y-auto overflow-x-hidden ${collapsed ? "px-1" : "px-3"}`}>
-        {/* Agent section */}
-        {!collapsed && (
-          <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
-            Agent
-          </p>
-        )}
-        <div className="space-y-0.5">
+      <nav className="flex-1 py-3 overflow-y-auto overflow-x-hidden">
+        {!collapsed && <div className="nav-section">Agent</div>}
+        <div>
           {AGENT_ITEMS.map((item) => {
             const active = isActive(item.href);
             return (
@@ -233,13 +227,7 @@ export default function Sidebar() {
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
                 title={collapsed ? item.label : undefined}
-                className={`relative flex items-center gap-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 ${
-                  collapsed ? "px-0 justify-center" : "px-3"
-                } ${
-                  active
-                    ? "bg-violet-50 text-violet-700 before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-full before:bg-violet-500"
-                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
-                }`}
+                className={`nav-item ${active ? "active" : ""} ${collapsed ? "justify-center !px-0 !mx-2" : ""}`}
               >
                 <item.icon className="w-[18px] h-[18px] shrink-0" />
                 {!collapsed && <span>{item.label}</span>}
@@ -249,48 +237,29 @@ export default function Sidebar() {
         </div>
       </nav>
 
-      {/* Footer */}
-      <div className="px-4 py-3 border-t border-gray-100">
-        {!collapsed ? (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-              </span>
-              <p className="text-[11px] text-emerald-600 font-medium">All systems operational</p>
-            </div>
-            <button
-              onClick={async () => {
-                await fetch("/api/auth/logout", { method: "POST" });
-                window.location.href = "/login";
-              }}
-              className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded hover:bg-gray-100"
-              title="Sign out"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={async () => {
-              await fetch("/api/auth/logout", { method: "POST" });
-              window.location.href = "/login";
-            }}
-            className="w-full flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors p-1.5 rounded hover:bg-gray-100"
-            title="Sign out"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-          </button>
-        )}
+      {/* Footer — collapse toggle + sign out */}
+      <div className={`flex items-center py-3 border-t border-gray-100 ${collapsed ? "px-2 flex-col gap-2" : "px-4 justify-between"}`}>
+        <button
+          onClick={toggleCollapsed}
+          className="hidden lg:flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          <IconCollapseLeft className={`w-4 h-4 ${collapsed ? "rotate-180" : ""}`} />
+        </button>
+        <button
+          onClick={async () => {
+            await fetch("/api/auth/logout", { method: "POST" });
+            window.location.href = "/login";
+          }}
+          className="flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
+          title="Sign out"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+        </button>
       </div>
     </div>
   );
@@ -300,7 +269,7 @@ export default function Sidebar() {
       {/* Mobile hamburger */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-3 left-3 z-50 w-10 h-10 flex items-center justify-center rounded-lg bg-white shadow-lg border border-gray-200"
+        className="lg:hidden fixed top-3 left-3 z-50 w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-gray-200"
       >
         <IconHamburger className="w-5 h-5 text-gray-600" />
       </button>
@@ -315,17 +284,17 @@ export default function Sidebar() {
 
       {/* Mobile sidebar */}
       <aside
-        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 shadow-2xl transform transition-transform duration-300 ease-out ${
+        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-out ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {sidebarContent}
       </aside>
 
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar — 232px expanded, 60px collapsed; matches Tonder design system */}
       <aside
-        className={`hidden lg:flex flex-col bg-white border-r border-gray-200 transition-all duration-200 ease-out shrink-0 overflow-hidden ${
-          collapsed ? "w-[60px]" : "w-[240px]"
+        className={`hidden lg:flex flex-col bg-white border-r border-gray-200 transition-[width] duration-200 ease-out shrink-0 overflow-hidden ${
+          collapsed ? "w-[60px]" : "w-[232px]"
         }`}
       >
         {sidebarContent}
