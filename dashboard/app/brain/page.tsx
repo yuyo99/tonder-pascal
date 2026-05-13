@@ -11,7 +11,7 @@ const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
   ssr: false,
   loading: () => (
     <div className="flex items-center justify-center h-full">
-      <div className="animate-spin w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full" />
+      <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full" />
     </div>
   ),
 });
@@ -155,7 +155,7 @@ export default function BrainPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full" />
+        <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -415,7 +415,7 @@ export default function BrainPage() {
               >
                 <Link
                   href={`/analytics/${encodeURIComponent(m.merchant)}`}
-                  className="text-sm text-violet-600 hover:text-violet-800 truncate"
+                  className="text-sm text-blue-600 hover:text-blue-800 truncate"
                 >
                   {m.merchant}
                 </Link>
@@ -476,7 +476,7 @@ export default function BrainPage() {
                       {KNOWLEDGE_CATEGORIES[k.category] || k.category}
                     </p>
                     <div className="text-right shrink-0 ml-2">
-                      <span className="text-sm font-medium text-violet-600">
+                      <span className="text-sm font-medium text-blue-600">
                         {k.entryCount}
                       </span>
                       <span className="text-xs text-gray-400 ml-1">
@@ -487,7 +487,7 @@ export default function BrainPage() {
                 ))}
                 <Link
                   href="/memory"
-                  className="block text-xs text-violet-600 hover:text-violet-800 mt-2"
+                  className="block text-xs text-blue-600 hover:text-blue-800 mt-2"
                 >
                   Manage memory →
                 </Link>
@@ -499,7 +499,7 @@ export default function BrainPage() {
                 </p>
                 <Link
                   href="/memory"
-                  className="text-xs text-violet-600 hover:text-violet-800"
+                  className="text-xs text-blue-600 hover:text-blue-800"
                 >
                   Add knowledge entries →
                 </Link>
@@ -529,7 +529,7 @@ export default function BrainPage() {
               ))}
               <Link
                 href="/memory"
-                className="block text-xs text-violet-600 hover:text-violet-800 mt-2"
+                className="block text-xs text-blue-600 hover:text-blue-800 mt-2"
               >
                 Add knowledge to reduce errors →
               </Link>

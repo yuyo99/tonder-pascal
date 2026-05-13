@@ -270,7 +270,7 @@ export default function MerchantEditPage() {
               value={form.label}
               onChange={(e) => updateField("label", e.target.value)}
               placeholder="e.g. Tonder Production"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -279,7 +279,7 @@ export default function MerchantEditPage() {
               <select
                 value={form.platform}
                 onChange={(e) => updateField("platform", e.target.value as "slack" | "telegram")}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="slack">Slack</option>
                 <option value="telegram">Telegram</option>
@@ -292,7 +292,7 @@ export default function MerchantEditPage() {
                 value={form.channel_id}
                 onChange={(e) => updateField("channel_id", e.target.value)}
                 placeholder={form.platform === "slack" ? "C0AF237ATKJ" : "-1002589749469"}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -303,14 +303,14 @@ export default function MerchantEditPage() {
               onChange={(e) => updateField("notes", e.target.value)}
               rows={2}
               placeholder="Optional notes..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             />
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => updateField("is_active", !form.is_active)}
               className={`relative w-10 h-5 rounded-full transition-colors ${
-                form.is_active ? "bg-violet-600" : "bg-gray-300"
+                form.is_active ? "bg-blue-600" : "bg-gray-300"
               }`}
             >
               <span
@@ -335,12 +335,12 @@ export default function MerchantEditPage() {
           {form.business_ids.map((bid) => (
             <span
               key={bid}
-              className="inline-flex items-center gap-1 px-2.5 py-1 bg-violet-50 text-violet-700 text-sm rounded-full font-medium"
+              className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 text-sm rounded-full font-medium"
             >
               {bid}
               <button
                 onClick={() => removeBusinessId(bid)}
-                className="ml-0.5 text-violet-400 hover:text-violet-600"
+                className="ml-0.5 text-blue-400 hover:text-blue-600"
               >
                 &times;
               </button>
@@ -362,7 +362,7 @@ export default function MerchantEditPage() {
             }}
             onFocus={() => setBizOpen(true)}
             placeholder="Search businesses by name or type an ID..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             onKeyDown={(e) => {
               if (e.key === "Enter" && bizSearch.trim()) {
                 const num = parseInt(bizSearch.trim(), 10);
@@ -381,7 +381,7 @@ export default function MerchantEditPage() {
                   <button
                     key={b.id}
                     onClick={() => addBusinessId(b.id)}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-violet-50 flex items-center justify-between"
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 flex items-center justify-between"
                   >
                     <span className="text-gray-900">{b.name}</span>
                     <span className="text-gray-400 text-xs">ID: {b.id}</span>
@@ -406,7 +406,7 @@ export default function MerchantEditPage() {
             <select
               value={form.integration_model}
               onChange={(e) => updateField("integration_model", e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">Select integration model...</option>
               {INTEGRATION_MODELS.map((model) => (
@@ -421,13 +421,13 @@ export default function MerchantEditPage() {
               {PRODUCT_OPTIONS.map((product) => (
                 <label
                   key={product}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:bg-violet-50 cursor-pointer transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:bg-blue-50 cursor-pointer transition-colors"
                 >
                   <input
                     type="checkbox"
                     checked={form.active_products.includes(product)}
                     onChange={() => toggleProduct(product)}
-                    className="w-4 h-4 text-violet-600 border-gray-300 rounded focus:ring-violet-500"
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
                   <span className="text-sm text-gray-700">{product}</span>
                 </label>
@@ -443,7 +443,7 @@ export default function MerchantEditPage() {
                 value={form.stage_email}
                 onChange={(e) => updateField("stage_email", e.target.value)}
                 placeholder="stage@merchant.com"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
             <div>
@@ -453,7 +453,7 @@ export default function MerchantEditPage() {
                 value={form.production_email}
                 onChange={(e) => updateField("production_email", e.target.value)}
                 placeholder="prod@merchant.com"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -469,7 +469,7 @@ export default function MerchantEditPage() {
             </h2>
             <button
               onClick={addPartnerBot}
-              className="text-xs text-violet-600 hover:text-violet-700 font-medium"
+              className="text-xs text-blue-600 hover:text-blue-700 font-medium"
             >
               + Add Bot
             </button>
@@ -487,14 +487,14 @@ export default function MerchantEditPage() {
                       value={bot.username}
                       onChange={(e) => updatePartnerBot(i, "username", e.target.value)}
                       placeholder="username"
-                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                     <input
                       type="text"
                       value={bot.label}
                       onChange={(e) => updatePartnerBot(i, "label", e.target.value)}
                       placeholder="Display label"
-                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <button
@@ -524,7 +524,7 @@ export default function MerchantEditPage() {
               <button
                 onClick={() => updateScheduledReport(i, "is_enabled", !sr.is_enabled)}
                 className={`relative w-10 h-5 rounded-full transition-colors ${
-                  sr.is_enabled ? "bg-violet-600" : "bg-gray-300"
+                  sr.is_enabled ? "bg-blue-600" : "bg-gray-300"
                 }`}
               >
                 <span
@@ -547,7 +547,7 @@ export default function MerchantEditPage() {
                     value={sr.cron_expr}
                     onChange={(e) => updateScheduledReport(i, "cron_expr", e.target.value)}
                     placeholder="0 9 * * *"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
                 <div>
@@ -559,7 +559,7 @@ export default function MerchantEditPage() {
                     value={sr.timezone}
                     onChange={(e) => updateScheduledReport(i, "timezone", e.target.value)}
                     placeholder="America/Mexico_City"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
                 <div className="col-span-2">
@@ -571,7 +571,7 @@ export default function MerchantEditPage() {
                     value={sr.slack_user_id}
                     onChange={(e) => updateScheduledReport(i, "slack_user_id", e.target.value)}
                     placeholder="U0123456789"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -622,7 +622,7 @@ export default function MerchantEditPage() {
           <button
             onClick={handleSave}
             disabled={saving || !form.label || !form.channel_id || form.business_ids.length === 0}
-            className="px-6 py-2 bg-violet-600 hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
           >
             {saving ? "Saving..." : isNew ? "Create Merchant" : "Save Changes"}
           </button>
