@@ -334,6 +334,38 @@ CREATE TABLE IF NOT EXISTS pascal_merchant_profiles (
 );
 CREATE INDEX IF NOT EXISTS idx_pascal_merchant_profiles_biz ON pascal_merchant_profiles (business_id);
 
+-- ═══ Conversation Replays (Pascal Model 2 — post-M6 Fin "test mode") ═══
+-- Replay any past pascal_conversation_log entry against current Pascal so
+-- the team can verify rule/procedure/profile changes against real history
+-- without waiting for nightly sims. Output captured in a parallel table so
+-- analytics can be diffed side-by-side with the original conversation.
+CREATE TABLE IF NOT EXISTS pascal_conversation_replays (
+  id                       SERIAL PRIMARY KEY,
+  original_conversation_id UUID NOT NULL,
+  started_at               TIMESTAMPTZ NOT NULL DEFAULT now(),
+  finished_at              TIMESTAMPTZ,
+  status                   TEXT NOT NULL CHECK (status IN ('pending','running','done','error')) DEFAULT 'pending',
+  replayed_answer          TEXT,
+  replayed_tool_calls      JSONB NOT NULL DEFAULT '[]'::jsonb,
+  replayed_rounds          INTEGER NOT NULL DEFAULT 0,
+  replayed_latency_ms      INTEGER,
+  error                    TEXT,
+  triggered_by             TEXT NOT NULL DEFAULT 'dashboard'
+);
+CREATE INDEX IF NOT EXISTS idx_pascal_replays_orig ON pascal_conversation_replays (original_conversation_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pascal_replays_status ON pascal_conversation_replays (status, started_at DESC);
+
+CREATE TABLE IF NOT EXISTS pascal_replay_jobs (
+  id                       SERIAL PRIMARY KEY,
+  original_conversation_id UUID NOT NULL,
+  triggered_by             TEXT,
+  triggered_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+  status                   TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','running','done','error')),
+  replay_id                INTEGER REFERENCES pascal_conversation_replays(id) ON DELETE SET NULL,
+  error                    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_pascal_replay_jobs_pending ON pascal_replay_jobs (status, triggered_at) WHERE status = 'pending';
+
 -- ═══ Seed: Integration Knowledge Base Entries ═══
 ` +
 `

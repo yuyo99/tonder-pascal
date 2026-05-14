@@ -9,6 +9,7 @@ import { runAllSyntheticChecks, cleanupOldResults } from "../monitoring/syntheti
 import { runNightlyLearn } from "./nightly-learn";
 import { runDirectiveExtract } from "./directive-extract";
 import { runSuite as runSimulationSuite, startJobPoller as startSimJobPoller } from "./simulation-runner";
+import { startReplayJobPoller } from "./replay-runner";
 import { logger } from "../utils/logger";
 import { storeErrorFromCatch } from "../utils/error-store";
 
@@ -245,6 +246,12 @@ export function initScheduler(slackClient: WebClient): void {
   // (inserted by the dashboard's "Run now" button) every 10s and executes
   // them. Same process as the cron suite; no extra service.
   startSimJobPoller();
+
+  // Replay job poller — picks up pending pascal_replay_jobs rows (inserted
+  // by the dashboard's "Replay" button on /analytics/conversation/[id])
+  // every 10s and executes them via handleIncomingMessage. Lets the team
+  // verify rule/procedure/profile changes against any past conversation.
+  startReplayJobPoller();
 
   logger.info("Scheduler initialized — syncing scheduled reports from Postgres");
 }

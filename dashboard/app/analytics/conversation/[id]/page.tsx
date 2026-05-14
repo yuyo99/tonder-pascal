@@ -21,6 +21,17 @@ interface ConversationDetail {
   createdAt: string;
 }
 
+interface ReplayJobStatus {
+  id: number;
+  job_status: "pending" | "running" | "done" | "error";
+  replay_status: "pending" | "running" | "done" | "error" | null;
+  replayed_answer: string | null;
+  replayed_latency_ms: number | null;
+  replay_error: string | null;
+  finished_at: string | null;
+  job_error: string | null;
+}
+
 export default function ConversationDetailPage() {
   const params = useParams();
   const id = params.id as string;
@@ -28,6 +39,58 @@ export default function ConversationDetailPage() {
   const [conv, setConv] = useState<ConversationDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+
+  // Replay state
+  const [replaying, setReplaying] = useState(false);
+  const [replay, setReplay] = useState<ReplayJobStatus | null>(null);
+  const [replayError, setReplayError] = useState<string | null>(null);
+
+  async function handleReplay() {
+    if (replaying) return;
+    setReplayError(null);
+    setReplay(null);
+    setReplaying(true);
+    try {
+      const res = await fetch("/api/replays", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversation_id: id,
+          triggered_by: "dashboard:conversation_detail",
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setReplayError(err.error || "Failed to enqueue replay");
+        return;
+      }
+      const job = await res.json();
+      await pollReplayJob(job.jobId);
+    } catch (err) {
+      setReplayError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setReplaying(false);
+    }
+  }
+
+  async function pollReplayJob(jobId: number, maxWaitMs = 180_000) {
+    const start = Date.now();
+    while (Date.now() - start < maxWaitMs) {
+      await new Promise((r) => setTimeout(r, 3_000));
+      try {
+        const res = await fetch(`/api/replays/jobs?id=${jobId}`);
+        if (!res.ok) continue;
+        const data = (await res.json()) as ReplayJobStatus;
+        if (data.job_status === "done" || data.job_status === "error") {
+          setReplay(data);
+          return;
+        }
+      } catch {
+        // keep polling
+      }
+    }
+    setReplayError("Replay timed out waiting for completion (180s)");
+  }
 
   useEffect(() => {
     fetch(`/api/analytics/conversations/${id}`)
@@ -83,7 +146,7 @@ export default function ConversationDetailPage() {
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl font-semibold text-gray-900">
             Conversation Detail
           </h1>
@@ -98,6 +161,28 @@ export default function ConversationDetailPage() {
             })}
           </p>
         </div>
+        <button
+          onClick={handleReplay}
+          disabled={replaying}
+          className="inline-flex items-center gap-2 px-4 py-[7px] bg-violet-600 text-white text-sm font-medium rounded-md hover:bg-violet-700 transition disabled:bg-violet-300 disabled:cursor-not-allowed"
+        >
+          {replaying ? (
+            <>
+              <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Replaying…
+            </>
+          ) : (
+            <>
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                <path d="M8 16H3v5" />
+              </svg>
+              Replay against current Pascal
+            </>
+          )}
+        </button>
       </div>
 
       {/* Metadata */}
@@ -145,11 +230,55 @@ export default function ConversationDetailPage() {
         <p className="text-gray-800 whitespace-pre-wrap">{conv.question}</p>
       </div>
 
-      {/* Answer */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 mb-4">
-        <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-2">Answer</p>
-        <p className="text-gray-800 whitespace-pre-wrap text-sm leading-relaxed">{conv.answer}</p>
-      </div>
+      {/* Answer (+ Replay comparison when present) */}
+      {replay || replayError ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+          {/* Original */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Original answer</p>
+              <span className="text-[11px] text-gray-400">
+                {conv.latencyMs ? `${(conv.latencyMs / 1000).toFixed(1)}s` : "—"}
+              </span>
+            </div>
+            <p className="text-gray-800 whitespace-pre-wrap text-sm leading-relaxed">
+              {conv.answer}
+            </p>
+          </div>
+
+          {/* Replayed */}
+          <div className="bg-violet-50/40 rounded-xl border border-violet-200 p-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-violet-700 uppercase tracking-wide font-medium">
+                Replayed against current Pascal
+              </p>
+              {replay?.replayed_latency_ms != null && (
+                <span className="text-[11px] text-violet-600">
+                  {(replay.replayed_latency_ms / 1000).toFixed(1)}s
+                </span>
+              )}
+            </div>
+            {replayError ? (
+              <p className="text-sm text-red-700">{replayError}</p>
+            ) : replay?.replay_error || replay?.job_error ? (
+              <p className="text-sm text-red-700">{replay.replay_error || replay.job_error}</p>
+            ) : replay?.replayed_answer ? (
+              <p className="text-gray-800 whitespace-pre-wrap text-sm leading-relaxed">
+                {replay.replayed_answer}
+              </p>
+            ) : (
+              <p className="text-sm text-gray-400 italic">
+                {replaying ? "Running…" : "no response captured"}
+              </p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 mb-4">
+          <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-2">Answer</p>
+          <p className="text-gray-800 whitespace-pre-wrap text-sm leading-relaxed">{conv.answer}</p>
+        </div>
+      )}
 
       {/* Knowledge Used */}
       {conv.knowledgeUsed && conv.knowledgeUsed.length > 0 && (

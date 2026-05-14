@@ -150,6 +150,18 @@ function IconProfiles({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
+function IconReplays({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      {/* rewind / replay arrow — "re-run past conversations against current Pascal" */}
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+      <path d="M8 16H3v5" />
+    </svg>
+  );
+}
+
 function IconInsights({ className = "w-5 h-5" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -235,6 +247,7 @@ const AGENT_ITEMS: NavItem[] = [
   { label: "Profiles", href: "/profiles", icon: IconProfiles },
   { label: "Procedures", href: "/procedures", icon: IconProcedures },
   { label: "Simulations", href: "/simulations", icon: IconSimulations },
+  { label: "Replays", href: "/replays", icon: IconReplays },
   { label: "Training", href: "/training", icon: IconTraining },
   { label: "Merchant Chats", href: "/merchants", icon: IconChats },
   { label: "People", href: "/people", icon: IconPeople },
