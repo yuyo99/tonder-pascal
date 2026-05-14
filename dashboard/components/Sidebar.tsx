@@ -137,6 +137,19 @@ function IconSimulations({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
+function IconProfiles({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      {/* user card — "merchant profile cards Pascal references" */}
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="9" cy="11" r="2.5" />
+      <path d="M5.5 17c.7-1.5 2-2.5 3.5-2.5s2.8 1 3.5 2.5" />
+      <line x1="14.5" y1="9" x2="19" y2="9" />
+      <line x1="14.5" y1="13" x2="18" y2="13" />
+    </svg>
+  );
+}
+
 function IconCollapseLeft({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -206,6 +219,7 @@ const AGENT_ITEMS: NavItem[] = [
   { label: "Brain", href: "/brain", icon: IconBrain },
   { label: "Memory", href: "/memory", icon: IconMemory },
   { label: "Rules", href: "/rules", icon: IconRules },
+  { label: "Profiles", href: "/profiles", icon: IconProfiles },
   { label: "Procedures", href: "/procedures", icon: IconProcedures },
   { label: "Simulations", href: "/simulations", icon: IconSimulations },
   { label: "Training", href: "/training", icon: IconTraining },

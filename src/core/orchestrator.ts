@@ -19,6 +19,7 @@ import { loadActiveRules, shouldRespond, logRuleApplication } from "./rules";
 import { refineQuery, bareIdShortCircuit } from "./refine";
 import { validateResponse, safeFallbackResponse, type Violation } from "./validate";
 import { loadActiveProcedures, matchProcedure, renderProcedureSection, logProcedureDispatch } from "./procedures";
+import { loadMerchantProfile } from "./merchant-profile";
 
 const client = new Anthropic({ apiKey: config.claude.apiKey, timeout: 120_000 });
 const MAX_TOOL_ROUNDS = 10;
@@ -57,15 +58,17 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
     "Processing merchant question"
   );
 
-  // ── Phase 0 — Gate (Pascal Model 2 / AID-82) ──────────────────────────
-  // Load active business rules in scope for this channel/merchant/bot, then
-  // evaluate any `behavioral` + `hard` rules with a predicate. If a rule
-  // blocks (e.g. "don't respond unless tagged"), short-circuit the pipeline.
-  const activeRules = await loadActiveRules({
-    businessId: merchantCtx.businessId ?? undefined,
-    channelId: msg.channelId,
-    botId: msg.botId,
-  });
+  // ── Phase 0 — Gate (Pascal Model 2 / AID-82) + Profile (AID-73) ───────
+  // Load active rules + merchant profile in parallel — both feed the system
+  // prompt at Phase 4. Both fail open: rules → empty array, profile → null.
+  const [activeRules, merchantProfile] = await Promise.all([
+    loadActiveRules({
+      businessId: merchantCtx.businessId ?? undefined,
+      channelId: msg.channelId,
+      botId: msg.botId,
+    }),
+    merchantCtx.businessId ? loadMerchantProfile(merchantCtx.businessId) : Promise.resolve(null),
+  ]);
 
   const gate = await shouldRespond(
     {
@@ -112,6 +115,7 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
       ids: refined.ids,
       confidence: refined.confidence,
       passthrough: refined.passthrough,
+      profileLoaded: !!merchantProfile,
       merchant: merchantCtx.businessName,
     },
     "Phase 1: query refined",
@@ -159,8 +163,8 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
     logProcedureDispatch(matchedProcedure.id);
   }
 
-  // Step 2: Build merchant-specific system prompt (rules + procedure included)
-  let systemPrompt = buildSystemPrompt(merchantCtx, activeRules);
+  // Step 2: Build merchant-specific system prompt (profile + rules + procedure)
+  let systemPrompt = buildSystemPrompt(merchantCtx, activeRules, merchantProfile);
   if (matchedProcedure) {
     systemPrompt += renderProcedureSection(matchedProcedure);
   }

@@ -326,9 +326,19 @@ export default function MerchantEditPage() {
 
       {/* Business IDs */}
       <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
-        <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">
-          Business IDs
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+            Business IDs
+          </h2>
+          {form.business_ids.length > 0 && (
+            <a
+              href={`/profiles/${form.business_ids[0]}`}
+              className="text-xs text-violet-600 hover:text-violet-700 font-medium"
+            >
+              View profile →
+            </a>
+          )}
+        </div>
 
         {/* Current IDs */}
         <div className="flex flex-wrap gap-2 mb-3">

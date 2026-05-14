@@ -1,6 +1,7 @@
 import { MerchantContext } from "../merchants/types";
 import { TeamMemberInfo } from "./tonder-team";
 import type { BusinessRule } from "./rules";
+import { renderMerchantProfileSection, type MerchantProfile } from "./merchant-profile";
 
 const today = new Date().toISOString().slice(0, 10);
 const dayOfWeek = new Date().toLocaleDateString("en-US", { weekday: "long" });
@@ -13,11 +14,18 @@ const dayOfWeek = new Date().toLocaleDateString("en-US", { weekday: "long" });
  * rendered as an `## Active rules` section that takes precedence over the
  * generic guidance below — hard rules are bolded so the model treats them
  * as absolutes.
+ *
+ * `profile` (AID-73) is the merchant's descriptive context — quirks,
+ * recurring issues, contacts, tone. Rendered between Merchant Context
+ * and Active Rules. Rules win on conflict (the profile section explicitly
+ * says so to Sonnet).
  */
 export function buildSystemPrompt(
   merchantCtx: MerchantContext,
   rules: BusinessRule[] = [],
+  profile: MerchantProfile | null = null,
 ): string {
+  const merchantProfileSection = renderMerchantProfileSection(profile);
   const activeRulesSection = buildActiveRulesSection(rules);
   return `You are Pascal, a payment assistant for ${merchantCtx.businessName} powered by Tonder.
 
@@ -32,7 +40,7 @@ You're professional, helpful, and empathetic. You speak like a knowledgeable sup
 ## Merchant Context
 - Merchant: ${merchantCtx.businessName}
 - Primary currency: MXN (Mexican Pesos)
-${activeRulesSection}
+${merchantProfileSection}${activeRulesSection}
 ## CRITICAL RULES — NEVER VIOLATE
 
 ### Rule 1: Provider Name Masking

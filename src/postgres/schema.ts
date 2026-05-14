@@ -309,6 +309,31 @@ CREATE TABLE IF NOT EXISTS pascal_simulation_jobs (
 );
 CREATE INDEX IF NOT EXISTS idx_pascal_sim_jobs_pending ON pascal_simulation_jobs (status, triggered_at) WHERE status = 'pending';
 
+-- ═══ Merchant Profiles (Pascal Model 2 — Milestone 4 / AID-73) ═══
+-- Per-business_id descriptive context Pascal injects into every system
+-- prompt. Closes the Memory layer alongside knowledge / rules / history.
+-- See PASCAL_MODEL_2.md §4 Memory Layer 2.
+CREATE TABLE IF NOT EXISTS pascal_merchant_profiles (
+  id                        SERIAL PRIMARY KEY,
+  business_id               INTEGER NOT NULL UNIQUE,
+  merchant_name             TEXT NOT NULL,
+  one_liner                 TEXT,
+  integration_model         TEXT,
+  active_products           TEXT[] DEFAULT ARRAY[]::TEXT[],
+  account_manager           TEXT,
+  primary_contacts          JSONB DEFAULT '[]'::jsonb,
+  quirks                    TEXT,
+  recurring_issues          TEXT,
+  tone_preference           TEXT,
+  recent_history_summary    TEXT,
+  recent_history_updated_at TIMESTAMPTZ,
+  notes                     TEXT,
+  created_by                TEXT,
+  created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at                TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pascal_merchant_profiles_biz ON pascal_merchant_profiles (business_id);
+
 -- ═══ Seed: Integration Knowledge Base Entries ═══
 ` +
 `
@@ -936,5 +961,54 @@ export async function ensureTables(): Promise<void> {
     logger.info("Day-one simulations seeded (idempotent)");
   } catch (err) {
     logger.warn({ err }, "Failed to seed simulations (table may not exist yet — non-fatal)");
+  }
+
+  // ═══ Pascal Model 2 / AID-73 — Seed day-one merchant profiles ═══
+  // Three profiles matching the merchants that have day-one rules
+  // (AID-82): Stadiobet (530), Campobet (120), Vitau (82). Idempotent on
+  // (business_id) UNIQUE. Team-facing edits go through /profiles dashboard.
+  try {
+    await pgQuery(`
+      INSERT INTO pascal_merchant_profiles
+        (business_id, merchant_name, one_liner, integration_model, active_products,
+         account_manager, quirks, tone_preference, created_by)
+      VALUES (530, 'Stadiobet',
+              'Sports betting operator — SPEI + cards, mid-tier volume',
+              'direct',
+              ARRAY['cards', 'spei'],
+              'unassigned',
+              NULL,
+              'Stadiobet contacts prefer formal Spanish (usted, not tú). No emojis. Matches the active tone rule.',
+              'yuyo')
+      ON CONFLICT (business_id) DO NOTHING;
+
+      INSERT INTO pascal_merchant_profiles
+        (business_id, merchant_name, one_liner, integration_model, active_products,
+         account_manager, quirks, recurring_issues, created_by)
+      VALUES (120, 'Campobet',
+              'Sports betting operator — SPEI primary, growing card volume',
+              'direct',
+              ARRAY['cards', 'spei'],
+              'unassigned',
+              NULL,
+              'Account creation issues always go through Geraldine. Do not attempt to diagnose those directly (matches the active escalation rule).',
+              'yuyo')
+      ON CONFLICT (business_id) DO NOTHING;
+
+      INSERT INTO pascal_merchant_profiles
+        (business_id, merchant_name, one_liner, integration_model, active_products,
+         account_manager, recurring_issues, created_by)
+      VALUES (82, 'Vitau',
+              'Health-finance fintech — high-value transactions, refund-heavy',
+              'direct',
+              ARRAY['cards'],
+              'Roberto Cárdenas',
+              'Refund requests over $5,000 USD equivalent always route to Roberto (FinOps). Create a Linear ticket and mention him. Do not attempt to process directly (matches the active escalation rule).',
+              'yuyo')
+      ON CONFLICT (business_id) DO NOTHING;
+    `);
+    logger.info("Day-one merchant profiles seeded (idempotent)");
+  } catch (err) {
+    logger.warn({ err }, "Failed to seed merchant profiles (table may not exist yet — non-fatal)");
   }
 }
