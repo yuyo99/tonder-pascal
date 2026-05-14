@@ -7,6 +7,7 @@ import { onConfigChange } from "../merchants/config-store";
 import { checkHeartbeat } from "../monitoring/heartbeat";
 import { runAllSyntheticChecks, cleanupOldResults } from "../monitoring/synthetic-checks";
 import { runNightlyLearn } from "./nightly-learn";
+import { runDirectiveExtract } from "./directive-extract";
 import { logger } from "../utils/logger";
 import { storeErrorFromCatch } from "../utils/error-store";
 
@@ -208,6 +209,21 @@ export function initScheduler(slackClient: WebClient): void {
     }
   }, { timezone: "America/Mexico_City" });
   logger.info("Nightly auto-learn scheduled (daily 2:00 AM Mexico City)");
+
+  // Directive auto-extraction — 1:30 AM Mexico City (AID-83, Pascal Model 2 M4)
+  // Mines pascal_conversation_log for team corrections, classifies via Haiku,
+  // queues proposed rules (active=false) in /training for human approval.
+  // Runs before nightly-learn so any newly-active rules are in effect by the
+  // time auto-learn promotes Q&A pairs.
+  cron.schedule("30 1 * * *", async () => {
+    try {
+      await runDirectiveExtract({ backfillDays: 1 });
+    } catch (err) {
+      logger.error({ err }, "Directive auto-extraction failed");
+      storeErrorFromCatch("scheduler", err, { action: "directive_extract" });
+    }
+  }, { timezone: "America/Mexico_City" });
+  logger.info("Directive auto-extraction scheduled (daily 1:30 AM Mexico City)");
 
   logger.info("Scheduler initialized — syncing scheduled reports from Postgres");
 }

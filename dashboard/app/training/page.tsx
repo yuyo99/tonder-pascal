@@ -12,7 +12,7 @@ const CATEGORIES = [
   { value: "faq", label: "FAQ" },
 ];
 
-type Tab = "add" | "bulk" | "gaps";
+type Tab = "add" | "bulk" | "gaps" | "proposed";
 
 interface BulkRow {
   category: string;
@@ -48,6 +48,7 @@ export default function TrainingPage() {
             { key: "add", label: "Add Entry" },
             { key: "bulk", label: "Bulk Import" },
             { key: "gaps", label: "Gap Queue" },
+            { key: "proposed", label: "Proposed Rules" },
           ] as const
         ).map((t) => (
           <button
@@ -63,6 +64,7 @@ export default function TrainingPage() {
       {tab === "add" && <AddEntryTab />}
       {tab === "bulk" && <BulkImportTab />}
       {tab === "gaps" && <GapQueueTab />}
+      {tab === "proposed" && <ProposedRulesTab />}
     </>
   );
 }
@@ -626,4 +628,192 @@ function PrimaryButton({
       {children}
     </button>
   );
+}
+
+/* ─── Proposed rules tab (AID-83) ────────────────────────────────────── */
+
+interface ProposedRule {
+  id: number;
+  rule_type: "behavioral" | "parsing" | "escalation" | "tone";
+  scope: "global" | "merchant" | "channel" | "bot";
+  scope_value: string | null;
+  instruction: string;
+  priority: "hard" | "soft";
+  source: string;
+  source_ref: string | null;
+  confidence: number;
+  created_at: string;
+  created_by: string | null;
+}
+
+const RULE_TYPE_BADGE: Record<ProposedRule["rule_type"], string> = {
+  behavioral: "t-badge-violet",
+  parsing: "t-badge-blue",
+  escalation: "t-badge-amber",
+  tone: "t-badge-gray",
+};
+
+function ProposedRulesTab() {
+  const [rules, setRules] = useState<ProposedRule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState<number | null>(null);
+
+  const fetchProposed = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/rules?source=auto:correction&active=false");
+      const data = await res.json();
+      setRules(data.rules || []);
+    } catch {
+      setRules([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchProposed(); }, [fetchProposed]);
+
+  async function handleApprove(id: number) {
+    setWorking(id);
+    try {
+      await fetch(`/api/rules/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: true }),
+      });
+      setRules((prev) => prev.filter((r) => r.id !== id));
+    } finally {
+      setWorking(null);
+    }
+  }
+
+  async function handleReject(id: number) {
+    setWorking(id);
+    try {
+      await fetch(`/api/rules/${id}`, { method: "DELETE" });
+      setRules((prev) => prev.filter((r) => r.id !== id));
+    } finally {
+      setWorking(null);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (rules.length === 0) {
+    return (
+      <div className="t-card text-center py-12 fade-in d1">
+        <h3 className="text-sm font-semibold text-gray-900 mb-1">No proposed rules</h3>
+        <p className="text-xs text-gray-400">
+          The nightly extractor (1:30 AM Mexico City) mines team corrections
+          from <code className="font-mono">pascal_conversation_log</code> and
+          queues them here. Active rules go straight to <a
+            href="/rules"
+            className="text-violet-600 hover:text-violet-700 underline underline-offset-2"
+          >/rules</a>.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="t-card t-card-flush overflow-hidden fade-in d1">
+      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">
+            {rules.length} proposed rule{rules.length === 1 ? "" : "s"}
+          </h3>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Pascal noticed these team corrections and turned them into draft rules. Approve, edit on <a href="/rules" className="text-violet-600 hover:text-violet-700 underline underline-offset-2">/rules</a>, or reject.
+          </p>
+        </div>
+        <button onClick={fetchProposed} className="preset">Refresh</button>
+      </div>
+      <table className="t-table">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Scope</th>
+            <th>Proposed instruction</th>
+            <th>Priority</th>
+            <th className="num">Confidence</th>
+            <th>Source</th>
+            <th className="num">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rules.map((r) => (
+            <tr key={r.id}>
+              <td><span className={`t-badge ${RULE_TYPE_BADGE[r.rule_type]}`}>{r.rule_type}</span></td>
+              <td>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs text-gray-500 uppercase tracking-wider">{r.scope}</span>
+                  {r.scope_value && (
+                    <code className="font-mono text-[11px] text-gray-600 truncate max-w-[160px]">
+                      {r.scope_value}
+                    </code>
+                  )}
+                </div>
+              </td>
+              <td className="max-w-[440px]">
+                <p className="text-gray-900 truncate">{r.instruction}</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  proposed {timeAgo(r.created_at)}
+                  {r.created_by ? ` · from ${r.created_by}` : ""}
+                </p>
+              </td>
+              <td>
+                <span className={`t-badge ${r.priority === "hard" ? "t-badge-red" : "t-badge-gray"}`}>
+                  {r.priority}
+                </span>
+              </td>
+              <td className="num text-gray-700">{(r.confidence * 100).toFixed(0)}%</td>
+              <td className="text-gray-400 text-[12px]">{r.source}</td>
+              <td className="num">
+                <div className="inline-flex items-center gap-1.5">
+                  <a
+                    href={`/rules?edit=${r.id}`}
+                    className="text-xs px-2 py-1 border border-gray-200 rounded-md text-gray-600 hover:border-gray-300 hover:text-gray-700 font-medium"
+                  >
+                    Edit
+                  </a>
+                  <button
+                    onClick={() => handleApprove(r.id)}
+                    disabled={working === r.id}
+                    className="text-xs px-3 py-1 bg-violet-600 text-white rounded-md hover:bg-violet-700 font-medium disabled:bg-violet-300"
+                  >
+                    {working === r.id ? "…" : "Approve"}
+                  </button>
+                  <button
+                    onClick={() => handleReject(r.id)}
+                    disabled={working === r.id}
+                    className="text-xs px-2 py-1 text-gray-400 hover:text-red-600"
+                  >
+                    Reject
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
 }

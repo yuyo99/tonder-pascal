@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 
 /* ─── Types ─────────────────────────────────────────────────────────── */
@@ -86,10 +87,29 @@ const emptyForm = {
 
 /* ─── Page ──────────────────────────────────────────────────────────── */
 
-export default function RulesPage() {
+// Next.js App Router requires useSearchParams to be wrapped in Suspense,
+// otherwise the whole page bails out of client-side navigation. Thin
+// wrapper to keep the body cleaner.
+export default function RulesPageWrapper() {
+  return (
+    <Suspense fallback={null}>
+      <RulesPage />
+    </Suspense>
+  );
+}
+
+function RulesPage() {
+  const searchParams = useSearchParams();
+  const editDeepLink = searchParams.get("edit");
+
+  // Default filters: when /rules is opened with ?edit=N from the Proposed
+  // Rules tab, show all rules (including inactive) so the target row is
+  // visible. Otherwise default to active-only.
+  const defaultActive = editDeepLink ? "" : "true";
+
   const [rules, setRules] = useState<BusinessRule[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ rule_type: "", scope: "", active: "true" });
+  const [filters, setFilters] = useState({ rule_type: "", scope: "", active: defaultActive });
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -122,6 +142,19 @@ export default function RulesPage() {
   useEffect(() => {
     fetchRules();
   }, [fetchRules]);
+
+  // Deep-link: when /rules is opened with ?edit=<id> (from the Proposed
+  // Rules tab in /training), find that rule once it loads and open the
+  // edit modal automatically. Single-shot — we only do this on the first
+  // load that includes the target rule.
+  useEffect(() => {
+    if (!editDeepLink || rules.length === 0 || showModal) return;
+    const target = rules.find((r) => String(r.id) === editDeepLink);
+    if (target) {
+      openEdit(target);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editDeepLink, rules.length]);
 
   const stats = {
     total: rules.length,
