@@ -22,6 +22,9 @@ export async function GET() {
       FROM pascal_merchant_channels mc
       LEFT JOIN pascal_partner_bots pb ON pb.channel_id = mc.id
       LEFT JOIN pascal_scheduled_reports sr ON sr.channel_id = mc.id
+      -- Hide synthetic simulation channels (Pascal Model 2 / AID-80) from
+      -- the merchants list; they're internal regression-test fixtures.
+      WHERE mc.channel_id NOT LIKE 'sim:%'
       GROUP BY mc.id
       ORDER BY mc.label
     `);

@@ -126,6 +126,17 @@ function IconProcedures({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
+function IconSimulations({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      {/* beaker / lab flask — "regression simulations" */}
+      <path d="M9 3v6l-4.5 9a1 1 0 00.87 1.5h13.26a1 1 0 00.87-1.5L15 9V3" />
+      <path d="M8 3h8" />
+      <path d="M7 15h10" />
+    </svg>
+  );
+}
+
 function IconCollapseLeft({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -196,6 +207,7 @@ const AGENT_ITEMS: NavItem[] = [
   { label: "Memory", href: "/memory", icon: IconMemory },
   { label: "Rules", href: "/rules", icon: IconRules },
   { label: "Procedures", href: "/procedures", icon: IconProcedures },
+  { label: "Simulations", href: "/simulations", icon: IconSimulations },
   { label: "Training", href: "/training", icon: IconTraining },
   { label: "Merchant Chats", href: "/merchants", icon: IconChats },
   { label: "People", href: "/people", icon: IconPeople },

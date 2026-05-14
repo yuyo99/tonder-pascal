@@ -8,6 +8,7 @@ import { checkHeartbeat } from "../monitoring/heartbeat";
 import { runAllSyntheticChecks, cleanupOldResults } from "../monitoring/synthetic-checks";
 import { runNightlyLearn } from "./nightly-learn";
 import { runDirectiveExtract } from "./directive-extract";
+import { runSuite as runSimulationSuite, startJobPoller as startSimJobPoller } from "./simulation-runner";
 import { logger } from "../utils/logger";
 import { storeErrorFromCatch } from "../utils/error-store";
 
@@ -224,6 +225,26 @@ export function initScheduler(slackClient: WebClient): void {
     }
   }, { timezone: "America/Mexico_City" });
   logger.info("Directive auto-extraction scheduled (daily 1:30 AM Mexico City)");
+
+  // Simulation regression suite — 3:00 AM Mexico City (AID-80, Pascal Model 2 M6)
+  // Runs all active sims nightly. Failures auto-open Linear tickets on SOS
+  // team (on transition into fail only — chronic-fail sims won't spam).
+  // Runs after auto-learn (2 AM) and directive-extract (1:30 AM) so any new
+  // rules/knowledge are in effect for the tests.
+  cron.schedule("0 3 * * *", async () => {
+    try {
+      await runSimulationSuite({ onlyActive: true });
+    } catch (err) {
+      logger.error({ err }, "Simulation suite failed to run");
+      storeErrorFromCatch("scheduler", err, { action: "simulation_suite" });
+    }
+  }, { timezone: "America/Mexico_City" });
+  logger.info("Simulation suite scheduled (daily 3:00 AM Mexico City)");
+
+  // Simulation job poller — picks up pending pascal_simulation_jobs rows
+  // (inserted by the dashboard's "Run now" button) every 10s and executes
+  // them. Same process as the cron suite; no extra service.
+  startSimJobPoller();
 
   logger.info("Scheduler initialized — syncing scheduled reports from Postgres");
 }

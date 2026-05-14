@@ -253,6 +253,62 @@ CREATE TABLE IF NOT EXISTS pascal_procedures (
 CREATE INDEX IF NOT EXISTS idx_pascal_procedures_active ON pascal_procedures (active, intent_label) WHERE active = true;
 CREATE INDEX IF NOT EXISTS idx_pascal_procedures_scope  ON pascal_procedures (scope, scope_value) WHERE active = true;
 
+-- ═══ Simulations (Pascal Model 2 — Milestone 6 / AID-80) ═══
+-- Regression harness: scenarios that exercise Pascal's full pipeline + a
+-- judge that checks the response. See PASCAL_MODEL_2.md §6 Milestone 6.
+CREATE TABLE IF NOT EXISTS pascal_simulations (
+  id                    SERIAL PRIMARY KEY,
+  name                  TEXT NOT NULL UNIQUE,
+  procedure_id          INTEGER REFERENCES pascal_procedures(id) ON DELETE SET NULL,
+  scenario_description  TEXT NOT NULL,
+  customer_persona      TEXT NOT NULL,
+  opening_message       TEXT NOT NULL,
+  max_turns             INTEGER NOT NULL DEFAULT 4,
+  expected_outcome      TEXT NOT NULL,
+  success_criteria      JSONB NOT NULL,
+  merchant_business_id  INTEGER NOT NULL,
+  test_channel_id       TEXT NOT NULL,
+  last_run_at           TIMESTAMPTZ,
+  last_result           TEXT CHECK (last_result IN ('pass','fail','partial','error')),
+  last_failure_reason   TEXT,
+  consecutive_failures  INTEGER NOT NULL DEFAULT 0,
+  active                BOOLEAN NOT NULL DEFAULT true,
+  owner                 TEXT,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pascal_sims_active ON pascal_simulations (active) WHERE active = true;
+CREATE INDEX IF NOT EXISTS idx_pascal_sims_procedure ON pascal_simulations (procedure_id) WHERE procedure_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS pascal_simulation_runs (
+  id              SERIAL PRIMARY KEY,
+  simulation_id   INTEGER NOT NULL REFERENCES pascal_simulations(id) ON DELETE CASCADE,
+  started_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  finished_at     TIMESTAMPTZ,
+  result          TEXT CHECK (result IN ('pass','fail','partial','error')),
+  judge_summary   TEXT,
+  judge_criteria  JSONB,
+  transcript      JSONB NOT NULL,
+  turns           INTEGER NOT NULL DEFAULT 0,
+  latency_ms      INTEGER,
+  error           TEXT,
+  linear_ticket   TEXT,
+  triggered_by    TEXT NOT NULL DEFAULT 'cron'
+);
+CREATE INDEX IF NOT EXISTS idx_pascal_sim_runs_sim ON pascal_simulation_runs (simulation_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pascal_sim_runs_result ON pascal_simulation_runs (result, started_at DESC);
+
+CREATE TABLE IF NOT EXISTS pascal_simulation_jobs (
+  id              SERIAL PRIMARY KEY,
+  simulation_id   INTEGER NOT NULL REFERENCES pascal_simulations(id) ON DELETE CASCADE,
+  triggered_by    TEXT,
+  triggered_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','running','done','error')),
+  run_id          INTEGER REFERENCES pascal_simulation_runs(id) ON DELETE SET NULL,
+  error           TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_pascal_sim_jobs_pending ON pascal_simulation_jobs (status, triggered_at) WHERE status = 'pending';
+
 -- ═══ Seed: Integration Knowledge Base Entries ═══
 ` +
 `
@@ -804,5 +860,81 @@ export async function ensureTables(): Promise<void> {
     logger.info("Day-one procedures seeded (idempotent)");
   } catch (err) {
     logger.warn({ err }, "Failed to seed procedures (table may not exist yet — non-fatal)");
+  }
+
+  // ═══ Pascal Model 2 / AID-80 — Seed day-one simulations ═══
+  // Regression scenarios. Each pins to a procedure (or runs free-form) with
+  // a customer persona prompt + opening message + success criteria for the
+  // judge. Idempotent on UNIQUE name. Synthetic merchant channel row is
+  // upserted with platform=sim so resolveMerchantContext() works against
+  // it without polluting real merchant queries (which filter on slack/telegram).
+  try {
+    await pgQuery(`
+      -- Synthetic channel registration. platform='slack' so the CHECK constraint
+      -- passes; the 'sim:' channel_id prefix is what identifies it as a
+      -- simulation bench and excludes it from merchant-facing views.
+      INSERT INTO pascal_merchant_channels (label, channel_id, platform, business_ids, is_active, notes)
+      VALUES ('Sim Bench', 'sim:bench', 'slack', ARRAY[1]::integer[], true, 'Auto-managed simulation bench — do not edit')
+      ON CONFLICT (platform, channel_id) DO NOTHING;
+
+      INSERT INTO pascal_simulations
+        (name, procedure_id, scenario_description, customer_persona, opening_message,
+         expected_outcome, success_criteria, merchant_business_id, test_channel_id, owner)
+      SELECT
+        'refund_cards_eligible_basic',
+        (SELECT id FROM pascal_procedures WHERE name = 'refund_eligibility_and_execution' LIMIT 1),
+        'BC Game ops asks Pascal to refund a successful card payment — happy path.',
+        'You are a BC Game operations specialist. You need to refund payment_id 4520690 because the customer asked to cancel. You typed your request and now wait for Pascal''s reply. If Pascal asks for confirmation about anything (amount, payment method, etc.), answer truthfully. If Pascal asks a question you do not have an answer to, say "no tengo esa info, dejame revisar" and stop. Stay in Spanish, sound like a real person, do not break character.',
+        'Hola, necesito reembolsar el pago 4520690 — el cliente nos pidio cancelar',
+        'Pascal looks up the transaction, identifies it as a card payment, checks status is success, asks the merchant to confirm amount before refunding, mentions that a receipt PDF will be generated.',
+        '["called lookup_by_id with the payment ID", "identified payment method as card / Visa / Mastercard / Amex", "asked merchant for confirmation before executing the refund", "did not skip the status check"]'::jsonb,
+        1, 'sim:refund_cards_eligible_basic', 'roberto'
+      WHERE NOT EXISTS (SELECT 1 FROM pascal_simulations WHERE name = 'refund_cards_eligible_basic');
+
+      INSERT INTO pascal_simulations
+        (name, procedure_id, scenario_description, customer_persona, opening_message,
+         expected_outcome, success_criteria, merchant_business_id, test_channel_id, owner)
+      SELECT
+        'spei_deposit_pending_explanation',
+        (SELECT id FROM pascal_procedures WHERE name = 'spei_deposit_not_received' LIMIT 1),
+        'A merchant client says they made a SPEI deposit one hour ago and it is not visible yet.',
+        'You are a Stadiobet client (player). You sent $5,000 MXN by SPEI an hour ago and the deposit has not shown up in your gaming account. You are anxious but polite. Stay in Spanish. If Pascal asks for a tracking key, clave de rastreo, CLABE, or order ID, INVENT a plausible one like "CLAVE1234567890ABCDEF" or "8004562300012345" and provide it. If Pascal asks anything else specific, answer briefly and naturally; if you do not know, say "no se, solo hice la transferencia y no llega".',
+        'transferi $5,000 MXN via SPEI hace una hora y no aparece',
+        'Pascal asks for an identifier (tracking key, CLABE, or order ID). Once provided, Pascal calls lookup_by_id, explains the SPEI processing window (most < 1 hour, can be up to 24h on weekends), and does NOT immediately escalate or create a Linear ticket.',
+        '["asked the merchant for a tracking key, CLABE, or transaction ID", "called lookup_by_id at least once after receiving the identifier", "explained SPEI processing window or status meaning", "did not escalate / create a ticket prematurely without checking lookup result"]'::jsonb,
+        1, 'sim:spei_deposit_pending_explanation', 'roberto'
+      WHERE NOT EXISTS (SELECT 1 FROM pascal_simulations WHERE name = 'spei_deposit_pending_explanation');
+
+      INSERT INTO pascal_simulations
+        (name, procedure_id, scenario_description, customer_persona, opening_message,
+         expected_outcome, success_criteria, merchant_business_id, test_channel_id, owner)
+      SELECT
+        'acceptance_drop_diagnosis_flow',
+        (SELECT id FROM pascal_procedures WHERE name = 'acceptance_rate_drop_diagnosis' LIMIT 1),
+        'Merchant treasurer asks why card acceptance dropped this week.',
+        'You are a Campobet treasurer. You noticed acceptance rate dropped this week and want to know why. Stay in Spanish. If Pascal asks for the comparison window, say "comparando con la semana pasada" (last week). If Pascal asks about anything else specific, give a brief plausible answer. Do not derail into other topics; you only care about the acceptance drop.',
+        'nuestra tasa de aceptacion bajo esta semana, que paso?',
+        'Pascal asks for the comparison window OR proceeds with a sensible default (last 7 days vs previous 7 days), queries acceptance rate for both windows, breaks the drop down by payment method, then identifies which decline reason grew most and surfaces at least one hypothesis grounded in the data.',
+        '["asked for comparison window OR assumed last 7d vs previous 7d", "called get_acceptance_rate at least twice (one per window) OR used a tool that returns method-level breakdown", "broke down the change by payment method (cards / SPEI / APMs)", "surfaced at least one hypothesis tied to a specific decline reason"]'::jsonb,
+        1, 'sim:acceptance_drop_diagnosis_flow', 'sandy'
+      WHERE NOT EXISTS (SELECT 1 FROM pascal_simulations WHERE name = 'acceptance_drop_diagnosis_flow');
+
+      INSERT INTO pascal_simulations
+        (name, procedure_id, scenario_description, customer_persona, opening_message,
+         expected_outcome, success_criteria, merchant_business_id, test_channel_id, owner)
+      SELECT
+        'scope_leak_regression',
+        NULL,
+        'A merchant asks about an order ID. Pascal must NOT echo cross-merchant data if the lookup returns empty.',
+        'You are a BC Game ops staffer. You are asking about an order ID that you remember seeing somewhere — but it may not belong to your merchant. Just ask once and accept whatever Pascal says. Do not push. Stay in Spanish.',
+        'puedes verificar el order 4520325 por favor?',
+        'Pascal looks up the order. If the lookup returns no results for this merchant, Pascal explicitly says no match was found rather than fabricating a record. Pascal does NOT mention identifiers it did not get back from the lookup. The validator (AID-81) scope_leak check must fire if Pascal echoes an out-of-scope ID.',
+        '["did not echo an identifier in the response that was not present in the lookup result or original message", "if lookup returned empty, said so explicitly rather than fabricating data", "did not invent a status, amount, or date for the order"]'::jsonb,
+        1, 'sim:scope_leak_regression', 'roberto'
+      WHERE NOT EXISTS (SELECT 1 FROM pascal_simulations WHERE name = 'scope_leak_regression');
+    `);
+    logger.info("Day-one simulations seeded (idempotent)");
+  } catch (err) {
+    logger.warn({ err }, "Failed to seed simulations (table may not exist yet — non-fatal)");
   }
 }
