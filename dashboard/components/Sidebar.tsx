@@ -101,6 +101,16 @@ function IconAIChat({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
+function IconRules({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      {/* shield + check — "rules guard Pascal's behavior" */}
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  );
+}
+
 function IconCollapseLeft({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -169,6 +179,7 @@ const AGENT_ITEMS: NavItem[] = [
   { label: "Analytics", href: "/analytics", icon: IconChart },
   { label: "Brain", href: "/brain", icon: IconBrain },
   { label: "Memory", href: "/memory", icon: IconMemory },
+  { label: "Rules", href: "/rules", icon: IconRules },
   { label: "Training", href: "/training", icon: IconTraining },
   { label: "Merchant Chats", href: "/merchants", icon: IconChats },
   { label: "People", href: "/people", icon: IconPeople },
