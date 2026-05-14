@@ -228,6 +228,31 @@ CREATE TABLE IF NOT EXISTS pascal_rule_applications (
 CREATE INDEX IF NOT EXISTS idx_pascal_rule_app_rule ON pascal_rule_applications (rule_id);
 CREATE INDEX IF NOT EXISTS idx_pascal_rule_app_conv ON pascal_rule_applications (conversation_id);
 
+-- ═══ Procedures (Pascal Model 2 — Milestone 6 / AID-79) ═══
+-- Multi-step playbooks Pascal injects into the system prompt when intent
+-- matches. See PASCAL_MODEL_2.md §6 Milestone 6 AID-79.
+CREATE TABLE IF NOT EXISTS pascal_procedures (
+  id               SERIAL PRIMARY KEY,
+  name             TEXT NOT NULL UNIQUE,
+  trigger_pattern  TEXT NOT NULL,
+  intent_label     TEXT,
+  steps_markdown   TEXT NOT NULL,
+  tool_bindings    JSONB NOT NULL DEFAULT '[]',
+  required_inputs  JSONB NOT NULL DEFAULT '[]',
+  success_criteria TEXT,
+  scope            TEXT NOT NULL DEFAULT 'global' CHECK (scope IN ('global','merchant','channel')),
+  scope_value      TEXT,
+  active           BOOLEAN NOT NULL DEFAULT true,
+  owner            TEXT,
+  version          INTEGER NOT NULL DEFAULT 1,
+  dispatch_count   INTEGER NOT NULL DEFAULT 0,
+  last_dispatched_at TIMESTAMPTZ,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pascal_procedures_active ON pascal_procedures (active, intent_label) WHERE active = true;
+CREATE INDEX IF NOT EXISTS idx_pascal_procedures_scope  ON pascal_procedures (scope, scope_value) WHERE active = true;
+
 -- ═══ Seed: Integration Knowledge Base Entries ═══
 ` +
 `
@@ -684,5 +709,100 @@ export async function ensureTables(): Promise<void> {
     logger.info("Day-one business rules seeded (idempotent)");
   } catch (err) {
     logger.warn({ err }, "Failed to seed business rules (table may not exist yet — non-fatal)");
+  }
+
+  // ═══ Pascal Model 2 / AID-79 — Seed day-one procedures ═══
+  // Multi-step playbooks Pascal dispatches when intent_label matches.
+  // Each is idempotent on the `name` UNIQUE constraint. To revise a
+  // procedure's body in production, run UPDATE directly on the row.
+  try {
+    await pgQuery(`
+      INSERT INTO pascal_procedures
+        (name, intent_label, trigger_pattern, steps_markdown, tool_bindings, required_inputs, success_criteria, scope, owner)
+      VALUES (
+        'refund_eligibility_and_execution',
+        'refund',
+        '\\m(refund|reembolso|devoluci|chargeback)\\M',
+        '## Refund procedure' || chr(10) || chr(10) ||
+        'When a merchant asks about a refund, follow this sequence:' || chr(10) || chr(10) ||
+        '1. **Use lookup_by_id first** with the transaction ID the merchant provided. Never proceed without confirming the transaction exists.' || chr(10) || chr(10) ||
+        '2. **Check the payment method**:' || chr(10) ||
+        '   - Cards (Visa/Mastercard/Amex) → refunds allowed' || chr(10) ||
+        '   - SPEI / Oxxopay / MercadoPago / Cash Vouchers → **refunds are NOT supported via the platform.** Tell the merchant this clearly. SPEI/voucher refunds must be handled bank-side.' || chr(10) || chr(10) ||
+        '3. **Check the transaction status** from the lookup:' || chr(10) ||
+        '   - \`success\` → eligible for refund' || chr(10) ||
+        '   - \`pending\` / \`processing\` → tell the merchant to wait for it to settle first' || chr(10) ||
+        '   - \`failed\` / \`declined\` → no refund needed (no money moved). Explain.' || chr(10) || chr(10) ||
+        '4. **Check time window**: most card refunds work within 90 days of the original transaction. Beyond that, the merchant must contact the issuing bank directly.' || chr(10) || chr(10) ||
+        '5. **If eligible**: confirm the refund amount with the merchant before acting. Use \`generate_refund_receipt\` to produce the PDF + log.' || chr(10) || chr(10) ||
+        '6. **High-value (>$5,000 USD equivalent)**: do NOT process directly. Create a Linear ticket and mention Roberto (FinOps).' || chr(10) || chr(10) ||
+        'Always show the merchant what you are about to do BEFORE you do it. Refunds are irreversible.',
+        '["lookup_by_id","generate_refund_receipt","create_internal_ticket"]'::jsonb,
+        '["transaction_id"]'::jsonb,
+        'merchant receives a clear answer about eligibility, and if eligible, a refund receipt PDF is generated or a Linear ticket is opened',
+        'global',
+        'roberto'
+      )
+      ON CONFLICT (name) DO NOTHING;
+
+      INSERT INTO pascal_procedures
+        (name, intent_label, trigger_pattern, steps_markdown, tool_bindings, required_inputs, success_criteria, scope, owner)
+      VALUES (
+        'spei_deposit_not_received',
+        'deposit_investigation',
+        '\\m(spei|deposit|deposito|clabe|clave de rastreo|tracking key|no llega|missing deposit)\\M',
+        '## SPEI deposit investigation' || chr(10) || chr(10) ||
+        'When a merchant asks "I made a SPEI deposit but it''s not showing":' || chr(10) || chr(10) ||
+        '1. **Get the deposit identifier.** Ask for one of: tracking key (clave de rastreo), CLABE, payment_id, or order_id. If none provided, ask before proceeding.' || chr(10) || chr(10) ||
+        '2. **Use lookup_by_id** to find the transaction across all systems (deposits, SPEI deposits, withdrawals).' || chr(10) || chr(10) ||
+        '3. **Interpret the result**:' || chr(10) ||
+        '   - Found with status \`success\` → already processed; ask which channel/dashboard they were checking' || chr(10) ||
+        '   - Found with status \`pending\` → tell them the expected window. Most SPEI < 1 hour but can take up to 24h on weekends.' || chr(10) ||
+        '   - Found with status \`failed\` / \`expired\` → explain the reason and what to do (re-create the order, or contact their bank)' || chr(10) ||
+        '   - **Not found** → check time-of-day:' || chr(10) ||
+        '     • During SPEI hours (Mon–Sat 06:00–17:30 MX) → wait 30 minutes, then escalate' || chr(10) ||
+        '     • Outside SPEI hours → tell them to wait until next business day' || chr(10) || chr(10) ||
+        '4. **If >24h old and still missing**: create an internal ticket and mention Roberto (FinOps). Include the tracking key + CLABE + merchant name in the ticket.' || chr(10) || chr(10) ||
+        'Never invent a transaction status. Only report what \`lookup_by_id\` returns. If the lookup is empty, say so explicitly.',
+        '["lookup_by_id","create_internal_ticket"]'::jsonb,
+        '["tracking_key_or_clabe_or_id"]'::jsonb,
+        'merchant gets a clear status or a clear next-step (wait until X, contact bank, or escalation ticket opened with Roberto)',
+        'global',
+        'roberto'
+      )
+      ON CONFLICT (name) DO NOTHING;
+
+      INSERT INTO pascal_procedures
+        (name, intent_label, trigger_pattern, steps_markdown, tool_bindings, required_inputs, success_criteria, scope, owner)
+      VALUES (
+        'acceptance_rate_drop_diagnosis',
+        'acceptance_diagnosis',
+        '\\m(acceptance|aceptaci|approval|rate drop|baja|cayo|tasa de aceptaci|declines? subi)\\M',
+        '## Acceptance rate drop diagnosis' || chr(10) || chr(10) ||
+        'When a merchant asks why their acceptance rate dropped:' || chr(10) || chr(10) ||
+        '1. **Get the comparison window.** Ask: "compared to which period?" (last week, last month, last quarter). Default to last 7 days vs. previous 7 days if unclear.' || chr(10) || chr(10) ||
+        '2. **Use \`get_acceptance_rate\`** for both windows. Calculate the delta in percentage points.' || chr(10) || chr(10) ||
+        '3. **Break down by payment method** to identify which one dropped:' || chr(10) ||
+        '   - Cards (Visa/Mastercard/Amex)' || chr(10) ||
+        '   - SPEI' || chr(10) ||
+        '   - APMs (Oxxopay / MercadoPago / etc.)' || chr(10) || chr(10) ||
+        '4. **For the method that dropped most, use \`get_decline_breakdown\`** to identify which decline reason grew most: insufficient funds, do not honor, fraud rejected, etc.' || chr(10) || chr(10) ||
+        '5. **Surface the top 3 hypotheses** based on the breakdown:' || chr(10) ||
+        '   - If "do not honor" grew: likely issuing-bank policy change → ask about affected BINs' || chr(10) ||
+        '   - If "fraud rejected" grew: likely 3DS friction or volume spike from a new geography → suggest checking \`get_3ds_breakdown\`' || chr(10) ||
+        '   - If "insufficient funds" grew: market-level, less actionable; report the trend without diagnosing' || chr(10) || chr(10) ||
+        '6. **Always quote the actual numbers** from the tool outputs. Do not estimate or extrapolate.' || chr(10) || chr(10) ||
+        'Escalate to the merchant''s integration manager if the drop is >10 percentage points and you cannot identify a clear cause from the breakdown.',
+        '["get_acceptance_rate","get_decline_breakdown","get_3ds_breakdown","create_internal_ticket"]'::jsonb,
+        '["date_range"]'::jsonb,
+        'merchant gets a clear answer: which method dropped, by how much, the top decline reason, and 1-3 hypotheses with confidence',
+        'global',
+        'sandy'
+      )
+      ON CONFLICT (name) DO NOTHING;
+    `);
+    logger.info("Day-one procedures seeded (idempotent)");
+  } catch (err) {
+    logger.warn({ err }, "Failed to seed procedures (table may not exist yet — non-fatal)");
   }
 }

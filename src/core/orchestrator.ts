@@ -18,6 +18,7 @@ import { evaluateAndRecord } from "../monitoring/self-qa";
 import { loadActiveRules, shouldRespond, logRuleApplication } from "./rules";
 import { refineQuery, bareIdShortCircuit } from "./refine";
 import { validateResponse, safeFallbackResponse, type Violation } from "./validate";
+import { loadActiveProcedures, matchProcedure, renderProcedureSection, logProcedureDispatch } from "./procedures";
 
 const client = new Anthropic({ apiKey: config.claude.apiKey, timeout: 120_000 });
 const MAX_TOOL_ROUNDS = 10;
@@ -133,8 +134,36 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
     // formatting error, empty results — Sonnet will handle it instead).
   }
 
-  // Step 2: Build merchant-specific system prompt (rules included)
+  // ── Phase 4a — Procedure dispatch (Pascal Model 2 / AID-79) ──────────
+  // Look for a matching playbook to inject into the system prompt. At most
+  // one procedure fires per message — most-specific scope wins.
+  const procedures = await loadActiveProcedures({
+    businessId: merchantCtx.businessId ?? undefined,
+    channelId: msg.channelId,
+  });
+  const matchedProcedure = matchProcedure(
+    procedures,
+    refined.passthrough ? undefined : refined.intent,
+    refined.canonical_query || msg.text,
+  );
+  if (matchedProcedure) {
+    logger.info(
+      {
+        procedure: matchedProcedure.name,
+        procedureId: matchedProcedure.id,
+        intent: refined.intent,
+        merchant: merchantCtx.businessName,
+      },
+      "Phase 4a: procedure dispatched",
+    );
+    logProcedureDispatch(matchedProcedure.id);
+  }
+
+  // Step 2: Build merchant-specific system prompt (rules + procedure included)
   let systemPrompt = buildSystemPrompt(merchantCtx, activeRules);
+  if (matchedProcedure) {
+    systemPrompt += renderProcedureSection(matchedProcedure);
+  }
 
   // Step 2b: Inject relevant knowledge into system prompt (semantic search + keyword fallback).
   // Uses the refined canonical_query when available — shorthand expansion gives

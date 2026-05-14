@@ -111,6 +111,21 @@ function IconRules({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
+function IconProcedures({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      {/* numbered playbook — "step-by-step procedures Pascal follows" */}
+      <path d="M9 12h6" />
+      <path d="M9 16h6" />
+      <path d="M9 8h6" />
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <path d="M4 9h2" />
+      <path d="M4 13h2" />
+      <path d="M4 17h2" />
+    </svg>
+  );
+}
+
 function IconCollapseLeft({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -180,6 +195,7 @@ const AGENT_ITEMS: NavItem[] = [
   { label: "Brain", href: "/brain", icon: IconBrain },
   { label: "Memory", href: "/memory", icon: IconMemory },
   { label: "Rules", href: "/rules", icon: IconRules },
+  { label: "Procedures", href: "/procedures", icon: IconProcedures },
   { label: "Training", href: "/training", icon: IconTraining },
   { label: "Merchant Chats", href: "/merchants", icon: IconChats },
   { label: "People", href: "/people", icon: IconPeople },
