@@ -17,6 +17,7 @@ import { storeErrorFromCatch } from "../utils/error-store";
 import { evaluateAndRecord } from "../monitoring/self-qa";
 import { loadActiveRules, shouldRespond, logRuleApplication } from "./rules";
 import { refineQuery, bareIdShortCircuit } from "./refine";
+import { validateResponse, safeFallbackResponse, type Violation } from "./validate";
 
 const client = new Anthropic({ apiKey: config.claude.apiKey, timeout: 120_000 });
 const MAX_TOOL_ROUNDS = 10;
@@ -25,6 +26,8 @@ const HANDLER_TIMEOUT_MS = 300_000; // 5 min max — bulk queries (54 IDs) need 
 interface ToolLoopResult {
   answer: string;
   toolCalls: { tool: string; input: Record<string, unknown> }[];
+  /** Sanitized tool outputs in call order — used by Phase 5 validation (AID-81). */
+  toolOutputs: string[];
   rounds: number;
   attachments?: { buffer: Buffer; filename: string }[];
 }
@@ -223,7 +226,7 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
     }
 
     error = `${errType}: ${errMsg.slice(0, 500)}`;
-    result = { answer, toolCalls: [], rounds: 0 };
+    result = { answer, toolCalls: [], toolOutputs: [], rounds: 0 };
   }
 
   // Step 4: Final audit — catch any leaked provider names
@@ -234,6 +237,54 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
       "Provider names leaked in response — sanitizing"
     );
     result.answer = sanitizeToolOutput(result.answer);
+  }
+
+  // ── Phase 5 — Pre-send validation (Pascal Model 2 / AID-81) ──────────
+  // Three checks against the draft: scope leaks, fabricated numbers,
+  // hard-rule output constraints. Never blocks message delivery on its own
+  // errors — only on a confirmed critical violation.
+  let validationViolations: Violation[] = [];
+  if (result.answer && !error) {
+    try {
+      const validation = await validateResponse({
+        draft: result.answer,
+        toolOutputs: result.toolOutputs,
+        originalMessage: msg.text,
+        businessIds: merchantCtx.businessIds ?? [],
+        activeRules,
+      });
+      validationViolations = validation.violations;
+
+      if (validation.violations.length > 0) {
+        logger.warn(
+          {
+            merchant: merchantCtx.businessName,
+            violations: validation.violations.map((v) => ({
+              type: v.type,
+              severity: v.severity,
+              details: v.details,
+            })),
+          },
+          "Phase 5 validation: violations detected",
+        );
+      }
+
+      if (validation.blocked) {
+        const fallback = safeFallbackResponse(validation.violations);
+        logger.warn(
+          {
+            merchant: merchantCtx.businessName,
+            blockedDraft: result.answer.slice(0, 200),
+            violations: validation.violations,
+          },
+          "Phase 5 validation: BLOCKED — replacing draft with safe fallback",
+        );
+        result.answer = fallback;
+      }
+    } catch (err) {
+      // Validator failures never block the merchant from getting an answer.
+      logger.warn({ err }, "validateResponse threw — passing draft through");
+    }
   }
 
   // Step 5: Track interaction for daily report (in-memory)
@@ -269,7 +320,15 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
     "Orchestrator returning response"
   );
 
-  // Self-QA: evaluate and record (fire-and-forget)
+  // Self-QA: evaluate and record (fire-and-forget). Validation failures are
+  // appended to failureReason so /monitoring → self-QA surfaces them.
+  const validationReason = validationViolations.length > 0
+    ? `validation:${validationViolations.map((v) => `${v.severity}:${v.type}`).join(",")}`
+    : null;
+  const combinedFailure = [error ? String(error) : null, validationReason]
+    .filter(Boolean)
+    .join(" | ") || null;
+
   evaluateAndRecord({
     platform: msg.platform,
     channelId: msg.channelId,
@@ -278,8 +337,8 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
     messageType: msg.ambient ? "ambient" : "mention",
     latencyMs,
     responded: !!result.answer,
-    fallbackUsed: !!error,
-    failureReason: error ? String(error) : null,
+    fallbackUsed: !!error || validationViolations.some((v) => v.severity === "critical"),
+    failureReason: combinedFailure,
     rawInput: msg.text?.slice(0, 2000) ?? "",
     toolsCalled: result.toolCalls.map((t) => t.tool),
     rounds: result.rounds,
@@ -361,6 +420,7 @@ async function tryBareIdShortCircuit(
       {
         answer,
         toolCalls: [{ tool: "lookup_by_id", input: { id, fast_path: true } }],
+        toolOutputs: [lookupJson],
         rounds: 0,
       },
       latencyMs,
@@ -502,6 +562,7 @@ async function runToolLoop(
   ];
 
   const toolCalls: { tool: string; input: Record<string, unknown> }[] = [];
+  const toolOutputs: string[] = [];
   let rounds = 0;
 
   while (rounds < MAX_TOOL_ROUNDS) {
@@ -524,7 +585,7 @@ async function runToolLoop(
 
     if (toolBlocks.length === 0) {
       const answer = textBlocks.map((b) => b.text).join("\n") || "I couldn't generate a response.";
-      return { answer, toolCalls, rounds };
+      return { answer, toolCalls, toolOutputs, rounds };
     }
 
     logger.info(
@@ -541,6 +602,7 @@ async function runToolLoop(
 
       const rawResult = await executeTool(toolBlock.name, input, merchantCtx);
       const sanitized = sanitizeToolOutput(rawResult);
+      toolOutputs.push(sanitized);
 
       toolResults.push({
         type: "tool_result",
@@ -553,13 +615,14 @@ async function runToolLoop(
 
     if (response.stop_reason === "end_turn") {
       const answer = textBlocks.map((b) => b.text).join("\n") || "I couldn't generate a response.";
-      return { answer, toolCalls, rounds };
+      return { answer, toolCalls, toolOutputs, rounds };
     }
   }
 
   return {
     answer: "I needed too many steps to answer that. Please try a more specific question.",
     toolCalls,
+    toolOutputs,
     rounds,
   };
 }
