@@ -14,6 +14,7 @@ import { config } from "../../config";
 import { logger } from "../../utils/logger";
 import { storeErrorFromCatch, storeError } from "../../utils/error-store";
 import { evaluateAndRecord } from "../../monitoring/self-qa";
+import { acquireBotLock, releaseBotLock } from "../../postgres/connection";
 
 interface TelegramConfig {
   botToken: string;
@@ -912,27 +913,110 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       storeErrorFromCatch("telegram", err, { action: "resolve_identity" });
     }
 
+    // Singleton gate — acquire a Postgres advisory lock BEFORE polling
+    // so we never have two containers calling getUpdates against the
+    // same bot token simultaneously. The old container releases the
+    // lock on SIGTERM (or when its pg connection drops on crash).
+    //
+    // If we time out (60s) the old container is wedged — log + skip
+    // Telegram, keep Slack + scheduler alive. Stale-lock recovery is
+    // documented in the migration plan (pg_terminate_backend on the
+    // 'tonder-pascal-bot-lock' application_name).
+    const lockAcquired = await acquireBotLock({ timeoutMs: 60_000 });
+    if (!lockAcquired) {
+      logger.warn(
+        "Could not acquire Telegram bot singleton lock within 60s — skipping Telegram launch"
+      );
+      storeErrorFromCatch(
+        "telegram",
+        new Error("bot lock acquisition timed out after 60s"),
+        { action: "lock_acquire" }
+      );
+      return;
+    }
+
+    // Defensive: clear any lingering webhook so polling can run. No-op
+    // if none is set. Cheap insurance against accidental setWebhook
+    // calls (debugging scripts, manual /setWebhook curl, etc.).
+    try {
+      await this.bot.telegram.deleteWebhook({ drop_pending_updates: false });
+    } catch (err) {
+      logger.warn({ err }, "deleteWebhook failed (continuing to launch)");
+    }
+
     // Use polling (not webhooks) for simplicity.
     // NOTE: Telegraf's launch() registers SIGTERM/SIGINT handlers internally.
     // Pascal's own shutdown handlers are DELAYED by 15s in index.ts so that
     // Telegraf's signals fire into the void if polling fails during startup.
-    this.bot
-      .launch({ dropPendingUpdates: true, allowedUpdates: ["message", "channel_post"] })
-      .then(() => logger.info("Telegram polling CONFIRMED active"))
-      .catch((err) => {
-        logger.error({ err }, "Telegram bot launch failed — will continue without Telegram");
-        storeErrorFromCatch("telegram", err, { action: "launch" });
-      });
+    //
+    // The singleton lock above should prevent 409s, but we keep a
+    // retry-on-409 as a safety net in case of a non-graceful exit
+    // elsewhere (e.g. another process holding the polling slot whose
+    // pg session hasn't dropped yet).
+    void this.launchWithRetry({ attempts: 3, baseDelayMs: 5_000 });
 
     logger.info("Telegram adapter started (polling)");
+  }
+
+  /**
+   * Wrap bot.launch() in a backoff retry that specifically targets
+   * Telegram's 409 Conflict. Other errors fail fast.
+   *
+   * Why void-not-await: bot.launch() only resolves once the FIRST
+   * getUpdates returns — that's an open long-poll that may never
+   * resolve in normal operation. Awaiting it would block the rest of
+   * boot. Telegraf's own pattern is to fire-and-forget the launch
+   * promise and inspect rejections in a .catch.
+   */
+  private async launchWithRetry(opts: {
+    attempts: number;
+    baseDelayMs: number;
+  }): Promise<void> {
+    for (let attempt = 1; attempt <= opts.attempts; attempt++) {
+      try {
+        await this.bot.launch({
+          dropPendingUpdates: true,
+          allowedUpdates: ["message", "channel_post"],
+        });
+        logger.info({ attempt }, "Telegram polling CONFIRMED active");
+        return;
+      } catch (err) {
+        const msg = String((err as Error)?.message ?? err);
+        const is409 = msg.includes("409") || msg.includes("Conflict");
+        if (!is409 || attempt === opts.attempts) {
+          logger.error(
+            { err, attempt },
+            "Telegram bot launch failed — will continue without Telegram"
+          );
+          storeErrorFromCatch("telegram", err, { action: "launch", attempt });
+          return;
+        }
+        const delay = opts.baseDelayMs * attempt;
+        logger.warn(
+          { attempt, delayMs: delay },
+          "Telegram 409 conflict on launch — retrying after delay"
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
   }
 
   async stop(): Promise<void> {
     logger.info("Stopping Telegram adapter...");
     try {
       this.bot.stop("SIGTERM");
-      // Give Telegraf time to close the long-polling connection
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Release the singleton lock FIRST so the next container can
+      // start acquiring it while we're still draining. Lock release
+      // is fast (one query + connection close); the long-poll close
+      // is what takes time on the Telegram side.
+      await releaseBotLock();
+      // Give Telegram's long-poll connection time to fully release
+      // server-side. 2s wasn't enough on Railway — the next container
+      // could call getUpdates while Telegram still considered THIS
+      // session active, producing a 409 even with the lock in place.
+      // 5s is the empirically safer floor; we have 15s total before
+      // Railway force-kills.
+      await new Promise((resolve) => setTimeout(resolve, 5_000));
     } catch (err) {
       logger.warn({ err }, "Error stopping Telegram bot (may already be stopped)");
     }
