@@ -16,6 +16,7 @@ import { logger } from "../utils/logger";
 import { storeErrorFromCatch } from "../utils/error-store";
 import { evaluateAndRecord } from "../monitoring/self-qa";
 import { loadActiveRules, shouldRespond, logRuleApplication } from "./rules";
+import { refineQuery, bareIdShortCircuit } from "./refine";
 
 const client = new Anthropic({ apiKey: config.claude.apiKey, timeout: 120_000 });
 const MAX_TOOL_ROUNDS = 10;
@@ -95,11 +96,48 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
     return { text: "" }; // adapters skip sending when text is empty
   }
 
+  // ── Phase 1 — Refine query (Pascal Model 2 / AID-77) ──────────────────
+  // Haiku preprocessor: classifies intent, expands shorthand, extracts IDs.
+  // Failure mode is passthrough (use original text). Two downstream uses:
+  //   1. canonical_query feeds knowledge retrieval (better recall on shorthand)
+  //   2. bare_id intent + single ID → short-circuit to direct lookup, no Sonnet
+  const refined = await refineQuery(msg.text);
+  logger.info(
+    {
+      intent: refined.intent,
+      ids: refined.ids,
+      confidence: refined.confidence,
+      passthrough: refined.passthrough,
+      merchant: merchantCtx.businessName,
+    },
+    "Phase 1: query refined",
+  );
+
+  // Bare-ID short-circuit — skip the multi-round Sonnet tool loop entirely.
+  // Calls lookup_by_id directly, formats the result through one Haiku pass,
+  // returns. ~10x faster + cheaper than the full pipeline for partner-bot-
+  // style deposit-ticket queries.
+  const shortCircuitId = bareIdShortCircuit(refined);
+  if (shortCircuitId) {
+    const shortCircuitResult = await tryBareIdShortCircuit(
+      shortCircuitId,
+      merchantCtx,
+      msg,
+      startTime,
+    );
+    if (shortCircuitResult) return shortCircuitResult;
+    // Falls through to the normal pipeline on any failure (lookup error,
+    // formatting error, empty results — Sonnet will handle it instead).
+  }
+
   // Step 2: Build merchant-specific system prompt (rules included)
   let systemPrompt = buildSystemPrompt(merchantCtx, activeRules);
 
-  // Step 2b: Inject relevant knowledge into system prompt (semantic search + keyword fallback)
-  const knowledgeMatches = await findRelevantKnowledge(msg.text, merchantCtx.businessId || undefined);
+  // Step 2b: Inject relevant knowledge into system prompt (semantic search + keyword fallback).
+  // Uses the refined canonical_query when available — shorthand expansion gives
+  // semantic search a much cleaner target.
+  const knowledgeQuery = refined.passthrough ? msg.text : refined.canonical_query;
+  const knowledgeMatches = await findRelevantKnowledge(knowledgeQuery, merchantCtx.businessId || undefined);
   if (knowledgeMatches.length > 0) {
     const knowledgeSection = knowledgeMatches
       .map((k) => {
@@ -252,6 +290,106 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
     text: result.answer,
     attachments: attachments.length > 0 ? attachments : undefined,
   };
+}
+
+// ── Bare-ID short-circuit (Pascal Model 2 / AID-77) ──────────────────────
+//
+// Called when refineQuery classified the message as a bare-ID lookup with
+// high confidence. Bypasses the multi-round Sonnet tool loop:
+//   1. Run lookup_by_id directly via executeTool
+//   2. Format the JSON result through a single Haiku call
+//   3. Return that as the response
+//
+// Returns null on any failure — the orchestrator then falls through to the
+// normal Sonnet path, so the short-circuit is purely a fast path, never a
+// regression risk.
+
+async function tryBareIdShortCircuit(
+  id: string,
+  merchantCtx: MerchantContext,
+  msg: IncomingMessage,
+  startTime: number,
+): Promise<import("../channels/types").MessageResponse | null> {
+  try {
+    const lookupJson = await executeTool("lookup_by_id", { id }, merchantCtx);
+
+    // executeTool's contract is "return a JSON string". Parse + check that
+    // we got at least one result; empty → fall through to Sonnet, which can
+    // explain the miss conversationally.
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(lookupJson);
+    } catch {
+      return null;
+    }
+    const results = (parsed as { results?: unknown[] }).results ?? [];
+    if (!Array.isArray(results) || results.length === 0) return null;
+
+    // Format the lookup JSON into a merchant-facing reply via one Haiku call.
+    const formatted = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 600,
+      system: `You are Pascal, ${merchantCtx.businessName}'s payment-data assistant. You will be given a JSON result from a transaction lookup. Format it into a short, clear response in the merchant's language (default Spanish). Show: status, payment_id (if any), order_id, amount + currency, payment method, created date. Mask internal acquirer names per the standard rules (kushki → Cards, bitso → SPEI, oxxopay → Oxxopay, etc.). NEVER invent fields not in the JSON. If multiple results exist, list each briefly.`,
+      messages: [
+        {
+          role: "user",
+          content: `Original question: "${msg.text.trim()}"\n\nLookup result JSON:\n${lookupJson}`,
+        },
+      ],
+    });
+
+    const answer = formatted.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("\n")
+      .trim();
+
+    if (!answer) return null;
+
+    const latencyMs = Date.now() - startTime;
+    logger.info(
+      { id, merchant: merchantCtx.businessName, latencyMs },
+      "Bare-ID short-circuit: success",
+    );
+
+    // Log to pascal_conversation_log so the conversation is still tracked.
+    // The tool input carries `fast_path: true` so analytics can distinguish
+    // short-circuit lookups from full Sonnet tool loops downstream.
+    const conversationId = await logConversation(
+      merchantCtx,
+      msg,
+      {
+        answer,
+        toolCalls: [{ tool: "lookup_by_id", input: { id, fast_path: true } }],
+        rounds: 0,
+      },
+      latencyMs,
+      undefined,
+      [],
+    );
+    // Fire-and-forget self-QA for the fast path too (same shape as the
+    // full-pipeline call above — fields aligned with monitoring/self-qa.ts).
+    evaluateAndRecord({
+      platform: msg.platform,
+      channelId: msg.channelId,
+      merchantName: merchantCtx.businessName,
+      businessId: String(merchantCtx.businessId),
+      messageType: "deposit_ticket",
+      latencyMs,
+      responded: true,
+      fallbackUsed: false,
+      failureReason: null,
+      rawInput: msg.text?.slice(0, 2000) ?? "",
+      toolsCalled: ["lookup_by_id"],
+      rounds: 0,
+      conversationId: conversationId ?? undefined,
+    }).catch((err) => logger.warn({ err }, "Self-QA fire-and-forget failed (fast path)"));
+
+    return { text: answer };
+  } catch (err) {
+    logger.warn({ err, id }, "Bare-ID short-circuit: failed, falling through to Sonnet");
+    return null;
+  }
 }
 
 // ── Conversation logging (fire-and-forget) ──
