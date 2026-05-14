@@ -150,6 +150,18 @@ function IconProfiles({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
+function IconInsights({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      {/* chart bars + magnifier — "cross-layer insights / roll-up view" */}
+      <path d="M3 21h18" />
+      <rect x="5" y="13" width="3" height="6" rx="0.5" />
+      <rect x="10.5" y="9" width="3" height="10" rx="0.5" />
+      <rect x="16" y="5" width="3" height="14" rx="0.5" />
+    </svg>
+  );
+}
+
 function IconCollapseLeft({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -217,6 +229,7 @@ const AGENT_ITEMS: NavItem[] = [
   { label: "Chat", href: "/chat", icon: IconAIChat },
   { label: "Analytics", href: "/analytics", icon: IconChart },
   { label: "Brain", href: "/brain", icon: IconBrain },
+  { label: "Insights", href: "/insights", icon: IconInsights },
   { label: "Memory", href: "/memory", icon: IconMemory },
   { label: "Rules", href: "/rules", icon: IconRules },
   { label: "Profiles", href: "/profiles", icon: IconProfiles },
