@@ -32,20 +32,59 @@ interface Person {
 
 /* ─── Static data (sections + checklist + special notes) ────────── */
 
-const SECTIONS = [
-  { id: "bienvenida", num: 1, title: "Bienvenida" },
-  { id: "productos", num: 2, title: "Productos de Tonder" },
-  { id: "metodos", num: 3, title: "Métodos de Pago" },
-  { id: "provider-masking", num: 4, title: "Provider Masking", critical: true },
-  { id: "merchants", num: 5, title: "Nuestros Merchants" },
-  { id: "canales", num: 6, title: "Canales de Comunicación" },
-  { id: "casos-comunes", num: 7, title: "Problemas Comunes" },
-  { id: "escalacion", num: 8, title: "Escalación" },
-  { id: "pascal-dia-a-dia", num: 9, title: "Usando Pascal" },
-  { id: "glosario", num: 10, title: "Glosario" },
-  { id: "decline-codes", num: 11, title: "Decline Codes" },
-  { id: "recursos", num: 12, title: "Recursos y Dashboards" },
-] as const;
+interface SectionEntry {
+  id: string;
+  num: number;
+  title: string;
+  critical?: boolean;
+}
+
+interface SectionGroup {
+  label: string;
+  sections: SectionEntry[];
+}
+
+const SECTION_GROUPS: SectionGroup[] = [
+  {
+    label: "Manual",
+    sections: [
+      { id: "bienvenida", num: 1, title: "Bienvenida" },
+      { id: "productos", num: 2, title: "Productos de Tonder" },
+      { id: "metodos", num: 3, title: "Métodos de Pago" },
+      { id: "provider-masking", num: 4, title: "🚨 Provider Masking", critical: true },
+      { id: "merchants", num: 5, title: "Nuestros Merchants" },
+      { id: "canales", num: 6, title: "Canales de Comunicación" },
+    ],
+  },
+  {
+    label: "Operación",
+    sections: [
+      { id: "casos-comunes", num: 7, title: "Problemas Comunes" },
+      { id: "escalacion", num: 8, title: "Escalación" },
+      { id: "estandares", num: 9, title: "Estándares de Excelencia" },
+      { id: "op-diaria", num: 10, title: "Op. Diaria y Semanal" },
+      { id: "nunca-permitido", num: 11, title: "🚫 Nunca Permitido", critical: true },
+    ],
+  },
+  {
+    label: "Referencia",
+    sections: [
+      { id: "pascal-dia-a-dia", num: 12, title: "Usando Pascal" },
+      { id: "glosario", num: 13, title: "Glosario" },
+      { id: "decline-codes", num: 14, title: "Decline Codes" },
+      { id: "recursos", num: 15, title: "Recursos y Dashboards" },
+    ],
+  },
+  {
+    label: "Strategy",
+    sections: [
+      { id: "okrs", num: 16, title: "OKRs Q1 2026" },
+      { id: "sops", num: 17, title: "SOPs Catalog" },
+      { id: "accountability", num: 18, title: "Accountability" },
+      { id: "qbr", num: 19, title: "QBR Q1 2026 · Archivo" },
+    ],
+  },
+];
 
 const CHECKLIST: { id: string; label: string }[] = [
   { id: "read-manual", label: "Leer este manual completo" },
@@ -84,6 +123,208 @@ const DOMAIN_COLORS: Record<string, string> = {
   product: "bg-violet-100 text-violet-700",
   sales: "bg-orange-100 text-orange-700",
 };
+
+/* ─── CS_HUB v2 constants ───────────────────────────────────────── */
+
+// The 7 principios del Customer Support en Tonder (CS_HUB §3.2)
+const SEVEN_PRINCIPIOS: { title: string; body: string }[] = [
+  { title: "Urgencia absoluta", body: "Responder rápido no es un plus, es el estándar. FPR < 3 minutos siempre." },
+  { title: "Cero errores", body: "Cada validación SPEI, CLABE, payout o comentario sobre declines debe estar verificada 2 veces." },
+  { title: "Operar como dueño", body: "Si algo está mal, no esperas, tú mueves al equipo correcto." },
+  { title: "Resolver, no reenviar", body: "Las escalaciones deben ir completas, claras y con contexto. Nada de 'me dijeron que revisara esto'." },
+  { title: "Ser los ojos del COO", body: "Tu trabajo detecta fallas en acquirers, merchants con problemas, patrones de fraude, bugs en el checkout y problemas de UX." },
+  { title: "Documentar siempre", body: "Cada hallazgo queda registrado en Notion + Slack interno." },
+  { title: "Mantener calma bajo presión", body: "iGaming es caótico → tú no." },
+];
+
+// Patrones recurrentes observados por merchant (CS_HUB §10.10)
+const MERCHANT_PATTERNS: { merchant: string; pattern: string }[] = [
+  { merchant: "BC Game", pattern: "Callbacks, withdrawals state mismatches, ID practices (customer_order_id vs txid)." },
+  { merchant: "PB-IDEM", pattern: "API stability, dispute/chargeback risk, refund execution." },
+  { merchant: "Stadiobet", pattern: "Reconciliation y reporting trust — recuperaciones manuales." },
+  { merchant: "FUN88", pattern: "Settlement expectations + STP latency (fines de semana / holidays)." },
+  { merchant: "Campobet (PGW/Pesix)", pattern: "Frictionless reference behavior, ID/search y SDK expectations." },
+];
+
+// Plantillas de respuesta oficiales (CS_HUB §3.8)
+const RESPONSE_TEMPLATES: { title: string; tone: "spei" | "decline" | "payout"; body: string }[] = [
+  {
+    title: "SPEI · Monto incorrecto",
+    tone: "spei",
+    body: "El pago no se acreditó porque el monto enviado no coincide con el monto del voucher generado.\n\nTe comparto el monto correcto y la CLABE a utilizar para evitar errores en futuros pagos.",
+  },
+  {
+    title: "SPEI · CLABE incorrecta",
+    tone: "spei",
+    body: "El pago fue enviado a una CLABE diferente a la asignada. Esto impide que podamos acreditar el depósito.\n\nTe comparto la CLABE correcta para que puedas reenviar el pago o solicitar devolución en tu banco.",
+  },
+  {
+    title: "Declines de tarjeta",
+    tone: "decline",
+    body: "Estamos recibiendo un decline directo del banco emisor. La tarjeta requiere autorización del banco o intentar con otro método de pago.\n\nNo es un error de Tonder ni del comercio.",
+  },
+  {
+    title: "Payout error",
+    tone: "payout",
+    body: "El payout no pudo procesarse debido a una CLABE inválida o rechazada por el banco destino.\n\nTe compartimos la razón exacta y cómo corregirla.",
+  },
+];
+
+// Tipos de ticket + checklist de resolución (CS_HUB §3.7)
+const TICKET_TYPES: { title: string; causes: string[]; steps: string[] }[] = [
+  {
+    title: "Tipo 1 · SPEI Pagado Incorrectamente",
+    causes: ["Monto incorrecto", "Pagaron a otra CLABE", "STP rechazó", "Referencia incorrecta"],
+    steps: ["Validar CLABE", "Validar banco", "Validar monto", "Validar timestamp", "Confirmar en logs", "Responder con precisión", "Si aplica → escalar a PayOps"],
+  },
+  {
+    title: "Tipo 2 · Declines de Tarjeta",
+    causes: ["Fondos insuficientes", "Banco bloqueando por riesgo", "Error técnico del acquirer", "3DS obligatorio fallido"],
+    steps: ["Revisar motivo de decline", "Revisar comportamiento por BIN", "Ver si otros merchants presentan el mismo patrón", "Identificar si es un banco específico", "Determinar si es un issue o comportamiento normal"],
+  },
+  {
+    title: "Tipo 3 · Payouts",
+    causes: ["CLABE inválida", "Límite del merchant", "Horarios de operación", "Acquirer offline"],
+    steps: ["Validar CLABE de destino", "Validar tiempos del acquirer", "Verificar límites del merchant", "Confirmar si el acquirer está operando"],
+  },
+  {
+    title: "Tipo 4 · OxxoPay",
+    causes: ["Pagos duplicados", "Pago parcial", "Código vencido", "Confirmación tardía"],
+    steps: ["Revisar código de pago", "Validar monto recibido", "Confirmar timestamp vs expiración", "Cruzar con confirmación del proveedor"],
+  },
+];
+
+// Mapping canónico feature → owners (CS_HUB §5.1)
+const FEATURE_OWNERS: { feature: string; topic: string; owners: string[] }[] = [
+  { feature: "Withdrawals", topic: "withdrawals", owners: ["Fabio Do Carma Luna", "Arturo Torres"] },
+  { feature: "Tarjetas", topic: "tarjetas", owners: ["Lenin Gomez", "Arturo Torres"] },
+  { feature: "OxxoPay", topic: "oxxopay", owners: ["Lenin Gomez", "Arturo Torres"] },
+  { feature: "SPEI", topic: "spei", owners: ["Arturo Torres", "Gabriel Yañez"] },
+  { feature: "Paysafe", topic: "paysafe", owners: ["Gabriel Yañez", "Arturo Torres"] },
+  { feature: "Settlements", topic: "settlements", owners: ["Roberto Lomelli", "Eugenio Orozco"] },
+  { feature: "Fees / Pricing", topic: "fees", owners: ["Geraldine Sprockel", "Eugenio Orozco"] },
+  { feature: "Webhooks", topic: "webhooks", owners: ["Guillermo Quintero", "Arturo Torres"] },
+  { feature: "Links de Pago", topic: "links-de-pago", owners: ["Guillermo Quintero", "Arturo Torres"] },
+  { feature: "Save cards / SDKs / Hosted Checkout", topic: "save-cards", owners: ["David Hernandez", "Arturo Torres"] },
+  { feature: "Direct API", topic: "direct-api", owners: ["Fabio Do Carma Luna", "Arturo Torres"] },
+  { feature: "Ionic SDK", topic: "ionic-sdk", owners: ["David Hernandez", "Arturo Torres"] },
+  { feature: "Skyflow tokenization", topic: "skyflow", owners: ["Fabio Do Carma Luna", "Arturo Torres"] },
+];
+
+// SOPs catalog (CS_HUB §7)
+const SOP_CATALOG: { name: string; contact: string; workflow: string; tools: string }[] = [
+  { name: "BC Game Transaction Status", contact: "Eugenio Orozco", workflow: "Deposit Status", tools: "Metabase" },
+  { name: "BC Game Withdrawal not found", contact: "Eugenio Orozco", workflow: "Withdrawals Status", tools: "Metabase" },
+  { name: "Balance / Settlement discrepancies", contact: "Roberto Lomelli", workflow: "Reconciliation issues", tools: "Slack" },
+  { name: "Comprobante Bancario (Bank Receipt) – STP", contact: "David Contreras", workflow: "Bank receipt", tools: "STP" },
+  { name: "SPEI – Monto incorrecto", contact: "David Contreras", workflow: "SPEI", tools: "—" },
+  { name: "SPEI – CLABE incorrecta", contact: "David Contreras", workflow: "SPEI", tools: "—" },
+  { name: "SPEI – Pago fuera de tiempo", contact: "David Contreras", workflow: "SPEI", tools: "—" },
+  { name: "SPEI – Duplicado", contact: "Eugenio Orozco", workflow: "SPEI", tools: "—" },
+  { name: "Razón de declines de tarjeta / Kushki", contact: "David Contreras", workflow: "Cards", tools: "—" },
+  { name: "3DS fallido", contact: "Eugenio Orozco", workflow: "Cards", tools: "—" },
+  { name: "Payout rechazado por CLABE", contact: "David Contreras", workflow: "Payouts", tools: "—" },
+  { name: "Payout fuera de horario", contact: "David Contreras", workflow: "Payouts", tools: "—" },
+  { name: "OxxoPay – Código vencido", contact: "David Contreras", workflow: "OxxoPay", tools: "—" },
+  { name: "OxxoPay – Pago parcial", contact: "David Contreras", workflow: "OxxoPay", tools: "—" },
+  { name: "Incidente masivo (acquirer caído)", contact: "David Contreras", workflow: "Major incident", tools: "—" },
+  { name: "Reason for withdrawal failure", contact: "David Contreras", workflow: "Withdrawals Status", tools: "Metabase" },
+  { name: "OXXO Pay voucher enviado sin localización de ID", contact: "David Contreras", workflow: "OxxoPay Receipt", tools: "DynamoDB, Slack" },
+  { name: "Callbacks para estado success", contact: "Fabio Do Carma Luna", workflow: "Deposit Status", tools: "—" },
+  { name: "Envío de CEP (Comprobante Electrónico de Pago)", contact: "David Contreras", workflow: "Bank receipt", tools: "Metabase" },
+  { name: "Gestión de Blacklist / Whitelist (Tonder Admin Console)", contact: "David Contreras", workflow: "Antifraud false positive", tools: "Tonder Admin Console" },
+];
+
+// OKRs Q1 2026 (CS_HUB §4)
+const OKR_OBJECTIVES: { goal: string; tagline: string; krs: string[] }[] = [
+  {
+    goal: "Elevar la experiencia del merchant a un soporte claro, rápido y confiable",
+    tagline: "El merchant sabe qué pasó, cuándo se resuelve y quién es responsable.",
+    krs: [
+      "Alcanzar SLA de primera respuesta ≤ 5 minutos en tickets críticos (P1).",
+      "Resolver ≥ 90% de tickets P1 en menos de 2 horas.",
+      "Implementar clasificación clara de severidades (P1-P4) y que el 100% de tickets esté correctamente etiquetado.",
+      "Lograr que ≥ 70% de tickets se resuelvan en L0 sin escalar a Tech ni Ops.",
+    ],
+  },
+  {
+    goal: "Profesionalizar y estandarizar la operación de Customer Support",
+    tagline: "Menos improvisación, más sistema.",
+    krs: [
+      "Documentar y publicar SOPs del 100% de los flujos críticos: SPEI issues, Declines / success rate drops, Refunds & frictionless, Payout delays, Webhooks & callbacks.",
+      "Reducir el tiempo promedio de resolución (TTR) en 25%.",
+      "Crear playbooks por merchant tipo (iGaming, wallets, cash) y usarlos en ≥ 80% de los tickets.",
+      "Implementar handoff estructurado Support → PayOps / RiskOps / Tech en el 100% de escalaciones.",
+    ],
+  },
+  {
+    goal: "Pasar de soporte reactivo a soporte preventivo",
+    tagline: "Detectar problemas antes de que el merchant grite.",
+    krs: [
+      "Crear alertas automáticas para caídas de success rate, spikes de declines, retrasos de payouts (≥ 5 alertas productivas en Q1).",
+      "Resolver ≥ 40% de incidentes antes de que el merchant levante ticket.",
+      "Enviar reportes proactivos semanales a los top merchants (Top 10 por TPV).",
+      "Reducir incidentes repetidos del mismo tipo en 30%.",
+    ],
+  },
+];
+
+// Estándares de excelencia (CS_HUB §3.10)
+const STANDARDS: { metric: string; target: string }[] = [
+  { metric: "First Personal Response (FPR)", target: "< 3 minutos" },
+  { metric: "Resolución completa (TTR)", target: "< 45 minutos" },
+  { metric: "Errores operacionales por mes", target: "0-1" },
+  { metric: "Seguimiento a casos críticos", target: "Inmediato" },
+  { metric: "Comunicación", target: "Profesional, simple, directa" },
+  { metric: "Aproximación", target: "Proactividad > reacción" },
+  { metric: "Merchants informados", target: "Siempre" },
+  { metric: "Documentación en Notion", target: "Impecable" },
+  { metric: "Detección temprana de issues masivos", target: "Antes que el merchant" },
+  { metric: "Tickets abandonados o duplicados", target: "Cero" },
+];
+
+// Checklists Diario / Semanal (CS_HUB §3.5, §3.6)
+const DAILY_CHECKLIST: string[] = [
+  "Revisar alertas de declines — cambios > 5% requieren análisis. Notificar al COO si BBVA se cae, Unlimit baja, etc.",
+  "Revisar SPEI — verificar errores del día. Confirmar depósitos altos manualmente (si aplica).",
+  "Revisar tickets críticos — SPEI, Payouts, caídas de acquirer, problemas del checkout.",
+  "Responder todos los tickets dentro del SLA — FPR < 3 min, Resolución < 45 min.",
+  "Reporte diario al COO — 3-5 puntos clave.",
+  "Actualizar Notion — casos recurrentes, problemas de merchants, mejoras sugeridas.",
+];
+
+const WEEKLY_CHECKLIST: string[] = [
+  "Reporte semanal completo al COO — declines, caídas de acquirers, SPEIs erróneos, payouts con errores, merchants con más tickets, sugerencias para producto.",
+  "Revisión del Playbook — que esté actualizado.",
+  "Revisión de SLA's — evolución semanal.",
+  "Reunión con PayOps — retroalimentación, mejoras operativas.",
+  "Revisión de incidentes — evaluar patrones.",
+];
+
+// Lo que NUNCA se permite (CS_HUB §3.11)
+const NEVER_ALLOWED: string[] = [
+  "Responder sin validar",
+  "Escalar sin contexto",
+  "Decir 'no sé' sin intentar resolver",
+  "Cerrar tickets sin confirmación",
+  "Dejar tickets abiertos 24h+",
+  "No reportar una caída de acquirer",
+  "No informar un SPEI sospechoso",
+];
+
+// Accountability chart owner + métricas semanales (CS_HUB §9)
+const ACCOUNTABILITY_OWNER = "David Contreras";
+const ACCOUNTABILITY_METRICS: { metric: string; measures: string; target: string }[] = [
+  { metric: "Respondiendo a tiempo dentro de Shift", measures: "Rapidez de comunicación", target: "< 3 min" },
+  { metric: "Escalando correctamente tickets a Tech y FinOps", measures: "Control de tickets y comunicación", target: "100%" },
+  { metric: "Reportes semanales y mensuales", measures: "Documentación y mediciones", target: "100%" },
+];
+
+// SOS contacts after-hours (CS_HUB §5.2)
+const SOS_CONTACTS: { who: string; topic: string; phone: string }[] = [
+  { who: "Eugenio Orozco", topic: "Operaciones · FinOps · Chargebacks · Success Rates", phone: "+52 1 81 1531 5741" },
+  { who: "Arturo Torres", topic: "Tecnología · Bugs · issues de estados", phone: "+52 55 5412 7692" },
+];
 
 /* ─── Checklist hook ────────────────────────────────────────────── */
 
@@ -158,25 +399,32 @@ export default function OnboardingPage() {
 
       <div className="flex gap-6">
         {/* Sticky TOC — left rail */}
-        <aside className="hidden lg:block sticky top-[76px] self-start w-[220px] shrink-0">
-          <nav className="t-card !p-3 text-[13px] space-y-0.5">
-            {SECTIONS.map((s) => (
-              <a
-                key={s.id}
-                href={`#${s.id}`}
-                className={`flex items-baseline gap-2 py-1.5 px-2 rounded-md hover:bg-gray-50 transition-colors ${
-                  "critical" in s && s.critical
-                    ? "text-red-700 font-medium"
-                    : "text-gray-700"
-                }`}
-              >
-                <span className="text-gray-400 text-[11px] w-4 shrink-0">
-                  {s.num}
-                </span>
-                <span className="truncate">{s.title}</span>
-              </a>
+        <aside className="hidden lg:block sticky top-[76px] self-start w-[230px] shrink-0 max-h-[calc(100vh-100px)] overflow-y-auto">
+          <nav className="t-card !p-3 text-[13px]">
+            {SECTION_GROUPS.map((group, gi) => (
+              <div key={group.label} className={gi > 0 ? "mt-3" : ""}>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1">
+                  {group.label}
+                </p>
+                <div className="space-y-0.5">
+                  {group.sections.map((s) => (
+                    <a
+                      key={s.id}
+                      href={`#${s.id}`}
+                      className={`flex items-baseline gap-2 py-1.5 px-2 rounded-md hover:bg-gray-50 transition-colors ${
+                        s.critical ? "text-red-700 font-medium" : "text-gray-700"
+                      }`}
+                    >
+                      <span className="text-gray-400 text-[11px] w-4 shrink-0">
+                        {s.num}
+                      </span>
+                      <span className="truncate">{s.title}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
             ))}
-            <div className="h-px bg-gray-100 my-2" />
+            <div className="h-px bg-gray-100 my-3" />
             <a
               href="#checklist"
               className="flex items-baseline gap-2 py-1.5 px-2 rounded-md hover:bg-gray-50 text-violet-700 font-medium"
@@ -266,6 +514,130 @@ export default function OnboardingPage() {
                 <li>• <strong>Aprender de cada caso</strong> y entrenar a Pascal con <code className="text-violet-700 font-mono text-xs">@Pascal learn:</code></li>
               </ul>
             </Card>
+
+            {/* CS_HUB §1 Misión */}
+            <Card title="⛳ Misión del Customer Support" className="mt-4">
+              <p className="text-sm text-gray-700 leading-relaxed italic">
+                &ldquo;Transformar el caos en claridad, problemas en soluciones,
+                y fricción en confianza con velocidad. Cada ticket resuelto es
+                una oportunidad para elevar a nuestros merchants y demostrar lo
+                que significa operar con estándares world-class.&rdquo;
+              </p>
+              <p className="text-[12px] text-gray-500 mt-3">
+                Eres <strong>guardián del ritmo de Tonder</strong>: detectas
+                antes que nadie, actúas más rápido que todos y resuelves con la
+                disciplina y el orgullo de quien sabe que su trabajo sostiene la
+                infraestructura que impulsa a toda una industria.
+              </p>
+            </Card>
+
+            {/* CS_HUB §3.2 — Los 7 Principios */}
+            <Card title="🏆 Los 7 Principios del Customer Support" className="mt-4">
+              <ol className="space-y-3 mt-1">
+                {SEVEN_PRINCIPIOS.map((p, i) => (
+                  <li key={p.title} className="flex gap-3">
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-violet-100 text-violet-700 text-[11px] font-bold flex items-center justify-center mt-0.5">
+                      {i + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900">{p.title}</p>
+                      <p className="text-sm text-gray-700 mt-0.5 leading-relaxed">{p.body}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </Card>
+
+            {/* CS_HUB §2 — Job Description (collapsible) */}
+            <div className="mt-4">
+              <CollapsibleCard
+                eyebrow="Referencia · hiring"
+                title="Job Description — Customer Support Executive"
+                subtitle="La descripción oficial del rol, requisitos, habilidades deseables y cualidades ideales"
+              >
+                <div className="space-y-4 text-sm text-gray-700 leading-relaxed">
+                  <p>
+                    Tonder es una plataforma de procesamiento de pagos de
+                    nueva generación para negocios de alto rendimiento. Buscamos
+                    <strong> Ejecutivos de Soporte al Cliente</strong> para el equipo
+                    de <strong>Operaciones</strong>, como primera línea entre los
+                    merchants y los equipos internos: <strong>FinOps, PayOps,
+                    RiskOps y Tech.</strong>
+                  </p>
+
+                  <div>
+                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                      🎯 Responsabilidades clave
+                    </p>
+                    <ul className="space-y-1 pl-4 list-disc">
+                      <li>Soporte <strong>bilingüe (inglés y español)</strong>.</li>
+                      <li>Depósitos, retiros, contracargos, conciliaciones y tiempos de liquidación.</li>
+                      <li>Usar Payment Operations DB, FinOps DB y Antifraud Engine.</li>
+                      <li>Escalar a FinOps / RiskOps / Tech siguiendo el protocolo.</li>
+                      <li>Documentar en Notion / Zendesk / Freshdesk con precisión.</li>
+                      <li>Monitorear estados de transacción, demoras de adquirentes y confirmaciones de retiros en México y Chile.</li>
+                      <li>Identificar problemas recurrentes y colaborar en mejoras preventivas.</li>
+                      <li>Apoyar reportes y análisis de merchants (success rate, reservas, demoras).</li>
+                      <li>Contribuir a manuales, FAQs y playbooks internos.</li>
+                    </ul>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Requisitos</p>
+                      <ul className="space-y-1 pl-4 list-disc">
+                        <li>Fluidez inglés y español</li>
+                        <li>1-3 años en pagos / fintech / iGaming ops</li>
+                        <li>Flujos: depósitos, retiros, settlements, CB, KYC</li>
+                        <li>Multicanal: WhatsApp, Telegram, Email, Zendesk, Teams</li>
+                        <li>Google Sheets / Excel, Notion, Databricks / Metabase</li>
+                        <li>Turnos rotativos / fines de semana (24/7)</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Deseables</p>
+                      <ul className="space-y-1 pl-4 list-disc">
+                        <li>Experiencia en PSP / adquirente / agregador</li>
+                        <li>Flujos SPEI, tarjetas, APM</li>
+                        <li>Prevención de fraude, gestión de disputas, contracargos</li>
+                        <li>Comprensión básica de Guardian (capacitación incluida)</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Cualidades ideales</p>
+                    <ul className="space-y-1 pl-4 list-disc">
+                      <li><strong>Resolutivo:</strong> va más allá del problema y ataca la causa raíz</li>
+                      <li><strong>Comunicador empático:</strong> adapta tono y enfoque según el merchant</li>
+                      <li><strong>Operacionalmente agudo:</strong> entiende settlement, tasas de éxito, lógica de transacciones</li>
+                      <li><strong>Analítico:</strong> interpreta datos y detecta anomalías</li>
+                      <li><strong>Colaborativo:</strong> trabaja con FinOps, PayOps, RiskOps y Tech</li>
+                      <li><strong>Disciplinado:</strong> múltiples merchants y tickets con consistencia</li>
+                    </ul>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[12px] pt-2 border-t border-gray-100">
+                    <div>
+                      <p className="text-gray-400 uppercase tracking-wider text-[10px]">Tipo</p>
+                      <p className="text-gray-700 font-medium">Tiempo completo</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 uppercase tracking-wider text-[10px]">Ubicación</p>
+                      <p className="text-gray-700 font-medium">Remoto / Híbrido LATAM</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 uppercase tracking-wider text-[10px]">Turno</p>
+                      <p className="text-gray-700 font-medium">Rotativo (24/7)</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 uppercase tracking-wider text-[10px]">Reporta a</p>
+                      <p className="text-gray-700 font-medium">Head of Operations</p>
+                    </div>
+                  </div>
+                </div>
+              </CollapsibleCard>
+            </div>
           </Section>
 
           {/* §2 Productos */}
@@ -377,6 +749,60 @@ export default function OnboardingPage() {
               Nunca compartas estos datos con el merchant. Si te preguntan,
               escala a <strong>Roberto (FinOps)</strong>.
             </Callout>
+
+            {/* CS_HUB §3.4 — Conocimiento Técnico Obligatorio */}
+            <div className="mt-6">
+              <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                Conocimiento técnico obligatorio
+              </p>
+              <div className="grid md:grid-cols-2 gap-4">
+                <Card title="SPEI (STP / Bitso)">
+                  <p className="text-sm text-gray-700 mb-2">Debes dominar:</p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    <li>• Cómo validar un SPEI (montos, CLABE, referencia, rastreo)</li>
+                    <li>• Diferencias entre STP y Bitso</li>
+                    <li>• Razones típicas de error: monto incorrecto, CLABE incorrecta, duplicado, pago expirado</li>
+                    <li>• Cómo identificar banco a partir de CLABE</li>
+                    <li>• Cómo reconocer SPEI sospechosos (riesgo o fraude)</li>
+                  </ul>
+                </Card>
+                <Card title="Cards (Kushki / Unlimit)">
+                  <p className="text-sm text-gray-700 mb-2">Debes entender:</p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    <li>• Declines <strong>soft vs hard</strong></li>
+                    <li>• Bancos más sensibles: <strong>BBVA, Banorte, Santander</strong></li>
+                    <li>• 3DS obligatorio y exenciones</li>
+                    <li>• Behaviour por BIN local vs extranjero</li>
+                    <li>• Motivos comunes de decline real del banco vs decline técnico</li>
+                  </ul>
+                </Card>
+                <Card title="Payouts">
+                  <p className="text-sm text-gray-700 mb-2">Debes dominar:</p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    <li>• Validación de CLABE de destino</li>
+                    <li>• Tiempos por acquirer</li>
+                    <li>• Errores comunes</li>
+                    <li>• Límites por merchant</li>
+                    <li>• Señales de intento de fraude</li>
+                  </ul>
+                </Card>
+                <Card title="OxxoPay / Cash">
+                  <p className="text-sm text-gray-700 mb-2">Conocer:</p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    <li>• Códigos vencidos</li>
+                    <li>• Diferencias entre montos</li>
+                    <li>• Pagos parciales</li>
+                    <li>• Errores del POS</li>
+                    <li>• Confirmación técnica del proveedor</li>
+                  </ul>
+                </Card>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-3 italic">
+                Estos nombres de proveedor (Kushki, Unlimit, STP, Bitso) son
+                referencias internas — esta página es interna, no expuesta al
+                merchant. Ver §4 para la regla de masking en comunicación externa.
+              </p>
+            </div>
           </Section>
 
           {/* §4 Provider Masking — CRITICAL */}
@@ -391,6 +817,19 @@ export default function OnboardingPage() {
               Los merchants <strong>NUNCA deben saber qué proveedor procesa cada
               tipo de pago.</strong> Eso es nuestro IP comercial.
             </p>
+
+            <Callout tone="info" title="Aplica solo a comunicación externa">
+              Esta regla aplica únicamente a comunicación <strong>externa</strong>:
+              chats con merchants, tickets visibles a merchants, comprobantes y
+              emails. La documentación <strong>interna</strong> — esta página, los
+              runbooks de Notion, las alertas internas, los SOPs en §17 y los
+              detalles técnicos en §3 — <strong>puede mencionar libremente</strong>{" "}
+              <code className="font-mono text-[11px]">Kushki</code>,{" "}
+              <code className="font-mono text-[11px]">Unlimit</code>,{" "}
+              <code className="font-mono text-[11px]">STP</code>,{" "}
+              <code className="font-mono text-[11px]">Bitso</code>, etc. Si tu
+              audiencia es el equipo Tonder, los nombres reales son OK.
+            </Callout>
 
             <Card title="Tabla de equivalencias" className="mt-4">
               <div className="overflow-x-auto -mx-1">
@@ -573,6 +1012,23 @@ export default function OnboardingPage() {
                   ))}
               </div>
             )}
+
+            {/* CS_HUB §10.10 — patrones observados Q1 2026 */}
+            <Card title="Patrones recurrentes observados (Q1 2026)" className="mt-4">
+              <p className="text-sm text-gray-600 mb-3">
+                Estos son los temas que dominaron las escalaciones del Q1 2026.
+                Útiles para anticipar qué tipo de issue puedes esperar de cada
+                cuenta. Detalle completo en §19.
+              </p>
+              <ul className="space-y-2">
+                {MERCHANT_PATTERNS.map((p) => (
+                  <li key={p.merchant} className="text-sm">
+                    <strong className="text-gray-900">{p.merchant}:</strong>{" "}
+                    <span className="text-gray-700">{p.pattern}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
           </Section>
 
           {/* §6 Canales */}
@@ -704,6 +1160,59 @@ export default function OnboardingPage() {
                 </ol>
               </CaseCard>
             </div>
+
+            {/* CS_HUB §3.7 — Catálogo de tipos de ticket */}
+            <Card title="Tipos de ticket — checklist de resolución" className="mt-6">
+              <p className="text-sm text-gray-600 mb-3">
+                Cuando un ticket entra, identifica primero su tipo. Cada tipo
+                tiene un checklist estandarizado para no olvidar pasos.
+              </p>
+              <div className="grid md:grid-cols-2 gap-4">
+                {TICKET_TYPES.map((t) => (
+                  <div key={t.title} className="border border-gray-100 rounded-lg p-3">
+                    <p className="text-sm font-semibold text-gray-900">{t.title}</p>
+                    <p className="text-[11px] text-gray-400 uppercase tracking-wider mt-2 mb-1">
+                      Causas comunes
+                    </p>
+                    <ul className="text-[13px] text-gray-700 space-y-0.5 mb-3">
+                      {t.causes.map((c) => (
+                        <li key={c}>• {c}</li>
+                      ))}
+                    </ul>
+                    <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-1">
+                      Resolución
+                    </p>
+                    <ol className="text-[13px] text-gray-700 space-y-0.5 list-decimal pl-4">
+                      {t.steps.map((s) => (
+                        <li key={s}>{s}</li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            {/* CS_HUB §3.8 — Plantillas de respuesta oficiales */}
+            <Card title="Plantillas de respuesta (copy / paste)" className="mt-4">
+              <p className="text-sm text-gray-600 mb-3">
+                Tono profesional, directo y sin rodeos. Adapta el contexto
+                pero respeta la estructura.
+              </p>
+              <div className="space-y-3">
+                {RESPONSE_TEMPLATES.map((t) => (
+                  <div key={t.title} className="border border-gray-100 rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 px-3 py-1.5 flex items-center gap-2">
+                      <span className="text-[11px] font-semibold text-gray-700 uppercase tracking-wider">
+                        {t.title}
+                      </span>
+                    </div>
+                    <pre className="text-[13px] text-gray-800 p-3 leading-relaxed whitespace-pre-wrap font-sans">
+{t.body}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            </Card>
           </Section>
 
           {/* §8 Escalación — LIVE team */}
@@ -811,10 +1320,205 @@ export default function OnboardingPage() {
                 <li>• <strong>Quejas legales o regulatorias:</strong> escala a tu manager directamente</li>
               </ul>
             </Callout>
+
+            {/* §8a — feature-owners LIVE table (CS_HUB §5.1) */}
+            <Card title="Escalations por feature · taggear en #escalations" className="mt-4">
+              <p className="text-sm text-gray-600 mb-3">
+                Para issues específicos de una feature, taggea directamente al
+                owner correspondiente. Datos en vivo: si el nombre tiene Slack
+                ID a la derecha es porque está en{" "}
+                <Link href="/people?type=tonder_team" className="text-violet-600 hover:text-violet-700 underline underline-offset-2">
+                  /people
+                </Link>
+                .
+              </p>
+              <div className="overflow-x-auto">
+                <table className="t-table">
+                  <thead>
+                    <tr>
+                      <th>Feature</th>
+                      <th>Owners</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {FEATURE_OWNERS.map((row) => (
+                      <tr key={row.feature}>
+                        <td className="font-medium text-gray-900">{row.feature}</td>
+                        <td>
+                          <div className="flex flex-col gap-1">
+                            {row.owners.map((name) => (
+                              <OwnerCell key={name} name={name} team={team} />
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+
+            {/* §8b — SOS After Hours (CS_HUB §5.2) */}
+            <Card title="📞 SOS — After Hours" className="mt-4">
+              <p className="text-sm text-gray-600 mb-3">
+                Para issues fuera de horario que NO pueden esperar. Llamada
+                directa, no Slack.
+              </p>
+              <div className="space-y-3">
+                {SOS_CONTACTS.map((c) => (
+                  <div
+                    key={c.who}
+                    className="flex items-center gap-4 p-3 rounded-lg border border-amber-200"
+                    style={{ background: "rgba(254,252,232,0.5)" }}
+                  >
+                    <div className="text-2xl">📞</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900">{c.who}</p>
+                      <p className="text-[12px] text-gray-600">{c.topic}</p>
+                    </div>
+                    <a
+                      href={`tel:${c.phone.replace(/[^+\d]/g, "")}`}
+                      className="font-mono text-[13px] text-amber-700 hover:text-amber-900 font-semibold whitespace-nowrap"
+                    >
+                      {c.phone}
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            {/* §8c — Reglas de escalación CS_HUB §6 */}
+            <Card title="Reglas de escalación · qué equipo cubre qué" className="mt-4">
+              <ul className="text-sm text-gray-700 space-y-1.5 mb-4">
+                <li>• Si <strong>no es técnico</strong> y es <strong>solucionable</strong> → tú respondes directamente</li>
+                <li>• Si el merchant está en <strong>integración</strong> → loop in <strong>Integration Manager</strong></li>
+                <li>• Si requiere <strong>revisión de datos</strong> → escala a FinOps / PayOps / RiskOps</li>
+                <li>• Si es <strong>sistemas, API, bugs</strong> → escala a <strong>Tech immediately</strong></li>
+              </ul>
+              <div className="overflow-x-auto">
+                <table className="t-table">
+                  <thead>
+                    <tr>
+                      <th>Equipo</th>
+                      <th>Cubre</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><strong>FinOps</strong></td>
+                      <td className="text-gray-700 text-[13px]">Settlements, rolling reserves, payouts, balances, fees</td>
+                    </tr>
+                    <tr>
+                      <td><strong>PayOps</strong></td>
+                      <td className="text-gray-700 text-[13px]">Declines, payment flows, approval rates, routing</td>
+                    </tr>
+                    <tr>
+                      <td><strong>RiskOps</strong></td>
+                      <td className="text-gray-700 text-[13px]">Chargebacks, disputes, fraud patterns, rules</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Tech</strong></td>
+                      <td className="text-gray-700 text-[13px]">Bugs, errors, outages, API issues, dashboard issues</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Customer Success Manager</strong></td>
+                      <td className="text-gray-700 text-[13px]">KYB / compliance, technical meetings, pricing, contratos</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Integration Manager</strong></td>
+                      <td className="text-gray-700 text-[13px]">Preguntas técnicas de merchants en integración, technical certification</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[11px] text-gray-500 mt-3 italic">
+                Routing rápido: Tech (Arturo) para checkout/API/3DS · FinOps
+                (Yuyo) para SPEI/depósitos/retiros/settlement · Customer Success
+                (Geraldine) para pricing/nuevos productos/sesiones técnicas.
+              </p>
+            </Card>
           </Section>
 
-          {/* §9 Usando Pascal */}
-          <Section id="pascal-dia-a-dia" num={9} title="Usando Pascal en tu Día a Día">
+          {/* §9 Estándares de Excelencia — NEW (CS_HUB §3.10) */}
+          <Section
+            id="estandares"
+            num={9}
+            title="Estándares de Excelencia"
+            subtitle="Los 10 estándares operacionales que definen el rol"
+          >
+            <div className="t-card t-card-flush overflow-hidden">
+              <table className="t-table">
+                <thead>
+                  <tr>
+                    <th>Métrica</th>
+                    <th>Target</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {STANDARDS.map((s) => (
+                    <tr key={s.metric}>
+                      <td className="text-gray-800">{s.metric}</td>
+                      <td>
+                        <span className="t-badge t-badge-emerald font-mono">
+                          {s.target}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Section>
+
+          {/* §10 Operación Diaria y Semanal — NEW (CS_HUB §3.5, §3.6) */}
+          <Section
+            id="op-diaria"
+            num={10}
+            title="Operación Diaria y Semanal"
+            subtitle="Listas obligatorias · referencia, NO se guarda tu progreso (resetean cada día / semana)"
+          >
+            <div className="grid md:grid-cols-2 gap-4">
+              <Card title="Checklist diario (obligatorio)">
+                <ul className="space-y-2">
+                  {DAILY_CHECKLIST.map((item) => (
+                    <li key={item} className="flex items-start gap-2.5 text-sm text-gray-700">
+                      <input type="checkbox" disabled className="w-4 h-4 mt-0.5 shrink-0 accent-violet-600 opacity-60" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+              <Card title="Checklist semanal">
+                <ul className="space-y-2">
+                  {WEEKLY_CHECKLIST.map((item) => (
+                    <li key={item} className="flex items-start gap-2.5 text-sm text-gray-700">
+                      <input type="checkbox" disabled className="w-4 h-4 mt-0.5 shrink-0 accent-violet-600 opacity-60" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            </div>
+          </Section>
+
+          {/* §11 🚫 Lo Que NUNCA Se Permite — NEW (CS_HUB §3.11) */}
+          <Section
+            id="nunca-permitido"
+            num={11}
+            title="🚫 Lo Que NUNCA Se Permite"
+            subtitle="Reglas duras — sin excepciones"
+          >
+            <Callout tone="danger" title="Estas conductas son inaceptables">
+              <ul className="text-sm space-y-1.5 mt-2">
+                {NEVER_ALLOWED.map((rule) => (
+                  <li key={rule}>• {rule}</li>
+                ))}
+              </ul>
+            </Callout>
+          </Section>
+
+          {/* §12 Usando Pascal (was §9) */}
+          <Section id="pascal-dia-a-dia" num={12} title="Usando Pascal en tu Día a Día">
             <Card title="Cómo preguntarle a Pascal">
               <p className="text-sm text-gray-700 mb-3">
                 Pascal entiende lenguaje natural en español o inglés. Ejemplos:
@@ -890,7 +1594,7 @@ en lugar de txid.`}
           </Section>
 
           {/* §10 Glosario */}
-          <Section id="glosario" num={10} title="Glosario y Shorthand">
+          <Section id="glosario" num={13} title="Glosario y Shorthand">
             <div className="grid md:grid-cols-2 gap-4">
               <Card title="Shorthand común en chats">
                 <div className="overflow-x-auto">
@@ -912,6 +1616,13 @@ en lugar de txid.`}
                         ["MID", "Merchant Identification Number"],
                         ["APM", "Alternative Payment Method"],
                         ["AR", "Acceptance Rate"],
+                        ["FPR", "First Personal Response (tiempo de primera respuesta)"],
+                        ["TTR", "Time To Resolution"],
+                        ["P1-P4", "Severidad de ticket (P1 = más crítico)"],
+                        ["L0/L1/L2/L3", "Niveles de soporte (L0 = self-serve, L3 = tech/engineering)"],
+                        ["TPV", "Total Payment Volume"],
+                        ["CB", "Chargeback"],
+                        ["POP", "Proof of Payment"],
                       ].map(([abbr, meaning]) => (
                         <tr key={abbr}>
                           <td><code className="font-mono text-[12px] text-gray-800">{abbr}</code></td>
@@ -941,6 +1652,11 @@ en lugar de txid.`}
                     ["Self-QA", "sistema interno donde Pascal evalúa su propia calidad"],
                     ["SPEI", "Sistema de Pagos Electrónicos Interbancarios (MX)"],
                     ["Webhook", "notificación HTTP que mandamos al merchant en cambios de estado"],
+                    ["3DS", "3D Secure — autenticación adicional para tarjetas"],
+                    ["CEP", "Comprobante Electrónico de Pago"],
+                    ["BIN", "Bank Identification Number (primeros 6 dígitos de tarjeta)"],
+                    ["KYB", "Know Your Business"],
+                    ["PSP", "Payment Service Provider"],
                   ].map(([term, def]) => (
                     <div key={term} className="flex gap-2">
                       <dt className="font-semibold text-gray-900 shrink-0">{term}:</dt>
@@ -953,7 +1669,7 @@ en lugar de txid.`}
           </Section>
 
           {/* §11 Decline Codes */}
-          <Section id="decline-codes" num={11} title="Decline Codes Comunes">
+          <Section id="decline-codes" num={14} title="Decline Codes Comunes">
             <p className="text-sm text-gray-600 mb-3">
               Cuando una transacción es rechazada, el acquirer devuelve un
               código. Los más comunes:
@@ -1014,10 +1730,19 @@ en lugar de txid.`}
               <code className="font-mono text-violet-700">@Pascal get_top_declines</code> y
               revisa la distribución por método y merchant.
             </p>
+
+            <Callout tone="info" title="Bancos más sensibles">
+              <strong>BBVA, Banorte y Santander</strong> son los emisores con
+              mayor tasa de decline / fricción en México. Si ves un spike de
+              declines, primero filtra por banco — si es uno de estos, suele ser
+              un patrón del emisor (no de Tonder). Para tarjetas, el <strong>3DS</strong>{" "}
+              suele ser obligatorio salvo exenciones por monto bajo o low-risk
+              merchant.
+            </Callout>
           </Section>
 
-          {/* §12 Recursos */}
-          <Section id="recursos" num={12} title="Recursos y Dashboards">
+          {/* §15 Recursos (was §12) */}
+          <Section id="recursos" num={15} title="Recursos y Dashboards">
             <Card title="Páginas del Dashboard">
               <div className="overflow-x-auto">
                 <table className="t-table">
@@ -1084,6 +1809,331 @@ en lugar de txid.`}
               </ul>
             </Card>
           </Section>
+
+          {/* §16 OKRs — Q1 2026 (CS_HUB §4) */}
+          <Section
+            id="okrs"
+            num={16}
+            title="OKRs — Q1 2026"
+            subtitle="Tres objetivos · 12 key results · trimestre activo"
+          >
+            <div className="grid md:grid-cols-3 gap-4">
+              {OKR_OBJECTIVES.map((obj, i) => (
+                <div
+                  key={i}
+                  className="t-card relative"
+                  style={{
+                    background:
+                      i === 0
+                        ? "rgba(245,243,255,0.4)"
+                        : i === 1
+                          ? "rgba(236,253,245,0.4)"
+                          : "rgba(254,252,232,0.4)",
+                  }}
+                >
+                  <span className="absolute top-3 right-3 text-[9px] font-semibold text-gray-400 uppercase tracking-wider bg-white px-2 py-0.5 rounded-full border border-gray-200">
+                    Q1 2026
+                  </span>
+                  <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                    Objetivo {i + 1}
+                  </p>
+                  <p className="text-sm font-semibold text-gray-900 leading-snug mb-1">
+                    {obj.goal}
+                  </p>
+                  <p className="text-[12px] text-gray-600 italic mb-3">{obj.tagline}</p>
+                  <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mt-3 mb-1">
+                    Key Results
+                  </p>
+                  <ol className="text-[13px] text-gray-700 space-y-2 list-decimal pl-4">
+                    {obj.krs.map((kr) => (
+                      <li key={kr}>{kr}</li>
+                    ))}
+                  </ol>
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          {/* §17 SOPs Catalog (CS_HUB §7) */}
+          <Section
+            id="sops"
+            num={17}
+            title="SOPs Catalog"
+            subtitle="Procedimientos operativos estándar · detalle completo vive en Notion (Customer Support Hub)"
+          >
+            <div className="t-card t-card-flush overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="t-table">
+                  <thead>
+                    <tr>
+                      <th>SOP</th>
+                      <th>Escalation contact</th>
+                      <th>Workflow</th>
+                      <th>Tools</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {SOP_CATALOG.map((sop) => (
+                      <tr key={sop.name}>
+                        <td className="text-gray-900 font-medium">{sop.name}</td>
+                        <td>
+                          <OwnerCell name={sop.contact} team={team} />
+                        </td>
+                        <td className="text-[13px] text-gray-700">{sop.workflow}</td>
+                        <td className="text-[12px] text-gray-500">{sop.tools}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </Section>
+
+          {/* §18 Accountability Chart (CS_HUB §9) */}
+          <Section
+            id="accountability"
+            num={18}
+            title="Accountability Chart"
+            subtitle="Quién es dueño de qué métrica · revisión semanal"
+          >
+            <Card title="Owner">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center font-semibold">
+                  {ACCOUNTABILITY_OWNER.split(" ").map((w) => w[0]).join("").slice(0, 2)}
+                </div>
+                <div>
+                  <OwnerCell name={ACCOUNTABILITY_OWNER} team={team} />
+                  <p className="text-[12px] text-gray-500 mt-0.5">
+                    Customer Support Specialist · responsable de las métricas semanales
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            <Card title="Métricas semanales · target" className="mt-4">
+              <div className="overflow-x-auto">
+                <table className="t-table">
+                  <thead>
+                    <tr>
+                      <th>Métrica</th>
+                      <th>Qué mide</th>
+                      <th>Target</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ACCOUNTABILITY_METRICS.map((m) => (
+                      <tr key={m.metric}>
+                        <td className="text-gray-900">{m.metric}</td>
+                        <td className="text-[13px] text-gray-700">{m.measures}</td>
+                        <td>
+                          <span className="t-badge t-badge-emerald font-mono">{m.target}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[11px] text-gray-500 mt-3 italic">
+                Nota de mejora del owner: crear mensajes genéricos como SOPs
+                para contestar tipos de mensajes más rápido — ver §17.
+              </p>
+            </Card>
+          </Section>
+
+          {/* §19 Q1 2026 QBR (CS_HUB §10) — collapsible-by-default */}
+          <section id="qbr" className="scroll-mt-20 fade-in d2">
+            <CollapsibleCard
+              eyebrow="§19 · Archivo histórico"
+              title="Q1 2026 Business Review"
+              subtitle="Jan 1 – Mar 31, 2026 · incidentes cuantificados, learnings, recomendaciones para Q2"
+            >
+              <div className="space-y-6 text-sm">
+                {/* 10.1 Coverage */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Coverage</h4>
+                  <ul className="text-gray-700 space-y-1 list-disc pl-5">
+                    <li><strong>Daily reports revisados:</strong> 90 reports (Jan 1 – Mar 31, 2026)</li>
+                    <li><strong>BC Game ticket bots:</strong> rangos 30-56/día con spikes (53 el Jan 8, 56 el Jan 14); Marzo bajó a 4-19/día</li>
+                  </ul>
+                </div>
+
+                {/* 10.2 Eventos cuantificados */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Eventos cuantificados (ejemplos)</h4>
+                  <div className="overflow-x-auto">
+                    <table className="t-table">
+                      <thead>
+                        <tr>
+                          <th>Categoría</th>
+                          <th>Merchant</th>
+                          <th>Qué pasó</th>
+                          <th>Impacto</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td className="text-[13px]">CB/dispute risk por API instability</td>
+                          <td className="text-[13px] font-medium">PB-IDEM</td>
+                          <td className="text-[12px] text-gray-700">API errors causaron mismatch — algunas TXs procesadas mientras el merchant las veía como rechazadas</td>
+                          <td className="text-[12px] text-red-700 font-medium">Merchant detuvo operación · USD 2M mensuales en riesgo</td>
+                        </tr>
+                        <tr>
+                          <td className="text-[13px]">Mass refunds para contener disputes</td>
+                          <td className="text-[13px] font-medium">PB-IDEM</td>
+                          <td className="text-[12px] text-gray-700">Refunds urgentes por transacciones duplicadas/erróneas</td>
+                          <td className="text-[12px] text-amber-700 font-medium">133 refunds en un día</td>
+                        </tr>
+                        <tr>
+                          <td className="text-[13px]">Duplicate callback / incorrect payout</td>
+                          <td className="text-[13px] font-medium">BC Game</td>
+                          <td className="text-[12px] text-gray-700">Duplicación de callbacks en withdrawals → riesgo financiero y contable</td>
+                          <td className="text-[12px] text-amber-700 font-medium">Compensación: 24,998 MXN · Settlement: 700,000 MXN</td>
+                        </tr>
+                        <tr>
+                          <td className="text-[13px]">Reconciliation / trust</td>
+                          <td className="text-[13px] font-medium">Stadiobet</td>
+                          <td className="text-[12px] text-gray-700">Reconciliación profunda con identificación de overpayments históricos</td>
+                          <td className="text-[12px] text-emerald-700 font-medium">+18,724.81 MXN (Jan 2) · 15,970.27 MXN (Jan 7 recuperado)</td>
+                        </tr>
+                        <tr>
+                          <td className="text-[13px]">Operations blocked por missing IDs</td>
+                          <td className="text-[13px] font-medium">FUN88</td>
+                          <td className="text-[12px] text-gray-700">Falta de visibility/search de Order ID en BO para matching de withdrawals</td>
+                          <td className="text-[12px] text-gray-700">Tema estructural recurrente</td>
+                        </tr>
+                        <tr>
+                          <td className="text-[13px]">Provider latency afectando withdrawals</td>
+                          <td className="text-[13px] font-medium">FUN88</td>
+                          <td className="text-[12px] text-gray-700">Withdrawals envejeciendo en `sent_to_provider` por delays STP + calendario bancario</td>
+                          <td className="text-[12px] text-gray-700">13 wd pendientes = 9,163 MXN de 337 procesadas (weekend/holiday)</td>
+                        </tr>
+                        <tr>
+                          <td className="text-[13px]">Fraud tuning para restaurar conversión</td>
+                          <td className="text-[13px] font-medium">Vivento</td>
+                          <td className="text-[12px] text-gray-700">Guardian creó alta fricción</td>
+                          <td className="text-[12px] text-emerald-700 font-medium">Approval rate: 23% (Jan 4) → 65-75% tras apagar Guardian + tunear reglas</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* 10.3 Executive Summary */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Executive Summary</h4>
+                  <p className="text-gray-700 mb-2">
+                    Q1 focus fue <strong>estabilidad operacional + reconciliation</strong>,
+                    con patrones recurrentes en:
+                  </p>
+                  <ul className="text-gray-700 space-y-1 list-disc pl-5">
+                    <li>Webhooks / callback correctness</li>
+                    <li>Withdrawals state inconsistencies</li>
+                    <li>Settlement timing expectations (T+1 / timezone)</li>
+                    <li>Merchant confusion por IDs y reporting windows</li>
+                  </ul>
+                  <p className="text-gray-700 mt-2">
+                    Velocidad de respuesta generalmente fuerte. Principal cost
+                    driver fue <strong>complejidad sistémica</strong>, no SLA breaches.
+                  </p>
+                </div>
+
+                {/* 10.4 Narrative — high impact */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Quarter Narrative · high-impact incidents</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-semibold text-gray-900">PB-IDEM (Cards) — API 500 y backend/frontend mismatch</p>
+                      <p className="text-gray-700">API 500 / upstream instability repetidos crearon escenario donde el merchant veía &ldquo;rejected&rdquo; mientras el backend seguía procesando. Riesgos: disputes/CB, pérdida de confianza, acciones de containment. Requirió escalación cross-team rápida.</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">BC Game (Withdrawals) — duplicate callback / double payout risk</p>
+                      <p className="text-gray-700">Duplicate callback behavior en withdrawals podía disparar accounting incorrecto. Respuesta requirió compensation actions y tightening de &ldquo;single final callback&rdquo; guarantees.</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">Stadiobet — reconciliation + trust event</p>
+                      <p className="text-gray-700">Reconciliation multi-día + clarificación repetida sobre settlement, wallet movements y reporting interpretation. Necesidad de standardized reconciliation artifact y clearer settlement education.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 10.5 KPI/SLA */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">KPI / SLA View</h4>
+                  <p className="text-gray-700">
+                    SLA fields en daily reports muestran <strong>First Response cerca de 3 min</strong> y{" "}
+                    <strong>Resolution bajo 45 min</strong>, aunque algunos días aparecen como N/D.
+                  </p>
+                  <p className="text-gray-700 mt-1 italic">
+                    Interpretación: support es responsive — las mayores mejoras vienen de{" "}
+                    <strong>reducir clases de incidentes recurrentes</strong>, no de optimizar SLA puntual.
+                  </p>
+                </div>
+
+                {/* 10.6 Recurring issues */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Recurring Issue Taxonomy</h4>
+                  <ol className="text-gray-700 space-y-1.5 list-decimal pl-5">
+                    <li><strong>Webhooks / callbacks:</strong> duplicates, delays, missing updates → &ldquo;success vs pending&rdquo; mismatches</li>
+                    <li><strong>Withdrawals lifecycle + STP dependency:</strong> aging en `sent_to_provider`, provider latency + banking calendar</li>
+                    <li><strong>Settlement + reconciliation + reporting windows:</strong> T+1 misunderstandings, timezone-based &ldquo;day shift&rdquo;</li>
+                    <li><strong>Fraud / 3DS / approval rate:</strong> Guardian thresholds y false positives, confusión sobre responsibility boundaries</li>
+                    <li><strong>&ldquo;Not found&rdquo; validations (not us vs us):</strong> SPEI tracking keys / receipts que no corresponden a cuentas Tonder</li>
+                  </ol>
+                </div>
+
+                {/* 10.7 Cross-team */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Cross-Team Collaboration</h4>
+                  <ul className="text-gray-700 space-y-1 list-disc pl-5">
+                    <li><strong>FinOps:</strong> refunds, settlements, reconciliation, POPs, reporting automation</li>
+                    <li><strong>Dev/Tech:</strong> callback correctness, idempotency/atomicity, exports, search/ID visibility, sandbox parity</li>
+                    <li><strong>Product:</strong> docs y contract clarity (statuses/IDs), feature prioritization for support-driven gaps</li>
+                  </ul>
+                </div>
+
+                {/* 10.8 Root causes */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Root-Cause Patterns</h4>
+                  <ol className="text-gray-700 space-y-1.5 list-decimal pl-5">
+                    <li><strong>State machine ambiguity</strong> — &ldquo;source of truth&rdquo; unclear (webhook vs query vs internal state)</li>
+                    <li><strong>Idempotency + concurrency</strong> — duplicate events pueden crear riesgo financiero y reputacional</li>
+                    <li><strong>Observability + retention gaps</strong> — short log retention incrementa time-to-resolution y empuja rework</li>
+                    <li><strong>Documentation & enablement debt</strong> — tickets repetidos desde los mismos gaps conceptuales (timezone, IDs, settlement semantics)</li>
+                  </ol>
+                </div>
+
+                {/* 10.9 Q2 recs */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Recomendaciones para Q2</h4>
+                  <div className="space-y-3">
+                    <div className="border-l-4 border-violet-300 pl-3">
+                      <p className="font-semibold text-gray-900">A · Reliability changes (highest ROI)</p>
+                      <ul className="text-gray-700 space-y-1 list-disc pl-5 mt-1">
+                        <li>Publicar <strong>source-of-truth contract</strong> claro por método, con expected eventual-consistency windows. <em>Enseñarle a Pascal.</em></li>
+                        <li>Crear <strong>STP latency playbook:</strong> thresholds, comms template, escalation triggers. <em>Enseñarle a Pascal.</em></li>
+                      </ul>
+                    </div>
+                    <div className="border-l-4 border-emerald-300 pl-3">
+                      <p className="font-semibold text-gray-900">B · Proactive merchant enablement</p>
+                      <p className="text-gray-700 mb-1">Short merchant guides para reducir repeat tickets:</p>
+                      <ul className="text-gray-700 space-y-1 list-disc pl-5">
+                        <li>&ldquo;How to validate a SPEI tracking key before escalating&rdquo;</li>
+                        <li>&ldquo;Why <code className="font-mono text-xs">paid_in_full</code> may show next day (timezone)&rdquo;</li>
+                        <li>&ldquo;How to correlate your IDs to Tonder IDs&rdquo;</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 10.10 Notable patterns — already in §5 */}
+                <p className="text-[12px] text-gray-500 italic pt-3 border-t border-gray-100">
+                  El apéndice con patrones notables por merchant (BC Game, PB-IDEM,
+                  Stadiobet, FUN88, Campobet) está integrado en §5 → &ldquo;Patrones
+                  recurrentes observados&rdquo;.
+                </p>
+              </div>
+            </CollapsibleCard>
+          </section>
 
           {/* Checklist */}
           <section id="checklist" className="t-card fade-in d6 !p-6">
@@ -1277,5 +2327,90 @@ function SkeletonRows() {
         <div key={i} className="h-8 bg-gray-100 rounded animate-pulse" />
       ))}
     </div>
+  );
+}
+
+/**
+ * Renders a person's name with live Slack/Telegram badges if the person
+ * exists in pascal_people, or as plain gray text with an "(add to /people)"
+ * nudge link if they don't. Used by the §8a feature-owners table and the
+ * §17 SOPs catalog.
+ */
+function OwnerCell({ name, team }: { name: string; team: Person[] | null }) {
+  const person = team?.find(
+    (p) => p.name.trim().toLowerCase() === name.trim().toLowerCase()
+  );
+  if (!person) {
+    return (
+      <span className="inline-flex items-baseline gap-1.5">
+        <span className="text-[13px] text-gray-500">{name}</span>
+        <Link
+          href="/people?type=tonder_team"
+          className="text-[10px] text-gray-400 hover:text-violet-600 underline-offset-2 hover:underline"
+        >
+          (add to /people)
+        </Link>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-baseline gap-1.5 flex-wrap">
+      <span className="inline-block w-1.5 h-1.5 bg-emerald-500 rounded-full self-center shrink-0" />
+      <span className="text-[13px] text-gray-900 font-medium">{person.name}</span>
+      {person.slack_user_id && (
+        <code className="font-mono text-[10px] text-gray-600 bg-gray-50 px-1 py-0.5 rounded">
+          {person.slack_user_id}
+        </code>
+      )}
+      {person.telegram_user_id && (
+        <code className="font-mono text-[10px] text-violet-700 bg-violet-50 px-1 py-0.5 rounded">
+          tg:{person.telegram_user_id}
+        </code>
+      )}
+    </span>
+  );
+}
+
+/**
+ * A `<details>`-based collapsible card that matches the .t-card aesthetic.
+ * Used for the §1 Job Description and the §19 Q1 2026 QBR (both collapsed
+ * by default so they don't dominate the page).
+ */
+function CollapsibleCard({
+  eyebrow,
+  title,
+  subtitle,
+  defaultOpen = false,
+  children,
+}: {
+  eyebrow?: string;
+  title: string;
+  subtitle?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="t-card group" open={defaultOpen}>
+      <summary className="cursor-pointer list-none flex items-baseline justify-between gap-3 -m-2 p-2 rounded-md hover:bg-gray-50 transition-colors">
+        <div className="min-w-0">
+          {eyebrow && (
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+              {eyebrow}
+            </p>
+          )}
+          <h3 className="text-base font-semibold text-gray-900 mt-0.5">{title}</h3>
+          {subtitle && (
+            <p className="text-[12px] text-gray-500 mt-1">{subtitle}</p>
+          )}
+        </div>
+        <span className="text-xs text-violet-600 font-medium shrink-0 group-open:hidden">
+          Expandir ↓
+        </span>
+        <span className="text-xs text-gray-400 font-medium shrink-0 hidden group-open:inline">
+          Colapsar ↑
+        </span>
+      </summary>
+      <div className="mt-5 pt-5 border-t border-gray-100">{children}</div>
+    </details>
   );
 }
