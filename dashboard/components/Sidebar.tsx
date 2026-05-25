@@ -150,6 +150,17 @@ function IconProfiles({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
+function IconOnboarding({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      {/* graduation cap — "onboarding / learn the platform" */}
+      <path d="M22 10L12 5 2 10l10 5 10-5z" />
+      <path d="M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5" />
+      <line x1="22" y1="10" x2="22" y2="15" />
+    </svg>
+  );
+}
+
 function IconReplays({ className = "w-5 h-5" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -238,6 +249,7 @@ interface NavItem {
 
 const AGENT_ITEMS: NavItem[] = [
   { label: "Overview", href: "/", icon: IconGrid },
+  { label: "Onboarding", href: "/onboarding", icon: IconOnboarding },
   { label: "Chat", href: "/chat", icon: IconAIChat },
   { label: "Analytics", href: "/analytics", icon: IconChart },
   { label: "Brain", href: "/brain", icon: IconBrain },
