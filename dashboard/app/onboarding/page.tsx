@@ -221,10 +221,10 @@ export default function OnboardingPage() {
             <div className="grid md:grid-cols-2 gap-4">
               <Card title="¿Qué es Tonder?">
                 <p className="text-sm text-gray-700 leading-relaxed">
-                  Plataforma de <strong>orquestación de pagos</strong> con sede
-                  en México. Conectamos merchants con múltiples proveedores
-                  (acquirers, gateways, bancos) a través de una sola integración.
-                  El merchant integra Tonder una vez y nosotros enrutamos cada
+                  <strong>Procesador de pagos</strong> con sede en México.
+                  Conectamos a merchants con múltiples redes (acquirers,
+                  gateways, bancos) a través de una sola integración. El
+                  merchant integra Tonder una vez y nosotros enrutamos cada
                   transacción al proveedor óptimo.
                 </p>
                 <ul className="mt-3 text-sm text-gray-700 space-y-1.5">
@@ -273,9 +273,9 @@ export default function OnboardingPage() {
             <div className="grid md:grid-cols-2 gap-4">
               <Card title="Procesamiento de Pagos">
                 <p className="text-sm text-gray-700 leading-relaxed mb-2">
-                  Tonder es el <strong>layer de orquestación</strong>. El
-                  merchant envía una transacción a nuestra API y nosotros
-                  decidimos a qué proveedor enviarla.
+                  Tonder es un <strong>procesador de pagos</strong>. El merchant
+                  envía una transacción a nuestra API y nosotros la procesamos a
+                  través del proveedor óptimo (acquirer, gateway o banco).
                 </p>
                 <ul className="text-sm text-gray-700 space-y-1">
                   <li>• Mejor acceptance rate (reintento entre proveedores)</li>
