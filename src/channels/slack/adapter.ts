@@ -2,6 +2,7 @@ import * as Sentry from "@sentry/node";
 import { App } from "@slack/bolt";
 import { ChannelAdapter, IncomingMessage, OutgoingMessage, MessageResponse } from "../types";
 import { formatResponse, formatError, formatThinking } from "./formatter";
+import { ProgressUpdater } from "../../utils/progress";
 import { createSupportTicket, createTriageTicket, createTeamTicket, CommandType } from "../../linear/client";
 import { resolveMerchantContext } from "../../merchants/context";
 import { trackInteraction } from "../../scheduler/daily-report";
@@ -222,12 +223,52 @@ export class SlackChannelAdapter implements ChannelAdapter {
         "Received Slack @mention"
       );
 
+      // AID-84: eager 👀 reaction so the user sees instant acknowledgement
+      // even before the "thinking" placeholder posts (~200ms vs ~600ms).
+      // Fire-and-forget — failures here must not block the agent loop.
+      client.reactions
+        .add({
+          channel: event.channel,
+          name: "eyes",
+          timestamp: event.ts,
+        })
+        .catch((err) => {
+          logger.warn(
+            { err: err instanceof Error ? err.message : String(err) },
+            "Slack reaction add failed (non-fatal)"
+          );
+        });
+
       const thinking = await client.chat.postMessage({
         channel: event.channel,
         thread_ts: event.ts,
         blocks: formatThinking(),
         text: "Let me look into that...",
       });
+
+      // AID-84: schedule progressive placeholder edits at 15s / 45s / 90s
+      // so the user gets clear signal that work is still happening, even
+      // on slow compound queries that approach the 120s tool-loop budget.
+      const progress = new ProgressUpdater(async (text) => {
+        await client.chat.update({
+          channel: event.channel,
+          ts: thinking.ts!,
+          blocks: formatThinking(text),
+          text,
+        });
+      });
+      progress.schedule(
+        15_000,
+        ":mag: Still working — checking transactions and pulling context…"
+      );
+      progress.schedule(
+        45_000,
+        ":hourglass: Almost there — formatting the answer…"
+      );
+      progress.schedule(
+        90_000,
+        ":turtle: This one is taking longer than usual. Hold tight — I'll follow up shortly if needed."
+      );
 
       try {
         const response = await handler({
@@ -239,6 +280,11 @@ export class SlackChannelAdapter implements ChannelAdapter {
           threadId: event.ts,
           rawEvent: event,
         });
+
+        // Cancel any pending progress edits BEFORE writing the final
+        // answer, so a late-firing "still working" edit can't overwrite
+        // the response (last-write-wins ordering matters here).
+        progress.cancel();
 
         await client.chat.update({
           channel: event.channel,
@@ -274,6 +320,9 @@ export class SlackChannelAdapter implements ChannelAdapter {
           });
         }
       } catch (err) {
+        // Cancel pending progress edits before posting the error so a
+        // late "still working" doesn't overwrite the error message.
+        progress.cancel();
         Sentry.captureException(err);
         logger.error({ err }, "Failed to answer Slack @mention");
         storeErrorFromCatch("slack", err, { channel: event.channel, user: event.user, action: "app_mention" });
@@ -307,6 +356,30 @@ export class SlackChannelAdapter implements ChannelAdapter {
         text: "Let me look into that...",
       });
 
+      // AID-84: same progressive-edit pattern as the @mention handler
+      // above. DMs don't get the 👀 reaction (DM channels don't show
+      // them prominently), but the placeholder updates are identical.
+      const progress = new ProgressUpdater(async (text) => {
+        await client.chat.update({
+          channel: msg.channel!,
+          ts: thinking.ts!,
+          blocks: formatThinking(text),
+          text,
+        });
+      });
+      progress.schedule(
+        15_000,
+        ":mag: Still working — checking transactions and pulling context…"
+      );
+      progress.schedule(
+        45_000,
+        ":hourglass: Almost there — formatting the answer…"
+      );
+      progress.schedule(
+        90_000,
+        ":turtle: This one is taking longer than usual. Hold tight — I'll follow up shortly if needed."
+      );
+
       try {
         const response = await handler({
           channelId: msg.channel!,
@@ -316,6 +389,8 @@ export class SlackChannelAdapter implements ChannelAdapter {
           text: question,
           rawEvent: event,
         });
+
+        progress.cancel();
 
         await client.chat.update({
           channel: msg.channel!,
@@ -336,6 +411,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
           }
         }
       } catch (err) {
+        progress.cancel();
         Sentry.captureException(err);
         logger.error({ err }, "Failed to answer Slack DM");
         storeErrorFromCatch("slack", err, { channel: msg.channel!, user: msg.user, action: "dm" });

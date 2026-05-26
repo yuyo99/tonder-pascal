@@ -25,6 +25,18 @@ const client = new Anthropic({ apiKey: config.claude.apiKey, timeout: 120_000 })
 const MAX_TOOL_ROUNDS = 10;
 const HANDLER_TIMEOUT_MS = 300_000; // 5 min max — bulk queries (54 IDs) need time
 
+/**
+ * AID-84: wall-clock budget for the tool loop. Tighter than the
+ * 5-minute HANDLER_TIMEOUT_MS so a runaway loop can't dominate Slack
+ * UX. With the channel adapters' progress-edit pattern (👀 reaction +
+ * 15s / 45s / 90s edits) this gives the user clear progressive signal
+ * and a clean "I'll follow up" outcome at the wall.
+ *
+ * Per the AID-84 spec, even a healthy compound query rarely needs
+ * more than ~90s; 120s is a tight envelope with 30s of headroom.
+ */
+const DEFAULT_TOOL_LOOP_BUDGET_MS = 120_000;
+
 interface ToolLoopResult {
   answer: string;
   toolCalls: { tool: string; input: Record<string, unknown> }[];
@@ -32,6 +44,8 @@ interface ToolLoopResult {
   toolOutputs: string[];
   rounds: number;
   attachments?: { buffer: Buffer; filename: string }[];
+  /** AID-84: true if the loop returned early because budgetMs elapsed. */
+  budgetExhausted?: boolean;
 }
 
 /**
@@ -587,8 +601,11 @@ async function runToolLoop(
   question: string,
   systemPrompt: string,
   merchantCtx: MerchantContext,
-  history: Anthropic.MessageParam[] = []
+  history: Anthropic.MessageParam[] = [],
+  opts: { budgetMs?: number } = {}
 ): Promise<ToolLoopResult> {
+  const budgetMs = opts.budgetMs ?? DEFAULT_TOOL_LOOP_BUDGET_MS;
+  const loopStartedAt = Date.now();
   const messages: Anthropic.MessageParam[] = [
     ...history,
     { role: "user", content: question },
@@ -599,6 +616,32 @@ async function runToolLoop(
   let rounds = 0;
 
   while (rounds < MAX_TOOL_ROUNDS) {
+    // AID-84: wall-clock budget check at the top of every round.
+    // Avoids paying for an inference + tool roundtrip we already
+    // know will land past the budget. Channel adapters surface this
+    // as a "taking longer than expected" message + follow-up reply.
+    const elapsed = Date.now() - loopStartedAt;
+    if (elapsed > budgetMs) {
+      logger.warn(
+        {
+          elapsed,
+          budgetMs,
+          rounds,
+          merchant: merchantCtx.businessName,
+          toolsCalled: toolCalls.map((t) => t.tool),
+        },
+        "Tool loop budget exhausted — returning timeout fallback"
+      );
+      return {
+        answer:
+          "This one is taking longer than usual on my end. I'll keep working on it and follow up shortly — feel free to rephrase if you have a more specific question.",
+        toolCalls,
+        toolOutputs,
+        rounds,
+        budgetExhausted: true,
+      };
+    }
+
     rounds++;
 
     const response = await callClaude({

@@ -44,13 +44,19 @@ export function formatError(error: string): (KnownBlock | Block)[] {
   ];
 }
 
-export function formatThinking(): (KnownBlock | Block)[] {
+export function formatThinking(
+  text: string = "Let me look into that... :hourglass_flowing_sand:"
+): (KnownBlock | Block)[] {
+  // Optional `text` lets the ProgressUpdater swap the placeholder
+  // contents at 15s / 45s / 90s with progressively more reassuring
+  // copy ("still working...", "almost there...", etc) without
+  // restructuring the block. Defaults to the original copy.
   return [
     {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: "Let me look into that... :hourglass_flowing_sand:",
+        text,
       },
     },
   ];

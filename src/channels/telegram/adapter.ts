@@ -15,6 +15,7 @@ import { logger } from "../../utils/logger";
 import { storeErrorFromCatch, storeError } from "../../utils/error-store";
 import { evaluateAndRecord } from "../../monitoring/self-qa";
 import { acquireBotLock, releaseBotLock } from "../../postgres/connection";
+import { ProgressUpdater } from "../../utils/progress";
 
 interface TelegramConfig {
   botToken: string;
@@ -672,6 +673,37 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       // Send "thinking" message
       const thinkingMsg = await ctx.reply("Let me look into that... ⏳");
 
+      // AID-84: progressive edits at 15s / 45s / 90s while the tool
+      // loop runs. Telegram doesn't support reactions in groups
+      // reliably so we use the thinking-message edit pattern only.
+      const progress = new ProgressUpdater(async (text) => {
+        try {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            thinkingMsg.message_id,
+            undefined,
+            text
+          );
+        } catch (editErr) {
+          logger.warn(
+            { err: editErr instanceof Error ? editErr.message : String(editErr) },
+            "Telegram progress edit failed (non-fatal)"
+          );
+        }
+      });
+      progress.schedule(
+        15_000,
+        "🔍 Still working — checking transactions and pulling context…"
+      );
+      progress.schedule(
+        45_000,
+        "⏳ Almost there — formatting the answer…"
+      );
+      progress.schedule(
+        90_000,
+        "🐢 This one is taking longer than usual. Hold tight — I'll follow up shortly if needed."
+      );
+
       try {
         const response = await handler({
           channelId: chatId,
@@ -681,6 +713,10 @@ export class TelegramChannelAdapter implements ChannelAdapter {
           text: cleanText,
           rawEvent: ctx.message,
         });
+
+        // Cancel progress edits BEFORE the final edit so a late
+        // "still working" can't overwrite the answer.
+        progress.cancel();
 
         // Edit the thinking message with the answer
         try {
@@ -701,6 +737,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
           }
         }
       } catch (err) {
+        progress.cancel();
         Sentry.captureException(err);
         logger.error({ err }, "Failed to answer Telegram message");
         storeErrorFromCatch("telegram", err, { channel: chatId, action: "text_message" });
