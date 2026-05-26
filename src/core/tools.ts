@@ -3,11 +3,145 @@ import Anthropic from "@anthropic-ai/sdk";
 import { parseDateRange, buildDateRange, DateRange } from "../utils/dates";
 import { MerchantContext } from "../merchants/types";
 import * as queries from "../mongodb/queries";
+import {
+  queryTransactions,
+  QueryTransactionsInput,
+} from "../mongodb/query-transactions";
 import { generateRefundReceipt } from "./receipt-generator";
+import { config } from "../config";
 
 import { logger } from "../utils/logger";
 import { storeErrorFromCatch } from "../utils/error-store";
 import { createTeamTicket } from "../linear/client";
+
+/**
+ * AID-85 — unified `query_transactions` tool definition. Registered
+ * conditionally based on `config.pascal.unifiedQueryEnabled` so we
+ * can ship behind a flag and remove the 6 old tools in a follow-up
+ * PR after a 7-day soak.
+ */
+const QUERY_TRANSACTIONS_TOOL: Anthropic.Tool = {
+  name: "query_transactions",
+  description:
+    "Query transaction records with composable filters and aggregations. " +
+    "Use this for ANY filtered or compound transaction question — it " +
+    "replaces get_acceptance_rate, get_top_declines, get_transaction_volume, " +
+    "get_transactions_by_status, list_recent_transactions, and lookup_spei_deposits. " +
+    "One tool call covers what would otherwise require 2-3 sequential rounds.\n\n" +
+    "Examples:\n" +
+    '- "Show failed SPEI deposits over 5k from yesterday" →\n' +
+    '  filters: { status: ["declined"], payment_method: ["spei"], ' +
+    "amount_range: { min: 5000 }, date_range: { from: ISO_yesterday_start, to: ISO_yesterday_end } }\n" +
+    '- "What\'s our acceptance rate this week?" →\n' +
+    '  aggregate: "group_by_status", filters: { date_range: { from, to } }\n' +
+    '- "Top decline reasons" →\n' +
+    '  aggregate: "group_by_decline" (already implies status: declined)\n' +
+    '- "Transactions for customer@example.com last 7 days" →\n' +
+    '  filters: { search: "customer@example.com", date_range: { from, to } }\n\n' +
+    "IMPORTANT: payment_method takes EXTERNAL labels only (cards, spei, " +
+    "oxxopay, cash_voucher, mercadopago) — never internal acquirer names. " +
+    "date_range requires ISO 8601 timestamps (not keywords like 'yesterday'). " +
+    "If you don't know exact ISO timestamps, omit date_range and the query " +
+    "returns recent records by default.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      filters: {
+        type: "object" as const,
+        description: "Filter conditions. All are AND-combined.",
+        properties: {
+          status: {
+            type: "array" as const,
+            items: {
+              type: "string" as const,
+              enum: [
+                "approved",
+                "success",
+                "declined",
+                "pending",
+                "refunded",
+                "reversed",
+                "expired",
+                "failed",
+              ],
+            },
+            description: "Transaction statuses to include. Case-insensitive.",
+          },
+          payment_method: {
+            type: "array" as const,
+            items: {
+              type: "string" as const,
+              enum: [
+                "cards",
+                "spei",
+                "oxxopay",
+                "cash_voucher",
+                "mercadopago",
+              ],
+            },
+            description:
+              "Payment method labels to include. Use these external labels only.",
+          },
+          date_range: {
+            type: "object" as const,
+            properties: {
+              from: { type: "string" as const, description: "ISO 8601 timestamp" },
+              to: { type: "string" as const, description: "ISO 8601 timestamp" },
+            },
+            required: ["from", "to"] as string[],
+          },
+          amount_range: {
+            type: "object" as const,
+            properties: {
+              min: { type: "number" as const },
+              max: { type: "number" as const },
+            },
+          },
+          search: {
+            type: "string" as const,
+            description:
+              "Fuzzy match across payment_id, order_id, customer_email, payment_customer_order_reference, transaction_reference, tracking_key. Natively handles BC Game's customer_order_id.",
+          },
+          decline_reason: {
+            type: "string" as const,
+            description:
+              "Case-insensitive partial match on the decline description.",
+          },
+        },
+      },
+      aggregate: {
+        type: "string" as const,
+        enum: [
+          "count",
+          "sum",
+          "group_by_status",
+          "group_by_method",
+          "group_by_decline",
+          "group_by_day",
+        ],
+        description:
+          "Aggregation mode. Omit to return rows. group_by_decline implicitly filters to declined transactions.",
+      },
+      sort: {
+        type: "object" as const,
+        properties: {
+          field: { type: "string" as const, enum: ["created", "amount"] },
+          order: { type: "string" as const, enum: ["asc", "desc"] },
+        },
+      },
+      limit: {
+        type: "number" as const,
+        description:
+          "Number of rows to return. Default 20, max 100. Ignored when aggregate is set.",
+      },
+      offset: {
+        type: "number" as const,
+        description: "Pagination offset. Default 0.",
+      },
+    },
+    required: [] as string[],
+  },
+};
 
 // Pending file attachments from tool execution (keyed by receipt ID)
 const pendingAttachments = new Map<string, { buffer: Buffer; filename: string }>();
@@ -37,6 +171,12 @@ const dateParams = {
 };
 
 export const toolDefinitions: Anthropic.Tool[] = [
+  // AID-85: register the unified tool FIRST so Claude evaluates it
+  // before the 6 narrower tools. Behind a feature flag for safety —
+  // when off, Claude sees exactly the 9-tool surface that existed
+  // before this commit.
+  ...(config.pascal.unifiedQueryEnabled ? [QUERY_TRANSACTIONS_TOOL] : []),
+  // TODO(AID-85 follow-up): remove the 6 below after the 7-day soak.
   {
     name: "get_acceptance_rate",
     description:
@@ -228,6 +368,22 @@ export async function executeTool(
     const dateRange = resolveDateRange(input);
 
     switch (toolName) {
+      // AID-85 — unified transaction query. Replaces the 6 cases below
+      // (kept registered behind the flag during the 7-day soak).
+      case "query_transactions": {
+        // The input shape matches QueryTransactionsInput. The new tool
+        // takes its OWN date_range under filters.date_range (ISO from/to),
+        // NOT the legacy keyword string — so don't call resolveDateRange
+        // here. Cast through unknown because ToolInput is the legacy
+        // shape; the new tool has a richer schema.
+        const txInput = input as unknown as QueryTransactionsInput;
+        const result = await queryTransactions(txInput, merchantCtx);
+        return JSON.stringify({
+          ...result,
+          merchant: merchantCtx.businessName,
+        });
+      }
+
       case "get_acceptance_rate": {
         const result = await queries.getAcceptanceRates(dateRange, merchantCtx.businessIds);
         return JSON.stringify({

@@ -39,6 +39,14 @@ export const config = {
     // Channels where ambient mode is active (comma-separated). Empty = all mapped channels.
     allowedChannels: (process.env.AMBIENT_CHANNELS || "").split(",").filter(Boolean),
   },
+  pascal: {
+    // AID-85: when true, the unified `query_transactions` tool is
+    // registered alongside the existing 6 single-purpose transaction
+    // tools. Claude will prefer it (better description), but old tools
+    // stay as fallbacks during the 7-day soak. Once the soak is clean,
+    // a follow-up PR removes the 6 old tools.
+    unifiedQueryEnabled: process.env.PASCAL_UNIFIED_QUERY_ENABLED === "true",
+  },
   openai: {
     apiKey: process.env.OPENAI_API_KEY || "",
   },

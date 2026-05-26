@@ -52,6 +52,36 @@ export function getMerchantDisplayName(acq: string): string {
 }
 
 /**
+ * AID-85: reverse map for the unified query_transactions tool.
+ * Translates the user-facing payment-method label (which Claude sees
+ * in the tool schema) into the set of acquirer codes to filter on in
+ * MongoDB. Claude never sees raw acq codes — the tool input uses
+ * external labels only ("cards", "spei", "oxxopay", etc).
+ */
+export const PAYMENT_METHOD_TO_ACQS: Record<string, string[]> = {
+  cards: ["kushki", "unlimit", "guardian", "tonder"],
+  spei: ["bitso", "stp"],
+  oxxopay: ["oxxopay"],
+  cash_voucher: ["safetypay"],
+  mercadopago: ["mercadopago"],
+};
+
+/**
+ * Translate a list of external payment-method labels into the union
+ * of internal acquirer codes that filter equivalently. Unknown labels
+ * are silently dropped (defensive — Claude shouldn't pass them, but
+ * if it does we'd rather return zero rows than crash).
+ */
+export function paymentMethodsToAcqs(methods: string[]): string[] {
+  const out = new Set<string>();
+  for (const m of methods) {
+    const acqs = PAYMENT_METHOD_TO_ACQS[m.toLowerCase()];
+    if (acqs) for (const a of acqs) out.add(a);
+  }
+  return [...out];
+}
+
+/**
  * Names safe to replace via regex in any text (tool output OR final response).
  * "tonder" is excluded because it's the company name — replacing it blindly
  * would turn "powered by Tonder" into "powered by Cards".
