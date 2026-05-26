@@ -27,12 +27,19 @@ export default function PageHeader({
 }) {
   return (
     <header
-      className="sticky top-0 z-10 h-14 flex items-center justify-between px-8 -mx-8 mb-6"
+      // min-h-14 (was h-14) so the safe-area-top padding can grow the
+      // header without clipping content. The visible chrome below the
+      // status bar still feels like the design-system 56px header.
+      className="sticky top-0 z-10 min-h-14 flex items-center justify-between px-8 -mx-8 mb-6"
       style={{
         background: "rgba(255, 255, 255, 0.8)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
         borderBottom: "1px solid rgba(229, 231, 235, 0.6)",
+        // Push the title content below the iPhone status bar / Dynamic
+        // Island when running as an installed PWA with viewportFit:cover.
+        // In a regular browser tab this resolves to 0.
+        paddingTop: "var(--sat)",
       }}
     >
       <div className="flex items-center gap-3 min-w-0">

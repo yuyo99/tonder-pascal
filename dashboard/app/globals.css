@@ -283,11 +283,56 @@ body {
   border-bottom-color: #111827;
 }
 
+/* ─── iOS PWA · safe-area variables and native-feel polish ─────────────*/
+/* Exposed as CSS vars so JSX can reference var(--sat) etc. without
+   repeating env() each time. In a regular browser tab these resolve
+   to 0; in an installed PWA with viewportFit:cover they expose the
+   notch / Dynamic Island / home indicator insets. */
+:root {
+  --sat: env(safe-area-inset-top);
+  --sab: env(safe-area-inset-bottom);
+  --sal: env(safe-area-inset-left);
+  --sar: env(safe-area-inset-right);
+}
+
+/* Kill the Safari gray tap-highlight flash on links / buttons. */
+a, button, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Disable the iOS long-press 'Save Image / Copy Link' menu on chrome
+   surfaces (header, sidebar, buttons). Leaves text selectable inside
+   actual content (KB entries, analytics rows, etc). */
+button, [role="button"], nav, header, aside {
+  -webkit-touch-callout: none;
+}
+
+/* Prevent body rubber-band on overscroll. Inner scroll containers
+   still scroll naturally. */
+html, body {
+  overscroll-behavior-y: none;
+}
+
+/* iOS Safari auto-zooms when tapping a field with font-size < 16px.
+   At <= touch breakpoint, force bare input/select/textarea to 16px.
+   Desktop UIs keep their original sizing (most use .form-input which
+   we bumped explicitly below). */
+@media (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 /* ─── Forms — violet focus ring ────────────────────────────────────────*/
 .form-input {
   width: 100%;
   padding: 10px 16px;
-  font-size: 14px;
+  /* 16px is the iOS Safari floor — below this, tapping a field auto-
+     zooms the page. Visually identical at desktop sizes since the page
+     was already comfortable at 14px; the bump only matters on touch. */
+  font-size: 16px;
   color: #374151;
   background: #fff;
   border: 1px solid #e5e7eb;

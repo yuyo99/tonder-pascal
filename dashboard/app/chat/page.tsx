@@ -495,8 +495,12 @@ export default function ChatPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input bar */}
-      <div className="border-t border-gray-100 px-4 py-3 bg-white">
+      {/* Input bar — pad-bottom respects the iPhone home indicator when
+          installed as a PWA (the 0.75rem default still applies on web). */}
+      <div
+        className="border-t border-gray-100 px-4 py-3 bg-white"
+        style={{ paddingBottom: "calc(0.75rem + var(--sab))" }}
+      >
         <form onSubmit={handleSubmit} className="flex gap-2 items-end">
           <textarea
             ref={inputRef}

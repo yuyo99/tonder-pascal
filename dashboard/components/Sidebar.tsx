@@ -357,10 +357,12 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile hamburger */}
+      {/* Mobile hamburger — pushes down below the iPhone notch when the
+          app runs as an installed PWA (else stays at 12px). */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-3 left-3 z-50 w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-gray-200"
+        className="lg:hidden fixed left-3 z-50 w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-gray-200"
+        style={{ top: "max(12px, calc(var(--sat) + 8px))" }}
       >
         <IconHamburger className="w-5 h-5 text-gray-600" />
       </button>
@@ -373,11 +375,17 @@ export default function Sidebar() {
         />
       )}
 
-      {/* Mobile sidebar */}
+      {/* Mobile sidebar — top and bottom safe-area insets so the logo
+          clears the Dynamic Island and the sign-out button clears the
+          home indicator. */}
       <aside
         className={`lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-out ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
+        style={{
+          paddingTop: "var(--sat)",
+          paddingBottom: "var(--sab)",
+        }}
       >
         {sidebarContent}
       </aside>
