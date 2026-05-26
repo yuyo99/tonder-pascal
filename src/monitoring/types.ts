@@ -13,7 +13,7 @@ export interface SelfQAEvent {
   channelId: string;
   merchantName: string | null;
   businessId: string | null;
-  messageType: "deposit_ticket" | "mention" | "dm" | "ambient" | "command" | "unknown";
+  messageType: "deposit_ticket" | "mention" | "dm" | "ambient" | "command" | "social" | "unknown";
   status: Severity;
   latencyMs: number;
   parseConfidence: number | null;

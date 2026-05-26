@@ -16,7 +16,12 @@ import { logger } from "../utils/logger";
 import { storeErrorFromCatch } from "../utils/error-store";
 import { evaluateAndRecord } from "../monitoring/self-qa";
 import { loadActiveRules, shouldRespond, logRuleApplication } from "./rules";
-import { refineQuery, bareIdShortCircuit } from "./refine";
+import {
+  refineQuery,
+  bareIdShortCircuit,
+  socialShortCircuit,
+  renderToolPlanForPrompt,
+} from "./refine";
 import { validateResponse, safeFallbackResponse, type Violation } from "./validate";
 import { loadActiveProcedures, matchProcedure, renderProcedureSection, logProcedureDispatch } from "./procedures";
 import { loadMerchantProfile } from "./merchant-profile";
@@ -152,6 +157,18 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
     // formatting error, empty results — Sonnet will handle it instead).
   }
 
+  // AID-79b: Social short-circuit — "hi", "thanks", "ok cool". One Haiku
+  // call to generate a brief friendly reply, no tool loop. Saves ~5-10s
+  // and ~$0.01 per social message. Falls through on any failure.
+  if (socialShortCircuit(refined)) {
+    const socialResult = await trySocialShortCircuit(
+      merchantCtx,
+      msg,
+      startTime,
+    );
+    if (socialResult) return socialResult;
+  }
+
   // ── Phase 4a — Procedure dispatch (Pascal Model 2 / AID-79) ──────────
   // Look for a matching playbook to inject into the system prompt. At most
   // one procedure fires per message — most-specific scope wins.
@@ -181,6 +198,23 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
   let systemPrompt = buildSystemPrompt(merchantCtx, activeRules, merchantProfile);
   if (matchedProcedure) {
     systemPrompt += renderProcedureSection(matchedProcedure);
+  }
+
+  // AID-79b: inject the tool-call plan as a hint. Sonnet treats it as a
+  // suggestion, not a mandate — it can override if the plan looks wrong.
+  // Empty when there's nothing useful to inject (passthrough / social /
+  // no concrete suggestion from Haiku).
+  const planSection = renderToolPlanForPrompt(refined);
+  if (planSection) {
+    systemPrompt += planSection;
+    logger.info(
+      {
+        suggested_tool: refined.tool_plan?.suggested_tool,
+        suggested_aggregate: refined.tool_plan?.suggested_aggregate,
+        merchant: merchantCtx.businessName,
+      },
+      "Phase 2: tool plan injected into prompt"
+    );
   }
 
   // Step 2b: Inject relevant knowledge into system prompt (semantic search + keyword fallback).
@@ -495,6 +529,90 @@ async function tryBareIdShortCircuit(
     return { text: answer };
   } catch (err) {
     logger.warn({ err, id }, "Bare-ID short-circuit: failed, falling through to Sonnet");
+    return null;
+  }
+}
+
+// ── AID-79b: Social short-circuit ────────────────────────────────────
+//
+// When refineQuery classifies a message as `social` with high confidence
+// ("thanks", "ok", "hi pascal"), there's no need to spin up the full
+// Sonnet tool loop. A single Haiku call generates a brief friendly
+// reply that matches the merchant's language and tone — typically
+// ~500ms vs ~5-10s for the full pipeline, ~$0.0001 vs ~$0.01 per
+// message.
+//
+// Returns null on any failure (Haiku timeout, empty reply, etc.) so
+// the orchestrator falls through to the regular Sonnet path.
+
+async function trySocialShortCircuit(
+  merchantCtx: MerchantContext,
+  msg: IncomingMessage,
+  startTime: number,
+): Promise<import("../channels/types").MessageResponse | null> {
+  try {
+    const formatted = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 200,
+      system:
+        `You are Pascal, ${merchantCtx.businessName}'s payment-data assistant. ` +
+        `The merchant just sent a brief social message (greeting, thanks, ` +
+        `acknowledgement). Respond with a SHORT (1-2 sentence) friendly ` +
+        `reply in the SAME language as the message. Don't ask follow-up ` +
+        `questions unless the message is a greeting; for "thanks"/"ok"/"got it" ` +
+        `just acknowledge briefly. Don't repeat their words back. Don't ` +
+        `mention internal acquirer names. Keep it warm but professional.`,
+      messages: [{ role: "user", content: msg.text.trim() }],
+    });
+
+    const answer = formatted.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("\n")
+      .trim();
+
+    if (!answer) return null;
+
+    const latencyMs = Date.now() - startTime;
+    logger.info(
+      { merchant: merchantCtx.businessName, latencyMs },
+      "Social short-circuit: success",
+    );
+
+    // Log to pascal_conversation_log so the conversation is still tracked.
+    // tool_calls is empty because no data tools fired; analytics can
+    // distinguish via `rounds: 0` + empty tool_calls.
+    const conversationId = await logConversation(
+      merchantCtx,
+      msg,
+      { answer, toolCalls: [], toolOutputs: [], rounds: 0 },
+      latencyMs,
+      undefined,
+      [],
+    );
+
+    // Self-QA fire-and-forget, mirroring the bare-ID short-circuit path.
+    evaluateAndRecord({
+      platform: msg.platform,
+      channelId: msg.channelId,
+      merchantName: merchantCtx.businessName,
+      businessId: String(merchantCtx.businessId),
+      messageType: "social",
+      latencyMs,
+      responded: true,
+      fallbackUsed: false,
+      failureReason: null,
+      rawInput: msg.text?.slice(0, 2000) ?? "",
+      toolsCalled: [],
+      rounds: 0,
+      conversationId: conversationId ?? undefined,
+    }).catch((err) =>
+      logger.warn({ err }, "Self-QA fire-and-forget failed (social short-circuit)")
+    );
+
+    return { text: answer };
+  } catch (err) {
+    logger.warn({ err }, "Social short-circuit: failed, falling through to Sonnet");
     return null;
   }
 }
