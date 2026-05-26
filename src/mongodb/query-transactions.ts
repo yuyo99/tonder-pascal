@@ -123,8 +123,13 @@ function buildMatch(
       merchantCtx.businessIds.length === 1
         ? merchantCtx.businessIds[0]
         : { $in: merchantCtx.businessIds },
-    transaction_type: "PAYMENT",
   };
+  // Note: only getAcceptanceRates filters by transaction_type=PAYMENT
+  // because acceptance rate cares specifically about deposit attempts.
+  // The other 5 tools we're collapsing don't apply that filter, so the
+  // unified tool follows the broader convention. Acceptance-rate-style
+  // group_by_status still works correctly without it because the
+  // status field IS the discriminator we group by.
 
   const f = filters ?? {};
 
@@ -216,6 +221,24 @@ function buildMatch(
   return match;
 }
 
+/**
+ * Coerce a Mongo numeric field to a plain JS number.
+ *
+ * MongoDB can store numbers as Decimal128 (financial precision),
+ * Long, or plain Number. The BSON driver returns Decimal128 as an
+ * object with `.toString()`, which fails a `typeof === "number"`
+ * check and would silently default to 0 in the sanitized output.
+ * `parseFloat(String(...))` round-trips all three representations
+ * to the correct numeric value (same pattern used in the project's
+ * other Mongo helpers — see memory note re: Decimal128).
+ */
+function coerceNumber(v: unknown, fallback = 0): number {
+  if (typeof v === "number") return v;
+  if (v == null) return fallback;
+  const n = parseFloat(String(v));
+  return Number.isFinite(n) ? n : fallback;
+}
+
 /** Convert one MongoDB row to a sanitized transaction (acq → display). */
 function sanitizeRow(row: Record<string, unknown>): SanitizedTransaction {
   // Some records use `provider: "guardian"` instead of `acq: "guardian"`
@@ -231,7 +254,7 @@ function sanitizeRow(row: Record<string, unknown>): SanitizedTransaction {
     payment_id: (row.payment_id as number | string) ?? "",
     order_id: (row.order_id as number | string | null) ?? null,
     status: String(row.status ?? ""),
-    amount: typeof row.amount === "number" ? row.amount : 0,
+    amount: coerceNumber(row.amount),
     currency: typeof row.currency === "string" ? (row.currency as string) : undefined,
     created:
       row.created instanceof Date
