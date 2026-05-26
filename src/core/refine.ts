@@ -371,7 +371,12 @@ export function socialShortCircuit(refined: RefinedQuery): boolean {
 export function renderToolPlanForPrompt(refined: RefinedQuery): string {
   const p = refined.tool_plan;
   if (!p) return "";
-  if (!p.suggested_tool && !p.suggested_filters && !p.suggested_aggregate) return "";
+  // Only emit the plan section if Haiku suggested a concrete tool to
+  // call. A plan with reasoning but no suggested_tool ("this is a
+  // technical question, no data tool fits") would inject contradictory
+  // boilerplate that says "calling the suggested tool is preferred"
+  // when there IS no suggested tool — burns tokens for negative value.
+  if (!p.suggested_tool) return "";
 
   const lines: string[] = [];
   lines.push("\n\n## Query Plan (Haiku preprocessor hint)");
@@ -381,7 +386,7 @@ export function renderToolPlanForPrompt(refined: RefinedQuery): string {
       "If the suggestion is correct, calling the suggested tool with the suggested filters " +
       "in a single round is preferred."
   );
-  if (p.suggested_tool) lines.push(`- suggested_tool: \`${p.suggested_tool}\``);
+  lines.push(`- suggested_tool: \`${p.suggested_tool}\``);
   if (p.suggested_aggregate)
     lines.push(`- suggested_aggregate: \`${p.suggested_aggregate}\``);
   if (p.suggested_filters && Object.keys(p.suggested_filters).length > 0) {
