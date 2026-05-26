@@ -195,16 +195,6 @@ function IconCollapseLeft({ className = "w-4 h-4" }: { className?: string }) {
   );
 }
 
-function IconHamburger({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <line x1="4" y1="6" x2="20" y2="6" />
-      <line x1="4" y1="12" x2="20" y2="12" />
-      <line x1="4" y1="18" x2="20" y2="18" />
-    </svg>
-  );
-}
-
 /* ─── Pascal Logo ─── */
 
 function PascalLogo({ collapsed }: { collapsed: boolean }) {
@@ -241,13 +231,15 @@ function PascalLogo({ collapsed }: { collapsed: boolean }) {
 
 /* ─── Nav Data ─── */
 
-interface NavItem {
+export interface NavItem {
   label: string;
   href: string;
   icon: (props: { className?: string }) => ReactNode;
 }
 
-const AGENT_ITEMS: NavItem[] = [
+// Exported so MobileTabBar + MobileNavSheet share the same nav source.
+// Adding/removing a route here propagates to all three nav surfaces.
+export const AGENT_ITEMS: NavItem[] = [
   { label: "Overview", href: "/", icon: IconGrid },
   { label: "Onboarding", href: "/onboarding", icon: IconOnboarding },
   { label: "Chat", href: "/chat", icon: IconAIChat },
@@ -271,7 +263,6 @@ const AGENT_ITEMS: NavItem[] = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("pascal-sidebar-collapsed");
@@ -316,7 +307,6 @@ export default function Sidebar() {
               <a
                 key={item.href}
                 href={item.href}
-                onClick={() => setMobileOpen(false)}
                 title={collapsed ? item.label : undefined}
                 className={`nav-item ${active ? "active" : ""} ${collapsed ? "justify-center !px-0 !mx-2" : ""}`}
               >
@@ -357,38 +347,9 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile hamburger — pushes down below the iPhone notch when the
-          app runs as an installed PWA (else stays at 12px). */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed left-3 z-50 w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-gray-200"
-        style={{ top: "max(12px, calc(var(--sat) + 8px))" }}
-      >
-        <IconHamburger className="w-5 h-5 text-gray-600" />
-      </button>
-
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div
-          className="lg:hidden fixed inset-0 bg-black/40 z-40 backdrop-blur-sm"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
-      {/* Mobile sidebar — top and bottom safe-area insets so the logo
-          clears the Dynamic Island and the sign-out button clears the
-          home indicator. */}
-      <aside
-        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-out ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-        style={{
-          paddingTop: "var(--sat)",
-          paddingBottom: "var(--sab)",
-        }}
-      >
-        {sidebarContent}
-      </aside>
+      {/* Mobile nav is handled by <MobileTabBar /> rendered in LayoutShell.
+          The hamburger + slide-in drawer were removed in favor of the bottom
+          tab bar (iOS-native pattern). Desktop sidebar below is unchanged. */}
 
       {/* Desktop sidebar — 232px expanded, 60px collapsed; matches Tonder design system */}
       <aside

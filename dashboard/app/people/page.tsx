@@ -416,53 +416,113 @@ function ContactsTable({
   }
 
   return (
-    <div className="t-card t-card-flush overflow-hidden">
-      <table className="w-full">
-        <thead>
-          <tr className="bg-gray-50/30">
-            <th className="text-left text-xs text-gray-400 font-medium px-5 py-3">Name</th>
-            <th className="text-left text-xs text-gray-400 font-medium px-5 py-3">Company</th>
-            <th className="text-left text-xs text-gray-400 font-medium px-5 py-3">Role</th>
-            <th className="text-left text-xs text-gray-400 font-medium px-5 py-3">Account Manager</th>
-            <th className="text-left text-xs text-gray-400 font-medium px-5 py-3">Email</th>
-            <th className="text-left text-xs text-gray-400 font-medium px-5 py-3">Notes</th>
-            <th className="w-20" />
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-50">
-          {people.map((p) => (
-            <tr key={p.id} className="hover:bg-gray-50/40 transition-colors">
-              <td className="px-5 py-3.5 text-sm font-medium text-gray-900">{p.name}</td>
-              <td className="px-5 py-3.5 text-sm text-gray-600">{p.company || "—"}</td>
-              <td className="px-5 py-3.5 text-sm text-gray-500">{p.role || "—"}</td>
-              <td className="px-5 py-3.5 text-sm text-gray-500">
-                {p.account_manager_name || "—"}
-              </td>
-              <td className="px-5 py-3.5 text-sm text-gray-400">{p.email || "—"}</td>
-              <td className="px-5 py-3.5 text-xs text-gray-400 max-w-[200px] truncate">
-                {p.notes || "—"}
-              </td>
-              <td className="px-5 py-3.5">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => onEdit(p)}
-                    className="text-xs text-gray-400 hover:text-violet-600"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => onDelete(p.id)}
-                    className="text-xs text-gray-400 hover:text-red-500"
-                  >
-                    ×
-                  </button>
-                </div>
-              </td>
+    <>
+      {/* Desktop — table layout */}
+      <div className="t-card t-card-flush overflow-hidden hidden md:block">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-gray-50/30">
+              <th className="text-left text-xs text-gray-400 font-medium px-5 py-3">Name</th>
+              <th className="text-left text-xs text-gray-400 font-medium px-5 py-3">Company</th>
+              <th className="text-left text-xs text-gray-400 font-medium px-5 py-3">Role</th>
+              <th className="text-left text-xs text-gray-400 font-medium px-5 py-3">Account Manager</th>
+              <th className="text-left text-xs text-gray-400 font-medium px-5 py-3">Email</th>
+              <th className="text-left text-xs text-gray-400 font-medium px-5 py-3">Notes</th>
+              <th className="w-20" />
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {people.map((p) => (
+              <tr key={p.id} className="hover:bg-gray-50/40 transition-colors">
+                <td className="px-5 py-3.5 text-sm font-medium text-gray-900">{p.name}</td>
+                <td className="px-5 py-3.5 text-sm text-gray-600">{p.company || "—"}</td>
+                <td className="px-5 py-3.5 text-sm text-gray-500">{p.role || "—"}</td>
+                <td className="px-5 py-3.5 text-sm text-gray-500">
+                  {p.account_manager_name || "—"}
+                </td>
+                <td className="px-5 py-3.5 text-sm text-gray-400">{p.email || "—"}</td>
+                <td className="px-5 py-3.5 text-xs text-gray-400 max-w-[200px] truncate">
+                  {p.notes || "—"}
+                </td>
+                <td className="px-5 py-3.5">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => onEdit(p)}
+                      className="text-xs text-gray-400 hover:text-violet-600"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => onDelete(p.id)}
+                      className="text-xs text-gray-400 hover:text-red-500"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile — stacked cards. Each row gets its own t-card so the
+          fields don't pinch into a 4-column table on a 390px screen. */}
+      <div className="md:hidden space-y-2">
+        {people.map((p) => (
+          <div key={p.id} className="t-card !p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-gray-900 truncate">
+                  {p.name}
+                </p>
+                <p className="text-[12px] text-gray-500 truncate">
+                  {[p.role, p.company].filter(Boolean).join(" · ") || "—"}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  onClick={() => onEdit(p)}
+                  className="text-[12px] text-violet-600 hover:text-violet-700"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => onDelete(p.id)}
+                  className="text-[16px] text-gray-300 hover:text-red-500 leading-none"
+                  aria-label="Delete"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            {(p.email || p.account_manager_name) && (
+              <div className="mt-2 pt-2 border-t border-gray-50 grid grid-cols-1 gap-1 text-[12px]">
+                {p.email && (
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-gray-400 shrink-0">Email</span>
+                    <span className="text-gray-600 truncate">{p.email}</span>
+                  </div>
+                )}
+                {p.account_manager_name && (
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-gray-400 shrink-0">AM</span>
+                    <span className="text-gray-600 truncate">
+                      {p.account_manager_name}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+            {p.notes && (
+              <p className="mt-2 text-[12px] text-gray-500 line-clamp-2">
+                {p.notes}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 

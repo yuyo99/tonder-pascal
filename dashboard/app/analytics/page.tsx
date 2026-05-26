@@ -85,8 +85,8 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      {/* Per-merchant table */}
-      <div className="t-card t-card-flush overflow-hidden mb-6">
+      {/* Per-merchant table — desktop */}
+      <div className="t-card t-card-flush overflow-hidden mb-6 hidden md:block">
         <div className="px-5 py-4 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
             Per-Merchant Breakdown
@@ -139,6 +139,60 @@ export default function AnalyticsPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Per-merchant — mobile cards. Same data, no horizontal scroll. */}
+      <div className="md:hidden mb-6">
+        <h2 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider px-1 mb-2">
+          Per-Merchant Breakdown
+        </h2>
+        {merchants.length === 0 ? (
+          <div className="t-card text-center py-8 text-gray-400 text-sm">
+            No conversations yet
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {merchants.map((m) => (
+              <Link
+                key={m.merchantName}
+                href={`/analytics/${encodeURIComponent(m.merchantName)}`}
+                className="t-card !p-3 block hover:border-violet-200 transition-colors"
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-sm font-semibold text-violet-700 truncate">
+                    {m.merchantName}
+                  </p>
+                  <span className="text-[11px] font-mono text-gray-500 shrink-0">
+                    {m.total.toLocaleString()} total
+                  </span>
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[12px] text-gray-500">
+                  <span>
+                    <span className="text-gray-400">7d</span>{" "}
+                    <span className="font-mono text-gray-700">{m.last7d}</span>
+                  </span>
+                  <span>
+                    <span className="text-gray-400">24h</span>{" "}
+                    <span className="font-mono text-gray-700">{m.last24h}</span>
+                  </span>
+                  <span>
+                    <span className="text-gray-400">avg</span>{" "}
+                    <span className="font-mono text-gray-700">
+                      {m.avgLatencyMs
+                        ? `${(m.avgLatencyMs / 1000).toFixed(1)}s`
+                        : "—"}
+                    </span>
+                  </span>
+                </div>
+                {m.lastQuestion && (
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    last {timeAgo(m.lastQuestion)}
+                  </p>
+                )}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Recent conversations */}

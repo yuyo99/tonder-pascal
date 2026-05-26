@@ -30,7 +30,9 @@ export default function PageHeader({
       // min-h-14 (was h-14) so the safe-area-top padding can grow the
       // header without clipping content. The visible chrome below the
       // status bar still feels like the design-system 56px header.
-      className="sticky top-0 z-10 min-h-14 flex items-center justify-between px-8 -mx-8 mb-6"
+      // Negative margin matches the parent's mobile (-4) / desktop (-8)
+      // padding so the header expands to the full page width.
+      className="sticky top-0 z-10 min-h-14 flex items-center justify-between gap-3 px-4 -mx-4 mb-4 sm:px-8 sm:-mx-8 sm:mb-6 py-2 sm:py-0"
       style={{
         background: "rgba(255, 255, 255, 0.8)",
         backdropFilter: "blur(12px)",
@@ -39,17 +41,21 @@ export default function PageHeader({
         // Push the title content below the iPhone status bar / Dynamic
         // Island when running as an installed PWA with viewportFit:cover.
         // In a regular browser tab this resolves to 0.
-        paddingTop: "var(--sat)",
+        paddingTop: "calc(var(--sat) + 0.5rem)",
       }}
     >
-      <div className="flex items-center gap-3 min-w-0">
+      {/* Title block — stacks vertically on mobile, inline (pipe-
+          separated) on sm+. */}
+      <div className="flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-3 min-w-0">
         <h1 className="text-[15px] font-semibold text-gray-900 truncate">
           {title}
         </h1>
         {subtitle && (
           <>
-            <span className="text-gray-300">|</span>
-            <span className="text-[13px] text-gray-400 truncate">{subtitle}</span>
+            <span className="hidden sm:inline text-gray-300">|</span>
+            <span className="text-[12px] sm:text-[13px] text-gray-400 truncate">
+              {subtitle}
+            </span>
           </>
         )}
       </div>
