@@ -397,18 +397,26 @@ export default function ChatPage() {
   const isEmpty = items.length === 0;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-2rem)] max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100">
-        <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center">
-          <svg className="w-5 h-5 text-violet-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+    // Mobile: 100dvh minus py-4 (32px) minus tab bar (56px) minus home
+    // indicator (var(--sab)). The chat container ends at the top of the
+    // MobileTabBar so the input bar isn't hidden behind it. 100dvh (not
+    // 100vh) so iOS Safari URL bar collapse/expand doesn't push content
+    // off-screen.
+    // Desktop (lg+): no tab bar; reclaim the height for messages.
+    <div
+      className="flex flex-col mx-auto max-w-4xl h-[calc(100dvh-2rem-56px-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-3rem)]"
+    >
+      {/* Header — compact on mobile (no subtitle, small icon), full on sm+. */}
+      <div className="flex items-center gap-2.5 sm:gap-3 px-4 py-2.5 sm:py-4 border-b border-gray-100 shrink-0">
+        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-violet-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
             <path d="M8 10h.01M12 10h.01M16 10h.01" />
           </svg>
         </div>
-        <div>
-          <h1 className="text-lg font-semibold text-gray-900">Pascal Chat</h1>
-          <p className="text-xs text-gray-400">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-[15px] sm:text-lg font-semibold text-gray-900 truncate">Pascal Chat</h1>
+          <p className="hidden sm:block text-xs text-gray-400">
             Ask anything about your payment data
           </p>
         </div>
@@ -418,39 +426,47 @@ export default function ChatPage() {
               setItems([]);
               setChatHistory([]);
             }}
-            className="ml-auto text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-50 transition-colors"
+            className="shrink-0 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors rounded sm:px-2 sm:py-1 w-8 h-8 sm:w-auto sm:h-auto flex items-center justify-center"
+            aria-label="Clear chat"
+            title="Clear chat"
           >
-            Clear chat
+            {/* Mobile: icon-only. Desktop: text label. */}
+            <svg className="w-4 h-4 sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M10 11v6M14 11v6" />
+            </svg>
+            <span className="hidden sm:inline">Clear chat</span>
           </button>
         )}
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 space-y-3">
         {isEmpty && (
-          <div className="flex flex-col items-center justify-center h-full gap-6">
-            <div className="w-16 h-16 rounded-2xl bg-violet-50 flex items-center justify-center">
-              <svg className="w-8 h-8 text-violet-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+          <div className="flex flex-col items-center justify-center h-full gap-4 sm:gap-6">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-violet-50 flex items-center justify-center">
+              <svg className="w-6 h-6 sm:w-8 sm:h-8 text-violet-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 <line x1="11" y1="8" x2="11" y2="14" />
                 <line x1="8" y1="11" x2="14" y2="11" />
               </svg>
             </div>
-            <div className="text-center">
-              <p className="text-gray-900 font-medium">
+            <div className="text-center px-4">
+              <p className="text-gray-900 font-medium text-[15px] sm:text-base">
                 What do you want to know?
               </p>
-              <p className="text-sm text-gray-400 mt-1">
+              <p className="text-[13px] sm:text-sm text-gray-400 mt-1">
                 Query MongoDB, check acceptance rates, look up payments
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 max-w-lg justify-center">
+            <div className="flex flex-wrap gap-2 max-w-lg justify-center px-3">
               {EXAMPLES.map((ex) => (
                 <button
                   key={ex}
                   onClick={() => sendMessage(ex)}
-                  className="text-sm px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:border-violet-300 hover:text-violet-700 hover:bg-violet-50 transition-colors"
+                  className="text-[13px] sm:text-sm px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:border-violet-300 hover:text-violet-700 hover:bg-violet-50 transition-colors"
                 >
                   {ex}
                 </button>
@@ -463,7 +479,9 @@ export default function ChatPage() {
           if (item.kind === "user") {
             return (
               <div key={i} className="flex justify-end">
-                <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-md bg-violet-600 text-white text-sm leading-relaxed">
+                {/* max-w 88% on mobile vs 80% on desktop — narrow screens
+                    benefit from wider bubbles. */}
+                <div className="max-w-[88%] sm:max-w-[80%] px-3.5 sm:px-4 py-2.5 rounded-2xl rounded-br-md bg-violet-600 text-white text-sm leading-relaxed">
                   {item.content}
                 </div>
               </div>
@@ -475,7 +493,7 @@ export default function ChatPage() {
           if (item.kind === "assistant") {
             return (
               <div key={i} className="flex justify-start">
-                <div className="max-w-[85%] px-4 py-3 rounded-2xl rounded-bl-md bg-white border border-gray-200 text-sm text-gray-700">
+                <div className="max-w-[92%] sm:max-w-[85%] px-3.5 sm:px-4 py-3 rounded-2xl rounded-bl-md bg-white border border-gray-200 text-sm text-gray-700">
                   {renderMarkdown(item.content || "")}
                 </div>
               </div>
@@ -495,12 +513,12 @@ export default function ChatPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input bar — pad-bottom respects the iPhone home indicator when
-          installed as a PWA (the 0.75rem default still applies on web). */}
-      <div
-        className="border-t border-gray-100 px-4 py-3 bg-white"
-        style={{ paddingBottom: "calc(0.75rem + var(--sab))" }}
-      >
+      {/* Input bar. The chat container's outer height already accounts
+          for the iPhone home indicator (subtracted env(safe-area-inset-
+          bottom) from the dvh calc above), so this bar's pb is just
+          the visual gap (0.75rem). No more "calc(0.75rem + var(--sab))"
+          here — that was double-padding when the tab bar absorbs sab. */}
+      <div className="border-t border-gray-100 px-3 sm:px-4 py-3 bg-white shrink-0">
         <form onSubmit={handleSubmit} className="flex gap-2 items-end">
           <textarea
             ref={inputRef}
@@ -509,13 +527,14 @@ export default function ChatPage() {
             onKeyDown={handleKeyDown}
             placeholder="Ask anything about your data..."
             rows={1}
-            className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 transition-colors"
+            className="flex-1 resize-none rounded-xl border border-gray-200 px-3.5 sm:px-4 py-2.5 text-base sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 transition-colors"
             disabled={loading}
           />
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="h-10 w-10 rounded-xl bg-violet-600 text-white flex items-center justify-center hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+            className="h-11 w-11 sm:h-10 sm:w-10 rounded-xl bg-violet-600 text-white flex items-center justify-center hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+            aria-label="Send message"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <line x1="22" y1="2" x2="11" y2="13" />
