@@ -234,6 +234,47 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // AID-keyboard: track the iOS visualViewport so the chat container
+  // shrinks correctly when the keyboard opens. Without this, 100dvh
+  // stays at the full max-viewport on iOS Safari, leaving a huge
+  // empty space below the input bar when the keyboard is up.
+  // Returns null on desktop or before mount (uses fallback Tailwind
+  // class height in that case).
+  const [containerHeight, setContainerHeight] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const update = () => {
+      // Desktop (>= lg breakpoint) uses h-screen via class; skip the
+      // visualViewport override entirely.
+      if (window.innerWidth >= 1024) {
+        setContainerHeight(null);
+        return;
+      }
+      const vh = window.visualViewport?.height ?? window.innerHeight;
+      // Subtract the bottom tab bar (56px) + home indicator
+      // (env(safe-area-inset-bottom)). The visualViewport.height
+      // already accounts for the keyboard when it's open.
+      setContainerHeight(
+        `calc(${vh}px - 56px - env(safe-area-inset-bottom))`
+      );
+    };
+    update();
+
+    const vv = window.visualViewport;
+    if (vv) {
+      vv.addEventListener("resize", update);
+      vv.addEventListener("scroll", update);
+    }
+    window.addEventListener("resize", update);
+    return () => {
+      if (vv) {
+        vv.removeEventListener("resize", update);
+        vv.removeEventListener("scroll", update);
+      }
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
   // Auto-scroll to bottom on new items
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -412,96 +453,61 @@ export default function ChatPage() {
     // Full-bleed layout — LayoutShell special-cases /chat so the
     // outer <main> has no wrapper padding, no bottom spacer, no
     // max-w constraint. This container manages its OWN height:
-    //   Mobile: 100dvh - tab bar (56px) - home indicator (var(--sab)).
-    //           Chat's bottom edge sits flush against the tab bar's
-    //           top edge — no residual gap.
-    //   Desktop: 100vh (no tab bar to subtract). mx-auto max-w-4xl
-    //           keeps the chat content readable on wide screens.
+    //   Mobile: visualViewport.height - tab bar - sab (shrinks with
+    //           the iOS keyboard via the useEffect above). Fallback
+    //           class is 100dvh-... for SSR / before mount.
+    //   Desktop: lg:h-screen (no tab bar to subtract).
     <div
       className="flex flex-col mx-auto max-w-4xl h-[calc(100dvh-56px-env(safe-area-inset-bottom))] lg:h-screen"
+      style={containerHeight ? { height: containerHeight } : undefined}
     >
-      {/* Header — compact on mobile (no subtitle, small icon), full on sm+.
+      {/* Header — ChatGPT-style: slim, no large icon block, just a
+          centered title with a clear-button icon on the right.
           paddingTop adds safe-area-inset-top so the title clears the
-          iPhone Dynamic Island in PWA mode (var(--sat) = 0 in browser
-          tab, ~50px in installed PWA). */}
+          iPhone Dynamic Island in PWA mode. */}
       <div
-        className="flex items-center gap-2.5 sm:gap-3 px-4 py-2.5 sm:py-4 border-b border-gray-100 shrink-0"
-        style={{ paddingTop: "calc(0.625rem + var(--sat))" }}
+        className="flex items-center justify-between px-4 py-2 sm:py-3 border-b border-gray-100 shrink-0"
+        style={{ paddingTop: "calc(0.5rem + var(--sat))" }}
       >
-        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
-          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-violet-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-            <path d="M8 10h.01M12 10h.01M16 10h.01" />
-          </svg>
-        </div>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-[15px] sm:text-lg font-semibold text-gray-900 truncate">Pascal Chat</h1>
-          <p className="hidden sm:block text-xs text-gray-400">
-            Ask anything about your payment data
-          </p>
-        </div>
-        {items.length > 0 && (
+        <h1 className="text-[15px] sm:text-base font-semibold text-gray-900">
+          Pascal Chat
+        </h1>
+        {items.length > 0 ? (
           <button
             onClick={() => {
               setItems([]);
               setChatHistory([]);
             }}
-            className="shrink-0 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors rounded sm:px-2 sm:py-1 w-8 h-8 sm:w-auto sm:h-auto flex items-center justify-center"
+            className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
             aria-label="Clear chat"
             title="Clear chat"
           >
-            {/* Mobile: icon-only. Desktop: text label. */}
-            <svg className="w-4 h-4 sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+            <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
               <polyline points="3 6 5 6 21 6" />
               <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
               <path d="M10 11v6M14 11v6" />
             </svg>
-            <span className="hidden sm:inline">Clear chat</span>
           </button>
+        ) : (
+          // Empty placeholder to keep title centered visually
+          <div className="w-9 h-9" aria-hidden />
         )}
       </div>
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 space-y-3">
         {isEmpty && (
-          // Mobile: justify-start + pt-8 so the empty state sits near
-          // the top of the messages area rather than floating mid-screen.
-          // Desktop: classic center treatment (justify-center).
-          <div className="flex flex-col items-center justify-start sm:justify-center h-full gap-4 sm:gap-6 pt-6 sm:pt-0">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-violet-50 flex items-center justify-center">
-              <svg className="w-6 h-6 sm:w-8 sm:h-8 text-violet-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                <line x1="11" y1="8" x2="11" y2="14" />
-                <line x1="8" y1="11" x2="14" y2="11" />
-              </svg>
-            </div>
-            <div className="text-center px-4">
-              <p className="text-gray-900 font-medium text-[15px] sm:text-base">
-                What do you want to know?
-              </p>
-              <p className="text-[13px] sm:text-sm text-gray-400 mt-1">
-                Query MongoDB, check acceptance rates, look up payments
-              </p>
-            </div>
-            {/* Mobile: 2-column grid of compact rounded-rectangle chips.
-                Desktop: pill-shaped chips with full text in a centered
-                wrapping flex (unchanged from previous design). */}
-            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 max-w-lg sm:justify-center w-full px-3 sm:px-0">
-              {EXAMPLES.map((ex, i) => (
-                <button
-                  key={ex}
-                  onClick={() => sendMessage(ex)}
-                  className="text-[12px] sm:text-sm px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-full border border-gray-200 text-gray-600 hover:border-violet-300 hover:text-violet-700 hover:bg-violet-50 transition-colors text-left sm:text-center leading-snug min-h-[44px] sm:min-h-0 flex items-center sm:inline"
-                  title={ex}
-                >
-                  <span className="sm:hidden">
-                    {EXAMPLES_SHORT_LABEL[i] ?? ex}
-                  </span>
-                  <span className="hidden sm:inline">{ex}</span>
-                </button>
-              ))}
-            </div>
+          // ChatGPT-style empty state: just a centered greeting, no
+          // icon, no chips. Chips have moved to the section ABOVE the
+          // input bar (further down in the JSX) so they're easy to
+          // reach without scrolling, like ChatGPT mobile.
+          <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+            <p className="text-gray-900 font-semibold text-xl sm:text-2xl">
+              What do you want to know?
+            </p>
+            <p className="text-[13px] sm:text-sm text-gray-400 mt-2">
+              Ask about transactions, acceptance rates, withdrawals — anything.
+            </p>
           </div>
         )}
 
@@ -543,34 +549,63 @@ export default function ChatPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input bar. The chat container's outer height already accounts
-          for the iPhone home indicator (subtracted env(safe-area-inset-
-          bottom) from the dvh calc above), so this bar's pb is just
-          the visual gap (0.75rem). No more "calc(0.75rem + var(--sab))"
-          here — that was double-padding when the tab bar absorbs sab. */}
-      <div className="border-t border-gray-100 px-3 sm:px-4 py-3 bg-white shrink-0">
-        <form onSubmit={handleSubmit} className="flex gap-2 items-end">
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => handleInputChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask anything about your data..."
-            rows={1}
-            className="flex-1 resize-none rounded-xl border border-gray-200 px-3.5 sm:px-4 py-2.5 text-base sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 transition-colors"
-            disabled={loading}
-          />
-          <button
-            type="submit"
-            disabled={loading || !input.trim()}
-            className="h-11 w-11 sm:h-10 sm:w-10 rounded-xl bg-violet-600 text-white flex items-center justify-center hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-            aria-label="Send message"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13" />
-              <polygon points="22 2 15 22 11 13 2 9 22 2" />
-            </svg>
-          </button>
+      {/* Suggestion chips — visible only when chat is empty. Placed
+          just above the input bar (ChatGPT-mobile pattern) so users
+          discover example queries without scrolling. 2-col grid on
+          mobile, single wrapping flex row on desktop. */}
+      {isEmpty && (
+        <div className="shrink-0 px-3 sm:px-4 pb-2 bg-white">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 max-w-3xl mx-auto sm:justify-center">
+            {EXAMPLES.map((ex, i) => (
+              <button
+                key={ex}
+                onClick={() => sendMessage(ex)}
+                className="text-[12px] sm:text-sm px-3 py-2 sm:py-1.5 rounded-2xl sm:rounded-full border border-gray-200 bg-white text-gray-600 hover:border-violet-300 hover:text-violet-700 hover:bg-violet-50 transition-colors text-left sm:text-center leading-snug min-h-[44px] sm:min-h-0 flex items-center sm:inline-flex"
+                title={ex}
+              >
+                <span className="sm:hidden">
+                  {EXAMPLES_SHORT_LABEL[i] ?? ex}
+                </span>
+                <span className="hidden sm:inline">{ex}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Input bar — ChatGPT-style pill. The chat container's outer
+          height already accounts for the iPhone home indicator via
+          the visualViewport hook, so this bar's pb is just the
+          visual gap (0.75rem). */}
+      <div className="px-3 sm:px-4 py-3 bg-white shrink-0">
+        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
+          {/* Pill wrapper that holds the textarea + send button. The
+              focus ring lives on this wrapper so it traces the whole
+              pill, not just the textarea. */}
+          <div className="flex items-end gap-2 bg-gray-50 rounded-3xl border border-gray-200 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-500/20 transition-colors px-2 py-1.5">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => handleInputChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask anything about your data..."
+              rows={1}
+              className="flex-1 resize-none bg-transparent px-3 py-2 text-base sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
+              disabled={loading}
+            />
+            <button
+              type="submit"
+              disabled={loading || !input.trim()}
+              className="h-9 w-9 rounded-full bg-violet-600 text-white flex items-center justify-center hover:bg-violet-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+              aria-label="Send message"
+            >
+              {/* Arrow-up icon (ChatGPT-style send), not paper plane */}
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.25} strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5" />
+                <polyline points="5 12 12 5 19 12" />
+              </svg>
+            </button>
+          </div>
         </form>
       </div>
     </div>
