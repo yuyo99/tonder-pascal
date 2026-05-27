@@ -33,6 +33,18 @@ const EXAMPLES = [
   "List all active businesses",
 ];
 
+// Compact labels shown in the 2-col grid on mobile. Tapping still sends
+// the full EXAMPLES[i] prompt — these are display-only so chips don't
+// wrap to 3+ lines in a half-viewport-wide tile.
+const EXAMPLES_SHORT_LABEL: string[] = [
+  "Find payment 3718026",
+  "BCGAME rate today",
+  "List collections",
+  "SPEI schema",
+  "BCGAME wd > $5k 7d",
+  "Active businesses",
+];
+
 /* ─── Markdown-lite renderer (bold, bullets, code) ─── */
 
 function renderMarkdown(text: string) {
@@ -402,9 +414,12 @@ export default function ChatPage() {
     // MobileTabBar so the input bar isn't hidden behind it. 100dvh (not
     // 100vh) so iOS Safari URL bar collapse/expand doesn't push content
     // off-screen.
+    // -mb-4 on mobile: consumes the LayoutShell wrapper's bottom py-4
+    // padding (16px) so the input bar sits flush against the tab-bar
+    // spacer instead of floating ~30px above it.
     // Desktop (lg+): no tab bar; reclaim the height for messages.
     <div
-      className="flex flex-col mx-auto max-w-4xl h-[calc(100dvh-2rem-56px-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-3rem)]"
+      className="flex flex-col mx-auto max-w-4xl h-[calc(100dvh-2rem-56px-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-3rem)] -mb-4 sm:-mb-0"
     >
       {/* Header — compact on mobile (no subtitle, small icon), full on sm+. */}
       <div className="flex items-center gap-2.5 sm:gap-3 px-4 py-2.5 sm:py-4 border-b border-gray-100 shrink-0">
@@ -444,7 +459,10 @@ export default function ChatPage() {
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 space-y-3">
         {isEmpty && (
-          <div className="flex flex-col items-center justify-center h-full gap-4 sm:gap-6">
+          // Mobile: justify-start + pt-8 so the empty state sits near
+          // the top of the messages area rather than floating mid-screen.
+          // Desktop: classic center treatment (justify-center).
+          <div className="flex flex-col items-center justify-start sm:justify-center h-full gap-4 sm:gap-6 pt-6 sm:pt-0">
             <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-violet-50 flex items-center justify-center">
               <svg className="w-6 h-6 sm:w-8 sm:h-8 text-violet-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8" />
@@ -461,14 +479,21 @@ export default function ChatPage() {
                 Query MongoDB, check acceptance rates, look up payments
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 max-w-lg justify-center px-3">
-              {EXAMPLES.map((ex) => (
+            {/* Mobile: 2-column grid of compact rounded-rectangle chips.
+                Desktop: pill-shaped chips with full text in a centered
+                wrapping flex (unchanged from previous design). */}
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 max-w-lg sm:justify-center w-full px-3 sm:px-0">
+              {EXAMPLES.map((ex, i) => (
                 <button
                   key={ex}
                   onClick={() => sendMessage(ex)}
-                  className="text-[13px] sm:text-sm px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:border-violet-300 hover:text-violet-700 hover:bg-violet-50 transition-colors"
+                  className="text-[12px] sm:text-sm px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-full border border-gray-200 text-gray-600 hover:border-violet-300 hover:text-violet-700 hover:bg-violet-50 transition-colors text-left sm:text-center leading-snug min-h-[44px] sm:min-h-0 flex items-center sm:inline"
+                  title={ex}
                 >
-                  {ex}
+                  <span className="sm:hidden">
+                    {EXAMPLES_SHORT_LABEL[i] ?? ex}
+                  </span>
+                  <span className="hidden sm:inline">{ex}</span>
                 </button>
               ))}
             </div>
