@@ -409,20 +409,25 @@ export default function ChatPage() {
   const isEmpty = items.length === 0;
 
   return (
-    // Mobile: 100dvh minus py-4 (32px) minus tab bar (56px) minus home
-    // indicator (var(--sab)). The chat container ends at the top of the
-    // MobileTabBar so the input bar isn't hidden behind it. 100dvh (not
-    // 100vh) so iOS Safari URL bar collapse/expand doesn't push content
-    // off-screen.
-    // -mb-4 on mobile: consumes the LayoutShell wrapper's bottom py-4
-    // padding (16px) so the input bar sits flush against the tab-bar
-    // spacer instead of floating ~30px above it.
-    // Desktop (lg+): no tab bar; reclaim the height for messages.
+    // Full-bleed layout — LayoutShell special-cases /chat so the
+    // outer <main> has no wrapper padding, no bottom spacer, no
+    // max-w constraint. This container manages its OWN height:
+    //   Mobile: 100dvh - tab bar (56px) - home indicator (var(--sab)).
+    //           Chat's bottom edge sits flush against the tab bar's
+    //           top edge — no residual gap.
+    //   Desktop: 100vh (no tab bar to subtract). mx-auto max-w-4xl
+    //           keeps the chat content readable on wide screens.
     <div
-      className="flex flex-col mx-auto max-w-4xl h-[calc(100dvh-2rem-56px-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-3rem)] -mb-4 sm:-mb-0"
+      className="flex flex-col mx-auto max-w-4xl h-[calc(100dvh-56px-env(safe-area-inset-bottom))] lg:h-screen"
     >
-      {/* Header — compact on mobile (no subtitle, small icon), full on sm+. */}
-      <div className="flex items-center gap-2.5 sm:gap-3 px-4 py-2.5 sm:py-4 border-b border-gray-100 shrink-0">
+      {/* Header — compact on mobile (no subtitle, small icon), full on sm+.
+          paddingTop adds safe-area-inset-top so the title clears the
+          iPhone Dynamic Island in PWA mode (var(--sat) = 0 in browser
+          tab, ~50px in installed PWA). */}
+      <div
+        className="flex items-center gap-2.5 sm:gap-3 px-4 py-2.5 sm:py-4 border-b border-gray-100 shrink-0"
+        style={{ paddingTop: "calc(0.625rem + var(--sat))" }}
+      >
         <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
           <svg className="w-4 h-4 sm:w-5 sm:h-5 text-violet-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />

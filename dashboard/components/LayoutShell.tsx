@@ -7,9 +7,35 @@ import MobileTabBar from "./MobileTabBar";
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isLogin = pathname === "/login";
+  // Full-bleed app-style pages: no wrapper padding, no bottom spacer,
+  // no max-w. The page manages its own height + safe areas + scroll.
+  // Currently just /chat — generalize to other routes by extending
+  // this list.
+  const isFullBleed = pathname === "/chat";
 
   if (isLogin) {
     return <div className="w-full">{children}</div>;
+  }
+
+  if (isFullBleed) {
+    return (
+      <>
+        <Sidebar />
+        <main
+          className="flex-1 min-h-screen overflow-hidden"
+          style={{
+            // Landscape safe-areas still apply. Top/bottom safe areas
+            // are the full-bleed page's own responsibility via its
+            // height calc + per-element padding (var(--sat) / sab).
+            paddingLeft: "var(--sal)",
+            paddingRight: "var(--sar)",
+          }}
+        >
+          {children}
+        </main>
+        <MobileTabBar />
+      </>
+    );
   }
 
   return (
