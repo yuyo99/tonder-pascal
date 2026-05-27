@@ -559,10 +559,14 @@ export default function ChatPage() {
           the flex-1 properly shrinks when the container shrinks. */}
       <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-4 space-y-3">
         {isEmpty && (
-          // v6 Citadel-style empty state: sparkles ✨ + time-aware
-          // greeting, centered. No subtext, no chips. The examples
-          // moved to the + popover in the input bar.
-          <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+          // v7: sparkles + greeting pinned to the TOP of the messages-
+          // area (justify-start + pt-10) so the layout feels persistent
+          // when the keyboard opens. The greeting stays at a fixed
+          // distance from the header; the input bar (at the bottom of
+          // the chat container) no longer feels "pulled up" to meet
+          // the greeting in the middle. Only the flex-1 gap between
+          // them compresses when the viewport shrinks. Matches Citadel.
+          <div className="flex flex-col items-center justify-start h-full px-6 text-center pt-10 sm:pt-16">
             <svg
               className="w-7 h-7 text-violet-500 mb-3"
               viewBox="0 0 24 24"
