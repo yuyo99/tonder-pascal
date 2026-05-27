@@ -49,6 +49,14 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // iOS 16.4+ / Android 108+ — tell the browser to RESIZE the viewport
+  // when the soft keyboard appears, instead of overlaying it on top of
+  // a same-sized viewport (the default `overlays-content`). With this:
+  // 100dvh actually shrinks while the keyboard is open, the chat layout
+  // reflows naturally, and Safari stops document-scrolling to keep the
+  // focused input visible (which was breaking the /chat layout). The
+  // v4 visualViewport hook stays as a fallback for older iOS.
+  interactiveWidget: "resizes-content",
 };
 
 /**

@@ -494,18 +494,23 @@ export default function ChatPage() {
         )}
       </div>
 
-      {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 space-y-3">
+      {/* Messages area. min-h-0 is critical: without it, flex children
+          refuse to shrink below content min-height, so the messages
+          area would force the chat container to grow → causes iOS to
+          scroll the document when the keyboard opens. With min-h-0,
+          the flex-1 properly shrinks when the container shrinks. */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-4 space-y-3">
         {isEmpty && (
-          // ChatGPT-style empty state: just a centered greeting, no
-          // icon, no chips. Chips have moved to the section ABOVE the
-          // input bar (further down in the JSX) so they're easy to
-          // reach without scrolling, like ChatGPT mobile.
-          <div className="flex flex-col items-center justify-center h-full px-6 text-center">
-            <p className="text-gray-900 font-semibold text-xl sm:text-2xl">
+          // Greeting pushed to the BOTTOM of the messages-area
+          // (justify-end + pb-4) so it sits just above the chips
+          // section, not stranded in the middle of dead space.
+          // Mobile font sizes are smaller so the greeting doesn't
+          // dominate the limited vertical room.
+          <div className="flex flex-col items-center justify-end h-full px-6 text-center pb-4">
+            <p className="text-gray-700 font-medium text-base sm:text-xl">
               What do you want to know?
             </p>
-            <p className="text-[13px] sm:text-sm text-gray-400 mt-2">
+            <p className="text-[12px] sm:text-sm text-gray-400 mt-1.5 max-w-xs">
               Ask about transactions, acceptance rates, withdrawals — anything.
             </p>
           </div>
