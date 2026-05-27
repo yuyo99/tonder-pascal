@@ -45,6 +45,35 @@ const EXAMPLES_SHORT_LABEL: string[] = [
   "Active businesses",
 ];
 
+/* ─── Citadel-style helpers (v6) ─── */
+
+// Time-aware greeting matching the Citadel reference. Uses the device's
+// local time (not CDMX) because the user testing on iPhone is in CDMX
+// and we want the greeting to feel local to wherever they are.
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return "Good morning";
+  if (h >= 12 && h < 17) return "Good afternoon";
+  if (h >= 17 && h < 22) return "Good evening";
+  return "Late night"; // 22-5
+}
+
+// Format the live CDMX clock for the header. "HH:MM:SS" 24h, always in
+// America/Mexico_City regardless of viewer's timezone (Tonder ops runs
+// on CDMX time).
+const CDMX_TIME_FMT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Mexico_City",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+function formatCdmxTime(d: Date = new Date()): string {
+  // The formatter produces "HH:MM:SS"; some locales prefix "24:..." for
+  // midnight, normalize to "00:...".
+  return CDMX_TIME_FMT.format(d).replace(/^24/, "00");
+}
+
 /* ─── Markdown-lite renderer (bold, bullets, code) ─── */
 
 function renderMarkdown(text: string) {
@@ -233,6 +262,19 @@ export default function ChatPage() {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // v6: live CDMX clock in the header. Ticks every second. Also drives
+  // the time-aware greeting to switch automatically at hour boundaries
+  // without a page reload (e.g., "Good evening" → "Late night" at 22:00).
+  const [clock, setClock] = useState<string>(() => formatCdmxTime());
+  useEffect(() => {
+    const id = setInterval(() => setClock(formatCdmxTime()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // v6: + button in the input bar opens an examples popover (replaces
+  // the always-visible chip grid from v5).
+  const [examplesOpen, setExamplesOpen] = useState(false);
 
   // AID-keyboard: track the iOS visualViewport so the chat container
   // shrinks correctly when the keyboard opens. Without this, 100dvh
@@ -461,37 +503,53 @@ export default function ChatPage() {
       className="flex flex-col mx-auto max-w-4xl h-[calc(100dvh-56px-env(safe-area-inset-bottom))] lg:h-screen"
       style={containerHeight ? { height: containerHeight } : undefined}
     >
-      {/* Header — ChatGPT-style: slim, no large icon block, just a
-          centered title with a clear-button icon on the right.
-          paddingTop adds safe-area-inset-top so the title clears the
-          iPhone Dynamic Island in PWA mode. */}
+      {/* Header — Citadel-style: small org logo + label on the left,
+          live CDMX clock on the right. paddingTop respects iPhone
+          Dynamic Island in PWA mode (var(--sat) = 0 in browser tab). */}
       <div
-        className="flex items-center justify-between px-4 py-2 sm:py-3 border-b border-gray-100 shrink-0"
+        className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-100 shrink-0"
         style={{ paddingTop: "calc(0.5rem + var(--sat))" }}
       >
-        <h1 className="text-[15px] sm:text-base font-semibold text-gray-900">
-          Pascal Chat
-        </h1>
-        {items.length > 0 ? (
-          <button
-            onClick={() => {
-              setItems([]);
-              setChatHistory([]);
-            }}
-            className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
-            aria-label="Clear chat"
-            title="Clear chat"
-          >
-            <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-              <path d="M10 11v6M14 11v6" />
-            </svg>
-          </button>
-        ) : (
-          // Empty placeholder to keep title centered visually
-          <div className="w-9 h-9" aria-hidden />
-        )}
+        <div className="flex items-center gap-2.5 min-w-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/pascal-logo.svg"
+            alt="Pascal"
+            className="w-7 h-7 rounded-md shrink-0"
+          />
+          <div className="min-w-0 leading-tight">
+            <p className="text-[13px] font-semibold text-gray-900">Pascal</p>
+            <p className="text-[10px] text-gray-400">Tonder operations</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Live CDMX clock — matches Citadel's "UTC-6 · CDMX HH:MM:SS"
+              header element. Tabular-nums keeps the seconds digit from
+              jumping width as it ticks. */}
+          <span className="text-[10px] text-gray-400 font-mono tabular-nums hidden sm:inline">
+            UTC-6 · CDMX {clock}
+          </span>
+          <span className="text-[10px] text-gray-400 font-mono tabular-nums sm:hidden">
+            {clock}
+          </span>
+          {items.length > 0 && (
+            <button
+              onClick={() => {
+                setItems([]);
+                setChatHistory([]);
+              }}
+              className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
+              aria-label="Clear chat"
+              title="Clear chat"
+            >
+              <svg className="w-[16px] h-[16px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6M14 11v6" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages area. min-h-0 is critical: without it, flex children
@@ -501,17 +559,23 @@ export default function ChatPage() {
           the flex-1 properly shrinks when the container shrinks. */}
       <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-4 space-y-3">
         {isEmpty && (
-          // Greeting pushed to the BOTTOM of the messages-area
-          // (justify-end + pb-4) so it sits just above the chips
-          // section, not stranded in the middle of dead space.
-          // Mobile font sizes are smaller so the greeting doesn't
-          // dominate the limited vertical room.
-          <div className="flex flex-col items-center justify-end h-full px-6 text-center pb-4">
-            <p className="text-gray-700 font-medium text-base sm:text-xl">
-              What do you want to know?
-            </p>
-            <p className="text-[12px] sm:text-sm text-gray-400 mt-1.5 max-w-xs">
-              Ask about transactions, acceptance rates, withdrawals — anything.
+          // v6 Citadel-style empty state: sparkles ✨ + time-aware
+          // greeting, centered. No subtext, no chips. The examples
+          // moved to the + popover in the input bar.
+          <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+            <svg
+              className="w-7 h-7 text-violet-500 mb-3"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden
+            >
+              {/* Three-point sparkles glyph — one large + two small */}
+              <path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2z" />
+              <path d="M19 14l.75 2.25L22 17l-2.25.75L19 20l-.75-2.25L16 17l2.25-.75L19 14z" />
+              <path d="M5 16l.5 1.5L7 18l-1.5.5L5 20l-.5-1.5L3 18l1.5-.5L5 16z" />
+            </svg>
+            <p className="text-gray-900 font-semibold text-2xl sm:text-3xl tracking-tight">
+              {getGreeting()}
             </p>
           </div>
         )}
@@ -554,48 +618,77 @@ export default function ChatPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Suggestion chips — visible only when chat is empty. Placed
-          just above the input bar (ChatGPT-mobile pattern) so users
-          discover example queries without scrolling. 2-col grid on
-          mobile, single wrapping flex row on desktop. */}
-      {isEmpty && (
-        <div className="shrink-0 px-3 sm:px-4 pb-2 bg-white">
-          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 max-w-3xl mx-auto sm:justify-center">
-            {EXAMPLES.map((ex, i) => (
-              <button
-                key={ex}
-                onClick={() => sendMessage(ex)}
-                className="text-[12px] sm:text-sm px-3 py-2 sm:py-1.5 rounded-2xl sm:rounded-full border border-gray-200 bg-white text-gray-600 hover:border-violet-300 hover:text-violet-700 hover:bg-violet-50 transition-colors text-left sm:text-center leading-snug min-h-[44px] sm:min-h-0 flex items-center sm:inline-flex"
-                title={ex}
-              >
-                <span className="sm:hidden">
-                  {EXAMPLES_SHORT_LABEL[i] ?? ex}
-                </span>
-                <span className="hidden sm:inline">{ex}</span>
-              </button>
-            ))}
+      {/* v6: examples popover — replaces the always-visible chip grid.
+          Visible only when the user taps the + button on the input
+          bar AND the chat is empty. Sits just above the input bar. */}
+      {examplesOpen && isEmpty && (
+        <div className="shrink-0 px-3 sm:px-4 pb-2">
+          <div className="bg-white border border-gray-200 rounded-2xl p-2 shadow-sm max-w-3xl mx-auto">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-1">
+              Examples
+            </p>
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1.5">
+              {EXAMPLES.map((ex, i) => (
+                <button
+                  key={ex}
+                  onClick={() => {
+                    sendMessage(ex);
+                    setExamplesOpen(false);
+                  }}
+                  className="text-[12px] sm:text-sm px-3 py-2 rounded-xl hover:bg-violet-50 text-left text-gray-600 hover:text-violet-700 transition-colors leading-snug"
+                  title={ex}
+                >
+                  <span className="sm:hidden">
+                    {EXAMPLES_SHORT_LABEL[i] ?? ex}
+                  </span>
+                  <span className="hidden sm:inline">{ex}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Input bar — ChatGPT-style pill. The chat container's outer
-          height already accounts for the iPhone home indicator via
-          the visualViewport hook, so this bar's pb is just the
+      {/* Input bar — Citadel-style pill with + (left) and circular
+          send arrow (right). The chat container's outer height
+          accounts for the iPhone home indicator via the visualViewport
+          hook + interactive-widget meta, so this bar's pb is just the
           visual gap (0.75rem). */}
       <div className="px-3 sm:px-4 py-3 bg-white shrink-0">
         <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
-          {/* Pill wrapper that holds the textarea + send button. The
-              focus ring lives on this wrapper so it traces the whole
-              pill, not just the textarea. */}
-          <div className="flex items-end gap-2 bg-gray-50 rounded-3xl border border-gray-200 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-500/20 transition-colors px-2 py-1.5">
+          {/* Pill wrapper holds the + button + textarea + send button.
+              focus-within ring traces the whole pill, not just the
+              textarea. */}
+          <div className="flex items-end gap-1 bg-gray-50 rounded-3xl border border-gray-200 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-500/20 transition-colors px-1.5 py-1.5">
+            {/* + button — opens the examples popover. Only meaningful
+                while the chat is empty (no point suggesting examples
+                mid-conversation). */}
+            {isEmpty && (
+              <button
+                type="button"
+                onClick={() => setExamplesOpen((v) => !v)}
+                className={`h-9 w-9 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+                  examplesOpen
+                    ? "text-violet-600 bg-violet-100"
+                    : "text-gray-500 hover:text-violet-600 hover:bg-violet-50"
+                }`}
+                aria-label="Show example prompts"
+                aria-expanded={examplesOpen}
+              >
+                <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+            )}
             <textarea
               ref={inputRef}
               value={input}
               onChange={(e) => handleInputChange(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask anything about your data..."
+              placeholder="Chat with Pascal"
               rows={1}
-              className="flex-1 resize-none bg-transparent px-3 py-2 text-base sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
+              className="flex-1 resize-none bg-transparent px-2 py-2 text-base sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
               disabled={loading}
             />
             <button
@@ -604,7 +697,7 @@ export default function ChatPage() {
               className="h-9 w-9 rounded-full bg-violet-600 text-white flex items-center justify-center hover:bg-violet-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors flex-shrink-0"
               aria-label="Send message"
             >
-              {/* Arrow-up icon (ChatGPT-style send), not paper plane */}
+              {/* Arrow-up icon, ChatGPT/Citadel-style send affordance */}
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.25} strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="19" x2="12" y2="5" />
                 <polyline points="5 12 12 5 19 12" />
