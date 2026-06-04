@@ -288,15 +288,40 @@ ID extraction guidance:
   • Preserve large numeric IDs as strings.
 
 Tool plan guidance:
-  • For data_query → suggested_tool: "query_transactions".
+  • If the message mentions a SPECIFIC ID — anything that looks like a
+    payment_id, order_id, withdrawal_id, deposit_id, UUID, transaction
+    reference, tracking key, SPEI clave_rastreo, or a prefixed form
+    like "WD 1234" / "TX-4520690" / "DEP abc-123" / "1867101772863886222":
+      → suggested_tool: "lookup_by_id"
+      → suggested_filters: do NOT set; lookup_by_id only takes { id }
+      → reasoning: explain WHY this is an ID lookup
+      → Examples:
+         "find payment 5434613"             → lookup_by_id { id: "5434613" }
+         "where is WD 1234"                 → lookup_by_id { id: "WD 1234" }
+         "1867101772863886222"              → lookup_by_id { id: "1867101772863886222" }
+         "transaction reference ab12cd34"    → lookup_by_id { id: "ab12cd34" }
+         "withdrawal cc2aaab2-db1f-..."     → lookup_by_id { id: "cc2aaab2-db1f-..." }
+    Even if the question is phrased as a filter ("show me the SPEI for
+    deposit_id abc"), if a specific ID is named, route to lookup_by_id.
+    lookup_by_id searches ALL three collections (transactions +
+    withdrawals + SPEI) and handles BC Game's 19-digit IDs natively.
+    query_transactions only searches the transactions collection and
+    will MISS records in withdrawals or SPEI.
+
+  • For data_query that does NOT mention a specific ID (filters/aggregates only):
+      → suggested_tool: "query_transactions"
       ▸ "what's our acceptance rate today/this week"     → suggested_aggregate: "group_by_status", date_range
       ▸ "top decline reasons"                              → suggested_aggregate: "group_by_decline"
       ▸ "total volume yesterday"                           → suggested_aggregate: "sum", date_range
       ▸ "show me declined SPEI > 5k yesterday"             → filters: { status, payment_method, amount_range, date_range }
-      ▸ "transactions for customer@x.com"                  → filters: { search }
-  • For bare_id → suggested_tool: "lookup_by_id".
-  • For withdrawal questions → suggested_tool: "get_withdrawal_status".
-  • For integration_question / escalation / social / other → suggested_tool: null (Pascal will not use a data tool).
+      ▸ "transactions for customer@x.com last 7d"          → filters: { search: email, date_range }
+
+  • For bare_id (the WHOLE message is just an ID): suggested_tool: "lookup_by_id".
+
+  • For withdrawal questions WITHOUT a specific withdrawal_id mentioned:
+      → suggested_tool: "get_withdrawal_status"
+
+  • For integration_question / escalation / social / other → suggested_tool: null.
 
 Date resolution (CRITICAL — Pascal cannot do this in-flight):
   • Resolve any relative date in the message ("yesterday", "today",

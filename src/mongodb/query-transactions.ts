@@ -173,25 +173,41 @@ function buildMatch(
     match.decline_description = { $regex: f.decline_reason, $options: "i" };
   }
 
-  // Search — covers payment_id, order_id, customer_email, references
-  // and txid. Uses $or with a regex per field. The existing
-  // lookupById() function in queries.ts does the same shape at scale,
-  // so we know it works.
+  // Search — fuzzy multi-field filter for FILTERED LISTS.
+  //
+  // AID-86: this filter is NOT the right tool for primary ID
+  // resolution — it only searches mv_payment_transactions, missing
+  // withdrawals and SPEI deposits. For specific ID lookups use
+  // lookup_by_id (which delegates to src/core/id-search.ts and
+  // searches all three collections with proper normalization).
+  //
+  // The fields covered here mirror id-search's transaction adapter
+  // so behavior is consistent for the filter-list case (e.g. "list
+  // declined transactions for customer@x.com last 7d").
   if (f.search && f.search.trim().length > 0) {
     const term = f.search.trim();
-    // Numeric ID search needs special handling since payment_id is a
-    // number field — coerce the term to a number when possible and use
-    // $eq alongside the string regex fallback.
-    const asNum = Number(term);
+    // Number coercion — payment_id and order_id are NUMBER fields in
+    // Mongo. Skip the numeric branch when the term exceeds safe int
+    // (e.g. 19-digit BC Game IDs) — those can only be matched as
+    // strings against payment_customer_order_reference /
+    // metadata_order_id below.
+    const allDigits = /^\d+$/.test(term);
+    const asNum = allDigits ? Number(term) : NaN;
+    const safeNum =
+      !Number.isNaN(asNum) && Number.isSafeInteger(asNum) ? asNum : null;
+
     const searchOr: Record<string, unknown>[] = [
       { customer_email: { $regex: term, $options: "i" } },
       { payment_customer_order_reference: { $regex: term, $options: "i" } },
+      // AID-86: metadata_order_id was missing; added so 19-digit BC
+      // Game IDs hit at all in this filter path.
+      { metadata_order_id: { $regex: term, $options: "i" } },
       { transaction_reference: { $regex: term, $options: "i" } },
       { tracking_key: { $regex: term, $options: "i" } },
     ];
-    if (!Number.isNaN(asNum) && Number.isFinite(asNum)) {
-      searchOr.push({ payment_id: asNum });
-      searchOr.push({ order_id: asNum });
+    if (safeNum !== null) {
+      searchOr.push({ payment_id: safeNum });
+      searchOr.push({ order_id: safeNum });
     }
     // If a $or for payment_method already exists, merge into $and so
     // both constraints apply (Mongo can't have two top-level $or).

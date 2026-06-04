@@ -314,6 +314,12 @@ export async function getWithdrawalStatus(
 }
 
 // ── Universal ID Lookup ─────────────────────────────────────────────
+//
+// AID-86: the actual search logic now lives in src/core/id-search.ts
+// (single source of truth). lookupById is a backward-compat wrapper
+// that flattens the new structured result into the old { source, data }
+// array shape. New code should call searchById() directly to get the
+// diagnostics block on a miss.
 
 export interface LookupResult {
   source: "transaction" | "withdrawal" | "spei_deposit";
@@ -327,174 +333,69 @@ export interface LookupResult {
 export async function lookupById(
   id: string,
   businessIds: number[],
-  businessIdStrs: string[]
+  businessIdStrs: string[],
+  businessName: string = "unknown"
 ): Promise<LookupResult[]> {
-  const isNumericStr = /^\d+$/.test(id);
-  const idAsNumber = isNumericStr ? parseInt(id, 10) : NaN;
-  // Only use JS number if it fits safely (≤ 2^53-1). Large IDs are matched via string fields only.
-  const numericId = !isNaN(idAsNumber) && Number.isSafeInteger(idAsNumber) ? idAsNumber : null;
+  // AID-86: delegate to the unified id-search module. We pass a
+  // minimal-shape merchantCtx (the only fields searchById reads from
+  // it are businessIds, businessIdStrs, businessName).
+  const { searchById } = await import("../core/id-search");
+  const result = await searchById(
+    id,
+    {
+      businessIds,
+      businessIdStrs,
+      businessName,
+      // The remaining MerchantContext fields are unused by id-search
+      // but must be present to satisfy the type. Synthesized to
+      // sensible defaults; safe because searchById doesn't read them.
+      businessId: businessIds[0] ?? 0,
+      businessIdStr: businessIdStrs[0] ?? "",
+      platform: "slack",
+      channelId: "",
+    },
+  );
 
-  const [txResults, wdResults, speiResults] = await Promise.all([
-    findInTransactions(id, numericId, isNumericStr, businessIds),
-    findInWithdrawals(id, businessIdStrs),
-    findInSpeiDeposits(id, numericId, isNumericStr, businessIdStrs),
-  ]);
-
-  const results: LookupResult[] = [];
-
-  for (const tx of txResults) {
-    const acq = (tx.acq as string) || (tx.provider as string) || "unknown";
-    results.push({
-      source: "transaction",
-      data: {
-        payment_id: tx.payment_id,
-        order_id: tx.order_id,
-        payment_customer_order_reference: tx.payment_customer_order_reference,
-        transaction_reference: tx.transaction_reference,
-        tracking_key: tx.tracking_key,
-        status: tx.status,
-        amount: tx.amount,
-        paymentMethod: getMerchantDisplayName(acq),
-        created: tx.created,
-        customer_email: tx.customer_email,
-        decline_code: tx.decline_code,
-        decline_description: tx.decline_description,
-        business_name: tx.business_name,
-      },
-    });
-  }
-
-  for (const wd of wdResults) {
-    const monetaryAmount = wd.monetary_amount as Record<string, unknown> | undefined;
-    const action = wd.action as Record<string, unknown> | undefined;
-    results.push({
-      source: "withdrawal",
-      data: {
-        id: wd.id,
-        tracking_key: wd.tracking_key,
-        status: wd.status,
-        amount: parseFloat(String(monetaryAmount?.amount)) || 0,
-        currency: (monetaryAmount?.currency as string) || "MXN",
-        created_at: wd.created_at,
-        paid_at: wd.paid_at,
-        failure_reason: action?.reason || null,
-      },
-    });
-  }
-
-  for (const spei of speiResults) {
-    results.push({
-      source: "spei_deposit",
-      data: {
-        deposit_id: spei.deposit_id,
-        order_id: spei.order_id,
-        payment_id: spei.payment_id,
-        metadata_order_id: (spei.metadata as Record<string, unknown>)?.orderId || null,
-        checkout_id: spei.checkout_id,
-        reference: spei.reference,
-        clave_rastreo: extractClaveRastreo(spei),
-        status: spei.status,
-        amount: parseFloat(String(spei.amount)) || 0,
-        created_at: spei.created_at,
-        paymentMethod: "SPEI",
-      },
-    });
-  }
-
-  return results;
+  // Flatten the structured matches into the legacy LookupResult shape.
+  // Old callers (the lookup_by_id tool wrapper, until we update it)
+  // expect `source: "transaction" | "withdrawal" | "spei_deposit"`.
+  return result.matches.map((m) => ({
+    source:
+      m.collection === "transactions"
+        ? "transaction"
+        : m.collection === "withdrawals"
+          ? "withdrawal"
+          : "spei_deposit",
+    data: m.document,
+  }));
 }
 
-async function findInTransactions(
-  id: string,
-  numericId: number | null,
-  isNumericStr: boolean,
-  businessIds: number[]
-): Promise<Record<string, unknown>[]> {
-  const col = getCollection(TX_COLLECTION);
-  const isLargeNumeric = isNumericStr && id.length >= 16; // BC Game-style 18-19 digit order IDs
+/**
+ * AID-86: full structured ID search with diagnostics. New code paths
+ * should use this directly so the tool wrapper can attach the
+ * diagnostics block on a miss (lets Sonnet write a specific
+ * "I searched X across Y" response instead of a flat "not found").
+ *
+ * This is a re-export of the canonical implementation in
+ * src/core/id-search.ts so legacy importers of queries.ts can reach
+ * the new behavior without restructuring imports.
+ */
+export { searchById, normalizeIdInput } from "../core/id-search";
+export type {
+  IdSearchOptions,
+  IdSearchResult,
+  IdSearchDiagnostics,
+  IdMatch,
+  NormalizedId,
+  CollectionKey,
+} from "../core/id-search";
 
-  // For large numeric IDs (18+ digits): ONLY search payment_customer_order_reference.
-  // These are BC Game order IDs — searching other fields (transaction_reference, tracking_key)
-  // causes false matches with wrong records.
-  const orConditions: Record<string, unknown>[] = isLargeNumeric
-    ? [{ payment_customer_order_reference: id }]
-    : [
-        { transaction_reference: id },
-        { metadata_order_id: id },
-        { payment_customer_order_reference: id },
-      ];
+// AID-86: findInTransactions, findInWithdrawals, findInSpeiDeposits
+// deleted. Their logic lives in src/core/id-search.ts (the unified
+// search module). lookupById above is a thin wrapper that delegates
+// to it.
 
-  if (numericId !== null) {
-    orConditions.push({ payment_id: numericId });
-    orConditions.push({ order_id: numericId });
-  }
-
-  // String match for payment_id/order_id — ONLY for non-numeric IDs (UUIDs, references, etc.)
-  if (!isNumericStr) {
-    orConditions.push({ payment_id: id });
-    orConditions.push({ order_id: id });
-  }
-  if (!isLargeNumeric) {
-    orConditions.push({ tracking_key: id });
-  }
-
-  const bizFilter = businessIds.length === 1 ? businessIds[0] : { $in: businessIds };
-  const results = await col
-    .find(
-      { business_id: bizFilter, $or: orConditions },
-      {
-        projection: {
-          payment_id: 1, order_id: 1, transaction_reference: 1, tracking_key: 1,
-          payment_customer_order_reference: 1,
-          status: 1, amount: 1, acq: 1, provider: 1,
-          created: 1, customer_email: 1, business_name: 1,
-          decline_code: 1, decline_description: 1, _id: 0,
-        },
-        // For BC Game large IDs: sort oldest first (original transaction, not retry)
-        // For normal IDs: sort newest first (latest status)
-        sort: { created: isLargeNumeric ? 1 : -1 },
-        limit: 5,
-      }
-    )
-    .toArray();
-
-  return results as Record<string, unknown>[];
-}
-
-async function findInWithdrawals(
-  id: string,
-  businessIdStrs: string[]
-): Promise<Record<string, unknown>[]> {
-  const col = getCollection(WD_COLLECTION);
-  const bizFilter = businessIdStrs.length === 1 ? businessIdStrs[0] : { $in: businessIdStrs };
-  const results = await col
-    .find(
-      {
-        business_id: bizFilter,
-        $or: [
-          { id: id },
-          { orderId: id },
-          { tracking_key: id },
-          { "metadata.orderId": id },
-          { "metadata.order_id": id },
-        ],
-      },
-      {
-        projection: {
-          id: 1, tracking_key: 1, status: 1,
-          monetary_amount: 1, created_at: 1, paid_at: 1,
-          "action.reason": 1, "action.action": 1, _id: 0,
-        },
-        sort: { created_at: -1 },
-        limit: 5,
-      }
-    )
-    .toArray();
-
-  return results as Record<string, unknown>[];
-}
-
-/** Extract clave_rastreo from deeply nested SPEI webhook response */
+/** Extract clave_rastreo from deeply nested SPEI webhook response. */
 function extractClaveRastreo(doc: Record<string, unknown>): string | null {
   try {
     const resp = doc.response as Record<string, unknown> | undefined;
@@ -505,53 +406,6 @@ function extractClaveRastreo(doc: Record<string, unknown>): string | null {
   } catch {
     return null;
   }
-}
-
-async function findInSpeiDeposits(
-  id: string,
-  numericId: number | null,
-  isNumericStr: boolean,
-  businessIdStrs: string[]
-): Promise<Record<string, unknown>[]> {
-  const col = getCollection(SPEI_COLLECTION);
-  const orConditions: Record<string, unknown>[] = [
-    { deposit_id: id },
-    { checkout_id: id },
-    { reference: id },
-    { transaction_reference: id },
-    { provider_reference: id },
-    { "metadata.orderId": id },
-  ];
-  if (numericId !== null) {
-    orConditions.push({ order_id: numericId });
-    orConditions.push({ payment_id: numericId });
-  }
-  // Long ID matching removed (same reason as findInTransactions — false positives)
-  if (!isNumericStr) {
-    orConditions.push({ order_id: id });
-    orConditions.push({ payment_id: id });
-  }
-  orConditions.push({ "response.webhook.payload.details.clave_rastreo": id });
-
-  const bizFilter = businessIdStrs.length === 1 ? businessIdStrs[0] : { $in: businessIdStrs };
-  const results = await col
-    .find(
-      { business_id: bizFilter, $or: orConditions },
-      {
-        projection: {
-          deposit_id: 1, order_id: 1, payment_id: 1, checkout_id: 1,
-          reference: 1, "metadata.orderId": 1,
-          "response.webhook.payload.details.clave_rastreo": 1,
-          status: 1, amount: 1,
-          created_at: 1, _id: 0,
-        },
-        sort: { created_at: -1 },
-        limit: 5,
-      }
-    )
-    .toArray();
-
-  return results as Record<string, unknown>[];
 }
 
 // ── List Recent Transactions ────────────────────────────────────────

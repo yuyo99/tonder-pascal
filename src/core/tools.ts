@@ -24,20 +24,32 @@ const QUERY_TRANSACTIONS_TOOL: Anthropic.Tool = {
   name: "query_transactions",
   description:
     "Query transaction records with composable filters and aggregations. " +
-    "Use this for ANY filtered or compound transaction question — it " +
-    "replaces get_acceptance_rate, get_top_declines, get_transaction_volume, " +
-    "get_transactions_by_status, list_recent_transactions, and lookup_spei_deposits. " +
-    "One tool call covers what would otherwise require 2-3 sequential rounds.\n\n" +
-    "Examples:\n" +
+    "Use this for FILTERED LISTS and AGGREGATES — replaces " +
+    "get_acceptance_rate, get_top_declines, get_transaction_volume, " +
+    "get_transactions_by_status, list_recent_transactions, and lookup_spei_deposits.\n\n" +
+    "DO NOT use this tool for specific ID lookups. If the user mentions a " +
+    "specific payment_id, order_id, deposit_id, withdrawal_id, " +
+    "transaction_reference, tracking_key, clave_rastreo, UUID, or any " +
+    "concrete reference number, use lookup_by_id instead — it searches " +
+    "ALL collections (transactions + withdrawals + SPEI deposits) and " +
+    "handles ID normalization, prefix stripping, and the 19-digit BC " +
+    "Game IDs that exceed JS safe integers. This tool only searches " +
+    "mv_payment_transactions and will MISS records that live in the " +
+    "withdrawal or SPEI collections.\n\n" +
+    "Examples (correct uses):\n" +
     '- "Show failed SPEI deposits over 5k from yesterday" →\n' +
     '  filters: { status: ["declined"], payment_method: ["spei"], ' +
-    "amount_range: { min: 5000 }, date_range: { from: ISO_yesterday_start, to: ISO_yesterday_end } }\n" +
+    "amount_range: { min: 5000 }, date_range: { from, to } }\n" +
     '- "What\'s our acceptance rate this week?" →\n' +
     '  aggregate: "group_by_status", filters: { date_range: { from, to } }\n' +
     '- "Top decline reasons" →\n' +
     '  aggregate: "group_by_decline" (already implies status: declined)\n' +
     '- "Transactions for customer@example.com last 7 days" →\n' +
     '  filters: { search: "customer@example.com", date_range: { from, to } }\n\n' +
+    "Examples that should use lookup_by_id INSTEAD:\n" +
+    '- "Find payment 5434613" → lookup_by_id({ id: "5434613" })\n' +
+    '- "Where is WD 1234" → lookup_by_id({ id: "WD 1234" })\n' +
+    '- "1867101772863886222" → lookup_by_id({ id: "1867101772863886222" })\n\n' +
     "IMPORTANT: payment_method takes EXTERNAL labels only (cards, spei, " +
     "oxxopay, cash_voucher, mercadopago) — never internal acquirer names. " +
     "date_range requires ISO 8601 timestamps (not keywords like 'yesterday'). " +
@@ -236,13 +248,23 @@ export const toolDefinitions: Anthropic.Tool[] = [
   {
     name: "lookup_by_id",
     description:
-      "Universal ID lookup — search across ALL systems (deposits, withdrawals, SPEI transfers) using ANY identifier. Accepts payment IDs, order IDs, transaction references, tracking keys, UUIDs, bank references, etc. Always try this tool when a merchant provides any ID.",
+      "Universal ID lookup. THIS IS THE TOOL TO USE FOR ANY SPECIFIC ID. " +
+      "Searches mv_payment_transactions, withdrawals, AND SPEI deposits in ONE call. " +
+      "Handles: payment IDs (numeric, including 19-digit BC Game IDs), order IDs, " +
+      "transaction references, tracking keys, UUIDs, deposit IDs, checkout IDs, " +
+      "SPEI bank references (clave_rastreo), customer emails, and operational " +
+      "prefixes like 'WD 1234' or 'TX-4520690' (the search auto-normalizes). " +
+      "ALWAYS prefer this tool over query_transactions when the user mentions a " +
+      "specific ID, even partial. On a miss, the response includes a diagnostics " +
+      "block listing exactly which fields + collections + date range were " +
+      "searched — use that to suggest expanding the date range or checking spelling.",
     input_schema: {
       type: "object" as const,
       properties: {
         id: {
           type: "string" as const,
-          description: "The identifier to search for (any format: number, UUID, reference code, etc.)",
+          description:
+            "The identifier to search for. Any format: number, UUID, alphanumeric reference, email, or a prefixed form like 'WD 1234' / 'TX-4520690' / 'DEP abc-123'. The tool strips prefixes and tries every reasonable variant. DO NOT pre-clean the input — pass it through as the user typed it.",
         },
       },
       required: ["id"],
@@ -458,18 +480,34 @@ export async function executeTool(
 
       case "lookup_by_id": {
         if (!input.id) return "Error: id is required";
-        const results = await queries.lookupById(
-          input.id,
-          merchantCtx.businessIds,
-          merchantCtx.businessIdStrs
-        );
-        if (results.length === 0) {
+        // AID-86: call searchById directly so we can surface the
+        // diagnostics block to Sonnet on a miss. The wrapper
+        // queries.lookupById still works for any legacy callers; new
+        // tool code uses the structured form.
+        const result = await queries.searchById(input.id, merchantCtx);
+        if (result.found) {
           return JSON.stringify({
-            found: false,
-            message: `No transaction, withdrawal, or SPEI deposit found with ID "${input.id}" for ${merchantCtx.businessName}.`,
+            found: true,
+            // Flatten matches into the legacy { source, data } shape
+            // so downstream Sonnet formatters don't have to change.
+            results: result.matches.map((m) => ({
+              source:
+                m.collection === "transactions"
+                  ? "transaction"
+                  : m.collection === "withdrawals"
+                    ? "withdrawal"
+                    : "spei_deposit",
+              field_matched: m.field_matched,
+              data: m.document,
+            })),
+            merchant: merchantCtx.businessName,
           });
         }
-        return JSON.stringify({ found: true, results });
+        return JSON.stringify({
+          found: false,
+          message: `No transaction, withdrawal, or SPEI deposit matched ID "${input.id}" for ${merchantCtx.businessName} in the last 90 days.`,
+          diagnostics: result.diagnostics,
+        });
       }
 
       case "lookup_spei_deposits": {
