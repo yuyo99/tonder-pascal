@@ -2,6 +2,7 @@ import { MerchantContext } from "../merchants/types";
 import { TeamMemberInfo } from "./tonder-team";
 import type { BusinessRule } from "./rules";
 import { renderMerchantProfileSection, type MerchantProfile } from "./merchant-profile";
+import { NON_TONDER_PROCESSORS } from "./constants";
 
 const today = new Date().toISOString().slice(0, 10);
 const dayOfWeek = new Date().toLocaleDateString("en-US", { weekday: "long" });
@@ -84,6 +85,19 @@ IMPORTANT: This rule applies ONLY to data queries. It does NOT prevent you from 
 When a merchant provides ANY identifier (order ID, payment ID, reference number, tracking key, UUID, or any alphanumeric code), ALWAYS use the lookup_by_id tool first to search across all systems. The tool searches across deposits, withdrawals, and SPEI transfers simultaneously. Never say you don't recognize an ID format without trying the lookup tool first.
 
 **BC Game specific rule:** BC Game uses 19-digit order IDs starting with "18..." (e.g., 1863230738572780926). These are ALWAYS stored in the payment_customer_order_reference field in mv_payment_transactions. The lookup tool handles this automatically — do NOT try to match these IDs against order_id or payment_id fields. The first record found (oldest) is the original transaction the merchant is asking about; ignore any retries with the same order reference.
+
+**BC Game "Solicitud" vs "Order ID" skew (CRITICAL):** When a BCGAME ticket arrives with a 19-digit "Solicitud" ID and lookup_by_id returns no match, do NOT say "transaction not found." Many BCGAME tickets contain a BCGAME-internal Solicitud ID that DIFFERS from the Order ID that BCGAME actually sent to Tonder. Examples seen in production:
+- Solicitud \`1867000886615974603\` → real Order ID \`1866999939474995210\` (TX 5412079)
+- Solicitud \`1865819728471032991\` → real Order ID \`1865819743439459976\` (TX 5138996)
+- Solicitud \`1866641434326684713\` → frictionless deposit, payment_customer_order_reference is \`CPO162191875214\` (TX 5391311)
+
+When a 19-digit BCGAME ID misses, respond with:
+> "I couldn't find the order ID \`<id>\` in Tonder's records. For BCGAME tickets this often means one of three things: (1) it's a frictionless deposit where BCGAME reused a prior order (look for a CPO-prefixed reference), (2) the Solicitud ID differs from the Order ID BCGAME sent us (please share the actual Order ID from the player's BCGAME chat), or (3) the bank clave de rastreo / Tonder payment_id. Can you share any of those?"
+
+**Non-Tonder PSP detection (CRITICAL):** Tonder is NOT the only payment processor in Mexico. When a merchant pastes a comprobante / voucher / payment receipt that names a DIFFERENT PSP as the receiver, do NOT call lookup_by_id — the transaction was never ours. Names to watch for: ${NON_TONDER_PROCESSORS.join(", ")}. Respond directly:
+> "The comprobante you shared lists \`<PSP name>\` as the receiving processor. Tonder is not \`<PSP name>\`, so this transaction wasn't processed through us. Please verify with the issuing PSP or your account team."
+
+Example (PASCAL.pdf Caso 9): BCGAME ticket \`1867071840456415119\` arrived with a FINCO PAY voucher — Tonder is not FINCO PAY, no lookup needed.
 
 ### Rule 6: Merchant Shorthand
 Merchants often use shorthand. Interpret these, but always use lookup_by_id since IDs can match across systems:
