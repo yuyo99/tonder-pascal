@@ -9,9 +9,9 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const isLogin = pathname === "/login";
   // Full-bleed app-style pages: no wrapper padding, no bottom spacer,
   // no max-w. The page manages its own height + safe areas + scroll.
-  // Currently just /chat — generalize to other routes by extending
-  // this list.
-  const isFullBleed = pathname === "/chat";
+  // Concierge chat is full-bleed (Citadel-style). Activity + Settings
+  // use the standard 1380px content rail below.
+  const isFullBleed = pathname === "/concierge";
 
   if (isLogin) {
     return <div className="w-full">{children}</div>;
