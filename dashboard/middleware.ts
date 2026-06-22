@@ -13,7 +13,7 @@ const PUBLIC_PATHS = new Set([
 
 const STATIC_ASSET_RE = /\.(svg|png|jpg|jpeg|gif|webp|ico|json|txt|xml|woff2?)$/i;
 
-export async function middleware(req: NextRequest) {
+export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (PUBLIC_PATHS.has(pathname) || STATIC_ASSET_RE.test(pathname)) {
