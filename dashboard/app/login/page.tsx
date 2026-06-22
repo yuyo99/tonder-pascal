@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 
 export default function LoginPage() {
-  const [password, setPassword] = useState("");
+  const [businessId, setBusinessId] = useState("");
+  const [accessKey, setAccessKey] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [shake, setShake] = useState(false);
@@ -22,14 +23,15 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ business_id: Number(businessId), access_key: accessKey }),
       });
 
       if (res.ok) {
-        window.location.href = "/";
+        window.location.href = "/concierge";
         return;
       } else {
-        setError("Invalid access key");
+        const body = await res.json().catch(() => ({}));
+        setError(body.error || "Invalid credentials");
         setShake(true);
         setTimeout(() => setShake(false), 600);
       }
@@ -89,10 +91,10 @@ export default function LoginPage() {
         >
           <div className="text-center mb-8">
             <h1 className="text-[28px] leading-tight font-semibold tracking-tight text-neutral-900">
-              Welcome to Pascal
+              Welcome to Pascal Concierge
             </h1>
             <p className="mt-2 text-[14px] text-neutral-500">
-              Enter your workspace access key to continue.
+              Your Tonder-native payment concierge.
             </p>
           </div>
 
@@ -122,23 +124,37 @@ export default function LoginPage() {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label htmlFor="password" className="sr-only">
+              <label htmlFor="business_id" className="sr-only">
+                Business ID
+              </label>
+              <input
+                id="business_id"
+                type="number"
+                inputMode="numeric"
+                value={businessId}
+                onChange={(e) => setBusinessId(e.target.value)}
+                placeholder="Business ID"
+                autoFocus
+                className="w-full h-11 border border-neutral-200 rounded-lg px-3.5 text-[14px] bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/15 transition-colors"
+              />
+            </div>
+            <div>
+              <label htmlFor="access_key" className="sr-only">
                 Access key
               </label>
               <input
-                id="password"
+                id="access_key"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Access key (required)"
-                autoFocus
+                value={accessKey}
+                onChange={(e) => setAccessKey(e.target.value)}
+                placeholder="Access key"
                 className="w-full h-11 border border-neutral-200 rounded-lg px-3.5 text-[14px] bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/15 transition-colors"
               />
             </div>
 
             <button
               type="submit"
-              disabled={loading || !password}
+              disabled={loading || !businessId || !accessKey}
               className="w-full h-11 bg-violet-600 text-white rounded-lg text-[14px] font-medium hover:bg-violet-700 active:bg-violet-700 disabled:bg-violet-300 disabled:cursor-not-allowed transition-colors shadow-sm shadow-violet-600/15"
             >
               {loading ? (

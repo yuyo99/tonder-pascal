@@ -9,7 +9,7 @@ export interface PartnerBotConfig {
 
 export interface MerchantMapping {
   channelId: string;
-  platform: "slack" | "telegram" | "whatsapp";
+  platform: "slack" | "telegram" | "whatsapp" | "web";
   /** Primary business ID (first in the list) */
   businessId: number;
   businessIdStr: string;
@@ -28,6 +28,6 @@ export interface MerchantContext {
   businessIds: number[];
   businessIdStrs: string[];
   businessName: string;
-  platform: "slack" | "telegram" | "whatsapp";
+  platform: "slack" | "telegram" | "whatsapp" | "web";
   channelId: string;
 }

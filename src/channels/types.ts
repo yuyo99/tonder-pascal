@@ -1,6 +1,6 @@
 export interface IncomingMessage {
   channelId: string;
-  platform: "slack" | "telegram" | "whatsapp";
+  platform: "slack" | "telegram" | "whatsapp" | "web";
   userId: string;
   userName: string;
   text: string;
@@ -39,7 +39,7 @@ export interface MessageResponse {
 }
 
 export interface ChannelAdapter {
-  platform: "slack" | "telegram" | "whatsapp";
+  platform: "slack" | "telegram" | "whatsapp" | "web";
   start(): Promise<void>;
   stop(): Promise<void>;
   sendMessage(msg: OutgoingMessage): Promise<string>;

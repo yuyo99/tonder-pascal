@@ -1,19 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyPassword, generateToken, COOKIE_NAME, SESSION_MAX_AGE } from "@/lib/auth";
+import { verifyAccessKey, mintToken, COOKIE_NAME, SESSION_MAX_AGE } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    const { password } = await req.json();
-    if (!password) {
-      return NextResponse.json({ error: "Password required" }, { status: 400 });
+    const body = await req.json();
+    const accessKey: string | undefined = body.access_key ?? body.password;
+    const businessIdRaw = body.business_id;
+
+    if (!accessKey) {
+      return NextResponse.json({ error: "Access key required" }, { status: 400 });
+    }
+    if (!verifyAccessKey(accessKey)) {
+      return NextResponse.json({ error: "Invalid access key" }, { status: 401 });
     }
 
-    if (!verifyPassword(password)) {
-      return NextResponse.json({ error: "Invalid password" }, { status: 401 });
+    const businessId = Number(businessIdRaw);
+    if (!Number.isFinite(businessId) || businessId <= 0) {
+      return NextResponse.json({ error: "Valid business_id required" }, { status: 400 });
     }
 
-    const token = generateToken();
-    const res = NextResponse.json({ ok: true });
+    const token = await mintToken(businessId);
+    const res = NextResponse.json({ ok: true, business_id: businessId });
     res.cookies.set(COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

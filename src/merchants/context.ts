@@ -40,7 +40,7 @@ async function ensureFreshCache(): Promise<void> {
  */
 export async function resolveMerchantContext(
   channelId: string,
-  platform: "slack" | "telegram" | "whatsapp"
+  platform: "slack" | "telegram" | "whatsapp" | "web"
 ): Promise<MerchantContext | null> {
   const key = `${platform}:${channelId}`;
   const index = getChannelIndex();
@@ -80,7 +80,7 @@ export async function resolveMerchantContext(
  */
 export function isPartnerBot(
   channelId: string,
-  platform: "slack" | "telegram" | "whatsapp",
+  platform: "slack" | "telegram" | "whatsapp" | "web",
   username: string
 ): boolean {
   const key = `${platform}:${channelId}`;
@@ -97,11 +97,42 @@ export function isPartnerBot(
  */
 export function hasPartnerBots(
   channelId: string,
-  platform: "slack" | "telegram" | "whatsapp"
+  platform: "slack" | "telegram" | "whatsapp" | "web"
 ): boolean {
   const key = `${platform}:${channelId}`;
   const mapping = getChannelIndex().get(key);
   return !!(mapping?.partnerBots && mapping.partnerBots.length > 0);
+}
+
+/**
+ * Build a MerchantContext for the web Concierge surface from a verified
+ * business_id (extracted from the merchant's signed session token).
+ *
+ * Unlike Slack/Telegram which key off (platform, channelId), the web
+ * surface keys directly off business_id — the Concierge belongs to one
+ * merchant. Multi-business merchants get a single primary id here;
+ * future versions can let the merchant pick from their available IDs.
+ *
+ * Throws if the business_id isn't known. Callers must catch and return
+ * 401/404 to the client.
+ */
+export async function buildWebMerchantContext(
+  businessId: number,
+): Promise<MerchantContext> {
+  await ensureFreshCache();
+  const name = businessNameCache.get(businessId);
+  if (!name) {
+    throw new Error(`Unknown business_id: ${businessId}`);
+  }
+  return {
+    businessId,
+    businessIdStr: String(businessId),
+    businessIds: [businessId],
+    businessIdStrs: [String(businessId)],
+    businessName: name,
+    platform: "web",
+    channelId: `web:${businessId}`,
+  };
 }
 
 /** Load merchant configs from Postgres and business names from MongoDB */

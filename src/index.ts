@@ -10,6 +10,7 @@ import { handleIncomingMessage } from "./core/orchestrator";
 import { initScheduler, stopScheduler } from "./scheduler";
 import { loadKnowledgeBase } from "./knowledge/loader";
 import { startHeartbeatWriter, stopHeartbeatWriter } from "./monitoring/heartbeat";
+import { startWebApi } from "./web-api";
 import { setAlertSlackClient } from "./monitoring/alert-router";
 import { setShortcutSlackClient } from "./core/ticket-shortcut";
 import { logger } from "./utils/logger";
@@ -55,6 +56,9 @@ async function main() {
   // 7. Start monitoring heartbeat
   startHeartbeatWriter();
 
+  // 8. Start internal web-api (Concierge dashboard talks to this)
+  const webApiServer = startWebApi();
+
   // Graceful shutdown — DELAYED registration to avoid Telegraf's SIGTERM kill.
   // Telegraf's bot.launch() registers its own SIGTERM/SIGINT handlers that
   // trigger process exit when polling fails (409 Conflict during deploy).
@@ -73,6 +77,7 @@ async function main() {
     stopScheduler();
     stopHeartbeatWriter();
     stopConfigPolling();
+    webApiServer.close();
     for (const adapter of adapters) {
       await adapter.stop();
     }

@@ -5,7 +5,7 @@ import { buildSystemPrompt, buildAmbientSupplement, buildPeopleContext } from ".
 import { getTeamDirectory } from "./tonder-team";
 import { toolDefinitions, executeTool, consumePendingAttachments } from "./tools";
 import { sanitizeToolOutput, auditResponse } from "./provider-mask";
-import { resolveMerchantContext } from "../merchants/context";
+import { resolveMerchantContext, buildWebMerchantContext } from "../merchants/context";
 import { getChannelIndex } from "../merchants/config-store";
 import { IncomingMessage } from "../channels/types";
 import { MerchantContext } from "../merchants/types";
@@ -61,7 +61,24 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<impor
   const startTime = Date.now();
 
   // Step 1: Resolve merchant context
-  const merchantCtx = await resolveMerchantContext(msg.channelId, msg.platform);
+  // Web platform: the auth layer already verified business_id and
+  // baked it into channelId as "web:${business_id}". We trust it and
+  // skip the channel-mapping lookup (web Concierge has no channels).
+  let merchantCtx: MerchantContext | null;
+  if (msg.platform === "web") {
+    const businessId = Number(msg.channelId.replace(/^web:/, ""));
+    if (!Number.isFinite(businessId)) {
+      return { text: `⚠️ Invalid web business_id: ${msg.channelId}` };
+    }
+    try {
+      merchantCtx = await buildWebMerchantContext(businessId);
+    } catch (err) {
+      logger.warn({ businessId, err }, "Web merchant context build failed");
+      return { text: `⚠️ Unknown business_id: ${businessId}` };
+    }
+  } else {
+    merchantCtx = await resolveMerchantContext(msg.channelId, msg.platform);
+  }
   if (!merchantCtx) {
     const index = getChannelIndex();
     const knownKeys = Array.from(index.keys()).slice(0, 30);
